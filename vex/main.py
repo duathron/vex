@@ -57,14 +57,8 @@ app = typer.Typer(
 @app.callback()
 def _app_callback(
     ctx: typer.Context,
-    quiet: Annotated[
-        bool,
-        typer.Option("--quiet", "-q", help="Suppress the ASCII banner."),
-    ] = False,
 ) -> None:
     """VirusTotal IOC Enrichment Tool — query VT API v3 for malware analysis."""
-    cfg = load_config()
-    print_banner(quiet=quiet or cfg.output.quiet)
     if ctx.invoked_subcommand is None:
         raise typer.Exit()
 
@@ -126,6 +120,10 @@ _TimelineOpt = Annotated[
 _ApiKeyOpt = Annotated[
     Optional[str],
     typer.Option("--api-key", "-k", help="VirusTotal API key (overrides VT_API_KEY env var and config.yaml)."),
+]
+_QuietOpt = Annotated[
+    bool,
+    typer.Option("--quiet", "-q", help="Suppress the ASCII banner."),
 ]
 
 
@@ -243,7 +241,7 @@ def _output_investigate(result: InvestigateResult, fmt: OutputFormat) -> None:
 def cmd_triage(
     ioc: _IOCArg = None,
     file: _FileOpt = None,
-    output: _OutputOpt = OutputFormat.json,
+    output: _OutputOpt = OutputFormat.console,
     config_path: _ConfigOpt = None,
     no_cache: _NoCacheOpt = False,
     csv: _CsvOpt = False,
@@ -252,10 +250,12 @@ def cmd_triage(
     summary: _SummaryOpt = False,
     stix: _StixOpt = False,
     api_key: _ApiKeyOpt = None,
+    quiet: _QuietOpt = False,
 ) -> None:
     config = load_config(config_path)
     if api_key:
         config.api.key = api_key
+    print_banner(quiet=quiet or config.output.quiet)
     iocs = _collect_iocs(ioc, file)
 
     try:
@@ -330,7 +330,7 @@ def cmd_triage(
 def cmd_investigate(
     ioc: _IOCArg = None,
     file: _FileOpt = None,
-    output: _OutputOpt = OutputFormat.json,
+    output: _OutputOpt = OutputFormat.console,
     config_path: _ConfigOpt = None,
     no_cache: _NoCacheOpt = False,
     do_defang: _DefangOpt = False,
@@ -339,10 +339,12 @@ def cmd_investigate(
     stix: _StixOpt = False,
     timeline: _TimelineOpt = False,
     api_key: _ApiKeyOpt = None,
+    quiet: _QuietOpt = False,
 ) -> None:
     config = load_config(config_path)
     if api_key:
         config.api.key = api_key
+    print_banner(quiet=quiet or config.output.quiet)
     iocs = _collect_iocs(ioc, file)
 
     try:

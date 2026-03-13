@@ -57,6 +57,19 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+### Upgrade
+
+```bash
+# If installed from git clone (editable)
+cd vex
+git pull
+pip install -r requirements.txt
+pip install -e .
+
+# If installed from PyPI (pip install vex)
+pip install --upgrade vex
+```
+
 ### API Key
 
 Set your API key using **one** of these methods (priority order):
@@ -125,18 +138,13 @@ echo $?  # 0=clean, 1=suspicious, 2=malicious
 | `vex note <ioc>` | Manage IOC notes in local knowledge base |
 | `vex watchlist <name>` | Manage IOC watchlists |
 
-### Global Options
-
-| Flag | Description |
-|------|-------------|
-| `-q` / `--quiet` | Suppress the ASCII banner |
-
 ### Triage / Investigate Options
 
 | Flag | Description |
 |------|-------------|
 | `-k` / `--api-key` | VirusTotal API key (overrides env var & config) |
-| `-o` / `--output` | Output format: `json` \| `rich` \| `console` |
+| `-q` / `--quiet` | Suppress the ASCII banner |
+| `-o` / `--output` | Output format: `json` \| `rich` \| `console` (default: `console`) |
 | `-f` / `--file` | File with one IOC per line |
 | `-c` / `--config` | Custom config.yaml path |
 | `--no-cache` | Bypass cache, force fresh lookup |
