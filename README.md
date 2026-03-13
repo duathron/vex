@@ -59,16 +59,20 @@ pip install -e .
 
 ### API Key
 
-Set your API key using **one** of these methods:
+Set your API key using **one** of these methods (priority order):
 
 ```bash
-# Option 1: Environment variable (recommended)
+# Option 1: Per-command flag (highest priority)
+vex triage 8.8.8.8 --api-key YOUR_KEY
+vex investigate evil.com -k YOUR_KEY
+
+# Option 2: Environment variable
 export VT_API_KEY="your-virustotal-api-key"
 
-# Option 2: .env file in project root
-echo 'VT_API_KEY=your-key' > .env
+# Option 3: Save permanently to ~/.vex/config.yaml
+vex config --set-api-key YOUR_KEY
 
-# Option 3: config.yaml
+# Option 4: Manual config.yaml or .env
 # api:
 #   key: "your-key"
 ```
@@ -114,6 +118,7 @@ echo $?  # 0=clean, 1=suspicious, 2=malicious
 |---------|-------------|
 | `vex triage <ioc>` | Fast SOC triage (1 API call) |
 | `vex investigate <ioc>` | Deep DFIR investigation (multiple calls) |
+| `vex config` | Manage configuration (save API key, etc.) |
 | `vex cache-clear` | Clear the SQLite result cache |
 | `vex version` | Show version |
 | `vex tag <ioc>` | Manage IOC tags in local knowledge base |
@@ -130,6 +135,7 @@ echo $?  # 0=clean, 1=suspicious, 2=malicious
 
 | Flag | Description |
 |------|-------------|
+| `-k` / `--api-key` | VirusTotal API key (overrides env var & config) |
 | `-o` / `--output` | Output format: `json` \| `rich` \| `console` |
 | `-f` / `--file` | File with one IOC per line |
 | `-c` / `--config` | Custom config.yaml path |
@@ -140,6 +146,20 @@ echo $?  # 0=clean, 1=suspicious, 2=malicious
 | `--alert <LEVEL>` | Only show results >= verdict level |
 | `--summary` | Print verdict summary to stderr |
 | `--timeline` | Show chronological timeline (investigate only) |
+
+### Configuration Command
+
+Manage vex configuration:
+
+```bash
+# Save API key permanently
+vex config --set-api-key YOUR_KEY
+
+# Show usage
+vex config
+```
+
+Saved config is stored at `~/.vex/config.yaml` with restricted permissions (0o600).
 
 ### IOC Types
 

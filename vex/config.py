@@ -9,6 +9,7 @@ import yaml
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
+_USER_CONFIG_PATH = Path.home() / ".vex" / "config.yaml"
 _DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
 
 
@@ -63,8 +64,9 @@ class Config(BaseModel):
         if not key:
             raise ValueError(
                 "No VirusTotal API key found.\n"
-                "  Option 1: Set environment variable VT_API_KEY\n"
-                "  Option 2: Add 'key: YOUR_KEY' under 'api:' in config.yaml"
+                "  Option 1: Use --api-key flag (vex triage IOC --api-key YOUR_KEY)\n"
+                "  Option 2: Set environment variable VT_API_KEY\n"
+                "  Option 3: Run 'vex config set-api-key YOUR_KEY' to save permanently"
             )
         return key
 
@@ -87,9 +89,26 @@ class Config(BaseModel):
 
 def load_config(config_path: Optional[Path] = None) -> Config:
     load_dotenv()
-    path = config_path or _DEFAULT_CONFIG_PATH
-    if path.exists():
-        with open(path) as f:
-            data = yaml.safe_load(f) or {}
-        return Config.model_validate(data)
-    return Config()
+    # Priority: explicit path > user config > default config
+    if config_path:
+        path = config_path
+    elif _USER_CONFIG_PATH.exists():
+        path = _USER_CONFIG_PATH
+    elif _DEFAULT_CONFIG_PATH.exists():
+        path = _DEFAULT_CONFIG_PATH
+    else:
+        return Config()
+
+    with open(path) as f:
+        data = yaml.safe_load(f) or {}
+    return Config.model_validate(data)
+
+
+def save_config(config: Config) -> Path:
+    """Save config to user's ~/.vex/config.yaml."""
+    _ensure_dir(_USER_CONFIG_PATH.parent)
+    data = config.model_dump(exclude_defaults=False)
+    with open(_USER_CONFIG_PATH, "w") as f:
+        yaml.safe_dump(data, f, default_flow_style=False)
+    _USER_CONFIG_PATH.chmod(stat.S_IRUSR | stat.S_IWUSR)  # 0o600
+    return _USER_CONFIG_PATH

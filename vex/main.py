@@ -18,7 +18,7 @@ from . import __version__
 from .banner import print_banner
 from .cache import Cache
 from .client import VTClient
-from .config import load_config
+from .config import load_config, save_config
 from .defang import defang as defang_ioc, refang as refang_ioc
 from .ioc_detector import IOCType, detect, is_hash
 from .mitre.mapper import map_to_attack
@@ -122,6 +122,10 @@ _StixOpt = Annotated[
 _TimelineOpt = Annotated[
     bool,
     typer.Option("--timeline", help="Show chronological event timeline (investigate only)."),
+]
+_ApiKeyOpt = Annotated[
+    Optional[str],
+    typer.Option("--api-key", "-k", help="VirusTotal API key (overrides VT_API_KEY env var and config.yaml)."),
 ]
 
 
@@ -247,8 +251,11 @@ def cmd_triage(
     alert: _AlertOpt = None,
     summary: _SummaryOpt = False,
     stix: _StixOpt = False,
+    api_key: _ApiKeyOpt = None,
 ) -> None:
     config = load_config(config_path)
+    if api_key:
+        config.api.key = api_key
     iocs = _collect_iocs(ioc, file)
 
     try:
@@ -331,8 +338,11 @@ def cmd_investigate(
     summary: _SummaryOpt = False,
     stix: _StixOpt = False,
     timeline: _TimelineOpt = False,
+    api_key: _ApiKeyOpt = None,
 ) -> None:
     config = load_config(config_path)
+    if api_key:
+        config.api.key = api_key
     iocs = _collect_iocs(ioc, file)
 
     try:
@@ -428,6 +438,23 @@ def cmd_cache_clear(config_path: _ConfigOpt = None) -> None:
 @app.command(name="version", help="Show version.")
 def cmd_version() -> None:
     console.print(f"vex [bold]{__version__}[/bold]")
+
+
+@app.command(name="config", help="[bold blue]Manage configuration[/bold blue] - save API key, settings.")
+def cmd_config(
+    set_api_key: Annotated[
+        Optional[str],
+        typer.Option("--set-api-key", help="Save VirusTotal API key to ~/.vex/config.yaml")
+    ] = None,
+) -> None:
+    config = load_config()
+    if set_api_key:
+        config.api.key = set_api_key
+        path = save_config(config)
+        console.print(f"[green]✓[/green] API key saved to [bold]{path}[/bold]")
+    else:
+        console.print("[cyan]vex config[/cyan] — Manage configuration")
+        console.print("  [bold]--set-api-key KEY[/bold]  Save VirusTotal API key permanently")
 
 
 # ---------------------------------------------------------------------------

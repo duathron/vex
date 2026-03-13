@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "vex"
@@ -10,7 +10,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [
-    { name = "Christian Huhn", email = "github.com/duathron" },
+    { name = "Christian Huhn", email = "duathron@gmail.com" },
 ]
 keywords = ["virustotal", "ioc", "threat-intelligence", "dfir", "soc", "mitre-attack", "stix"]
 classifiers = [
