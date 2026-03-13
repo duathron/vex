@@ -4,13 +4,13 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "vex"
-version = "2.0.0"
+version = "1.0.0"
 description = "VirusTotal IOC Enrichment Tool for SOC/DFIR workflows"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [
-    { name = "Christian Huhn" },
+    { name = "Christian Huhn", email = "github.com/duathron" },
 ]
 keywords = ["virustotal", "ioc", "threat-intelligence", "dfir", "soc", "mitre-attack", "stix"]
 classifiers = [
@@ -36,7 +36,9 @@ dependencies = [
 vex = "vex.main:main"
 
 [project.urls]
-Homepage = "https://github.com/christianhuhn/vex"
+Homepage = "https://github.com/duathron/vex"
+Repository = "https://github.com/duathron/vex"
+"Bug Tracker" = "https://github.com/duathron/vex/issues"
 
 [tool.setuptools.packages.find]
 include = ["vex*"]

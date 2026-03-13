@@ -47,7 +47,7 @@
 ### Installation
 
 ```bash
-git clone https://github.com/your-org/vex.git
+git clone https://github.com/duathron/vex.git
 cd vex
 
 python -m venv .venv
@@ -230,7 +230,7 @@ output:
 
 ```
 vex/
-├── __init__.py          # Package version (2.0.0)
+├── __init__.py          # Package version (1.0.0)
 ├── main.py              # Typer CLI app with all subcommands
 ├── banner.py            # ASCII art banner (ffuf-style)
 ├── client.py            # Sync VT API v3 client + rate limiter
@@ -268,4 +268,4 @@ vex/
 
 ---
 
-*Built by Christian Huhn*
+*Built by [Christian Huhn](https://github.com/duathron) — [github.com/duathron/vex](https://github.com/duathron/vex)*
