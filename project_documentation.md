@@ -427,6 +427,55 @@ All 12 tests passed for the v1.0.1 release (SHIP verdict).
 
 ---
 
+## v1.1.0 Post-Release — PyPI Publication & CI/CD
+
+**Date:** 2026-03-16
+
+### PyPI Publication as "vex-ioc"
+
+The package name `vex` was already taken on PyPI. The package was published under the name **`vex-ioc`** — the PyPI name, the CLI command (`vex`), and the Python module (`vex`) are three independent identifiers. The `[project.scripts]` entry in `pyproject.toml` defines the command name independently:
+
+```toml
+name = "vex-ioc"          # PyPI: pip install vex-ioc
+
+[project.scripts]
+vex = "vex.main:main"     # CLI: vex triage ...
+```
+
+`pyproject.toml` was updated accordingly. `README.md` was updated with `pip install vex-ioc`.
+
+### Version Check: GitHub API → PyPI JSON API
+
+After publication, `version_check.py` was updated to use the PyPI JSON API as the canonical version source (more reliable for published packages than the GitHub releases API):
+
+```python
+_PYPI_API = "https://pypi.org/pypi/vex-ioc/json"
+```
+
+The caching logic and `~/.vex/version_check.json` state file remain unchanged.
+
+### GitHub Actions: Automatic PyPI Publishing
+
+`.github/workflows/publish.yml` was added. It triggers on any tag matching `v*.*.*` and runs the full build + publish pipeline:
+
+1. `actions/checkout@v4` — checkout source
+2. `actions/setup-python@v5` (Python 3.11) — set up environment
+3. `pip install build twine` — install build tools
+4. `python -m build` — build wheel + sdist
+5. `twine check dist/*` — validate package
+6. `twine upload dist/*` — publish to PyPI (uses `PYPI_API_TOKEN` GitHub Secret)
+
+Future releases are triggered with:
+
+```bash
+git tag v1.2.0 && git push origin main --tags
+```
+
+Decision: no OIDC trusted publisher setup for simplicity; API token via GitHub Secret is sufficient for a single-maintainer project.
+
+---
+
 *Documentation created on 2026-03-13 based on the complete source code and end-user test session.*
 *Updated 2026-03-16 for v1.0.1 (UX improvements, QM process, config fix).*
 *Updated 2026-03-16 for v1.1.0 (known limitations resolved, MeetUp VEX-2026-003).*
+*Updated 2026-03-16: PyPI publication as vex-ioc, version check switched to PyPI JSON API, GitHub Actions CI/CD workflow added.*

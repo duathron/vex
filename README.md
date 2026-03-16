@@ -304,4 +304,18 @@ vex/
 
 ---
 
+## Changelog
+
+### 2026-03-16
+- **v1.1.0** — Resolved all known limitations: batch processing activated, premium endpoint graceful degradation, entry-point plugin discovery, IPv6 detection upgraded to RFC 4291, passive version update check
+- **PyPI** — Package published as [`vex-ioc`](https://pypi.org/project/vex-ioc/) (`pip install vex-ioc`); CLI command remains `vex`
+- **CI/CD** — GitHub Actions workflow added: automatic PyPI publish on `v*.*.*` tag push
+- **License** — LICENSE.md added (MIT)
+- **v1.0.1** — UX improvements: color-coded console verdicts, batch failure count, alert filter feedback, config.yaml.example schema fix, consistent list truncation
+
+### 2026-03-13
+- **v1.0.0** — Initial release: triage & investigate, MITRE ATT&CK mapping, STIX 2.1, knowledge base, timeline, plugin architecture, rate limiting, SQLite cache
+
+---
+
 *Built by [Christian Huhn](https://github.com/duathron) — [github.com/duathron/vex](https://github.com/duathron/vex)*
