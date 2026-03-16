@@ -86,7 +86,7 @@ def investigate(ioc: str, ioc_type: str, client: VTClient, config: Config, from_
     data = raw.get("data", {})
     attrs = data.get("attributes", {})
 
-    related_files_raw = client.get_url_related_files(ioc).get("data", [])
+    related_files_raw = client.get_url_related_files(ioc).get("data", []) if config.is_premium else []
 
     return InvestigateResult(
         triage=triage_result,

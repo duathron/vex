@@ -46,6 +46,15 @@ class OutputConfig(BaseModel):
     quiet: bool = False
 
 
+class PluginConfig(BaseModel):
+    load_local: bool = False  # opt-in ~/.vex/plugins/ scanning
+
+
+class UpdateCheckConfig(BaseModel):
+    enabled: bool = True
+    check_interval_hours: int = 24
+
+
 def _ensure_dir(path: Path) -> None:
     """Create directory with restrictive permissions (owner-only)."""
     path.mkdir(parents=True, exist_ok=True)
@@ -57,6 +66,8 @@ class Config(BaseModel):
     thresholds: ThresholdConfig = ThresholdConfig()
     cache: CacheConfig = CacheConfig()
     output: OutputConfig = OutputConfig()
+    plugins: PluginConfig = PluginConfig()
+    update_check: UpdateCheckConfig = UpdateCheckConfig()
 
     @property
     def api_key(self) -> str:

@@ -75,8 +75,8 @@ def investigate(ioc: str, ioc_type: str, client: VTClient, config: Config, from_
 
     # Relationship calls
     resolutions_raw = client.get_ip_resolutions(ioc, limit=20).get("data", [])
-    comm_files_raw = client.get_ip_communicating_files(ioc).get("data", [])
-    dl_files_raw = client.get_ip_downloaded_files(ioc).get("data", [])
+    comm_files_raw = client.get_ip_communicating_files(ioc).get("data", []) if config.is_premium else []
+    dl_files_raw = client.get_ip_downloaded_files(ioc).get("data", []) if config.is_premium else []
 
     passive_dns = []
     for item in resolutions_raw:

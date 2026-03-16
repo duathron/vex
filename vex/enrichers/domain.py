@@ -77,8 +77,8 @@ def investigate(ioc: str, ioc_type: str, client: VTClient, config: Config, from_
 
     # Relationship calls
     resolutions_raw = client.get_domain_resolutions(ioc, limit=20).get("data", [])
-    comm_files_raw = client.get_domain_communicating_files(ioc).get("data", [])
-    whois_raw = client.get_domain_whois(ioc).get("data", [])
+    comm_files_raw = client.get_domain_communicating_files(ioc).get("data", []) if config.is_premium else []
+    whois_raw = client.get_domain_whois(ioc).get("data", []) if config.is_premium else []
 
     # Passive DNS (domain resolved to which IPs)
     passive_dns = []

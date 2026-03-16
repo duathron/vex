@@ -1,15 +1,14 @@
 """Parallel batch processing for multiple IOCs.
 
-Uses asyncio + the sync VTClient (via thread pool) for concurrent lookups
-while respecting rate limits.  Falls back to sequential processing if
-async is not available.
+Uses ThreadPoolExecutor for concurrent lookups while respecting rate limits.
+Falls back to sequential processing if concurrency is not needed.
 """
 
 from __future__ import annotations
 
-import asyncio
 import concurrent.futures
-from typing import Callable, TypeVar
+import logging
+from typing import TypeVar
 
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
@@ -17,9 +16,12 @@ from .cache import Cache
 from .client import VTClient
 from .config import Config
 from .ioc_detector import IOCType, detect, is_hash
+from .mitre.mapper import map_to_attack
 from .models import InvestigateResult, TriageResult
 
 T = TypeVar("T", TriageResult, InvestigateResult)
+
+logger = logging.getLogger("vex.batch")
 
 
 def _resolve_enricher(ioc_type: IOCType):
@@ -49,11 +51,11 @@ def _process_single_triage(
     no_cache: bool,
 ) -> TriageResult | None:
     """Process one IOC for triage (sync, used by thread pool)."""
-    ioc_type = detect(raw_ioc)
+    ioc_type, normalised_ioc = detect(raw_ioc)
     if ioc_type == IOCType.UNKNOWN:
         return None
 
-    cache_key = f"triage:{ioc_type.value}:{raw_ioc}"
+    cache_key = f"triage:{ioc_type.value}:{normalised_ioc}"
     cached = cache.get(cache_key)
 
     if cached and not no_cache:
@@ -66,10 +68,11 @@ def _process_single_triage(
         return None
 
     try:
-        result = enricher.triage(raw_ioc, ioc_type.value, client, config)
+        result = enricher.triage(normalised_ioc, ioc_type.value, client, config)
         cache.set(cache_key, result.model_dump(mode="json"))
         return result
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to process %s: %s", raw_ioc, e)
         return None
 
 
@@ -81,11 +84,11 @@ def _process_single_investigate(
     no_cache: bool,
 ) -> InvestigateResult | None:
     """Process one IOC for investigation (sync, used by thread pool)."""
-    ioc_type = detect(raw_ioc)
+    ioc_type, normalised_ioc = detect(raw_ioc)
     if ioc_type == IOCType.UNKNOWN:
         return None
 
-    cache_key = f"investigate:{ioc_type.value}:{raw_ioc}"
+    cache_key = f"investigate:{ioc_type.value}:{normalised_ioc}"
     cached = cache.get(cache_key)
 
     if cached and not no_cache:
@@ -98,10 +101,12 @@ def _process_single_investigate(
         return None
 
     try:
-        result = enricher.investigate(raw_ioc, ioc_type.value, client, config)
+        result = enricher.investigate(normalised_ioc, ioc_type.value, client, config)
+        result.attack_mappings = map_to_attack(result)
         cache.set(cache_key, result.model_dump(mode="json"))
         return result
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to process %s: %s", raw_ioc, e)
         return None
 
 
@@ -111,8 +116,11 @@ def batch_triage(
     no_cache: bool = False,
     max_workers: int = 4,
     show_progress: bool = True,
-) -> list[TriageResult]:
-    """Run triage on multiple IOCs with optional parallelism + progress bar."""
+) -> tuple[list[TriageResult], int]:
+    """Run triage on multiple IOCs with optional parallelism + progress bar.
+
+    Returns (results, failed_count).
+    """
     results: list[TriageResult] = []
 
     with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
@@ -142,7 +150,7 @@ def batch_triage(
                     if result is not None:
                         results.append(result)
 
-    return results
+    return results, len(iocs) - len(results)
 
 
 def batch_investigate(
@@ -151,8 +159,11 @@ def batch_investigate(
     no_cache: bool = False,
     max_workers: int = 4,
     show_progress: bool = True,
-) -> list[InvestigateResult]:
-    """Run investigation on multiple IOCs with optional parallelism + progress bar."""
+) -> tuple[list[InvestigateResult], int]:
+    """Run investigation on multiple IOCs with optional parallelism + progress bar.
+
+    Returns (results, failed_count).
+    """
     results: list[InvestigateResult] = []
 
     with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
@@ -182,4 +193,4 @@ def batch_investigate(
                     if result is not None:
                         results.append(result)
 
-    return results
+    return results, len(iocs) - len(results)

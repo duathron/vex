@@ -1,5 +1,6 @@
 """Auto-detection of IOC type from raw string."""
 
+import ipaddress
 import re
 from enum import Enum
 
@@ -23,19 +24,6 @@ _SHA256_RE = re.compile(r"^[a-fA-F0-9]{64}$")
 
 _IPV4_RE = re.compile(
     r"^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$"
-)
-_IPV6_RE = re.compile(
-    r"^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$"
-    r"|^::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}$"
-    r"|^[0-9a-fA-F]{1,4}::(?:[0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}$"
-    r"|^(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}$"
-    r"|^(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}$"
-    r"|^(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}$"
-    r"|^(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}$"
-    r"|^(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}$"
-    r"|^[0-9a-fA-F]{1,4}:(?::[0-9a-fA-F]{1,4}){1,6}$"
-    r"|^::(?:[0-9a-fA-F]{1,4}:){0,7}[0-9a-fA-F]{0,4}$"
-    r"|^::1$|^::$"
 )
 _DOMAIN_RE = re.compile(
     r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)"
@@ -64,8 +52,14 @@ def detect(ioc: str) -> tuple[IOCType, str]:
         return IOCType.SHA256, value
     if _IPV4_RE.match(value):
         return IOCType.IPV4, value
-    if _IPV6_RE.match(value):
-        return IOCType.IPV6, value
+    # IPv6: use stdlib ipaddress for full RFC 4291 compliance
+    ipv6_candidate = value.split("%")[0]  # strip zone ID (e.g. fe80::1%eth0)
+    try:
+        addr = ipaddress.ip_address(ipv6_candidate)
+        if isinstance(addr, ipaddress.IPv6Address):
+            return IOCType.IPV6, str(addr)  # canonical compressed form
+    except ValueError:
+        pass
     if _URL_RE.match(value):
         return IOCType.URL, value
     if _DOMAIN_RE.match(value):

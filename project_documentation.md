@@ -1,7 +1,7 @@
 # vex — Project History and Documentation
 
 **Author:** Christian Huhn (GitHub: [duathron](https://github.com/duathron))
-**Version:** 1.0.1
+**Version:** 1.1.0
 **Date:** 2026-03-13
 **Repository:** https://github.com/duathron/vex
 
@@ -391,5 +391,42 @@ All 12 tests passed for the v1.0.1 release (SHIP verdict).
 
 ---
 
+## v1.1.0 — Known Limitations Resolved
+
+**MeetUp:** VEX-2026-003 (Architect, SOC Analyst, DFIR, Code Debug, Code Security, UX Design, QM — all decisions unanimous)
+
+### Change 1: Batch Processing Activated
+
+**Problem:** `batch.py` contained fully implemented `batch_triage()` and `batch_investigate()` functions with ThreadPoolExecutor and Rich progress bars, but neither `cmd_triage()` nor `cmd_investigate()` in `main.py` used them. Both commands ran IOCs sequentially in inline loops. Additionally, `batch.py` had three bugs: (1) `detect()` returns a tuple but batch.py assigned it to a single variable, (2) `_process_single_investigate()` did not call `map_to_attack()`, (3) the SQLite `Cache` was not thread-safe for concurrent access.
+
+**Fix:** Fixed all three bugs in `batch.py` (tuple unpacking, ATT&CK mapping, error logging). Added `check_same_thread=False` and WAL journal mode to `cache.py`. Wired `batch_triage()` / `batch_investigate()` into `main.py` for multi-IOC input (`len(iocs) > 1`). Single-IOC lookups retain the inline path. Both batch functions now return `(results, failed_count)` tuples.
+
+### Change 2: Premium Endpoint Graceful Degradation
+
+**Problem:** Only `hash.py` gated sandbox behavior requests behind `config.is_premium`. The IP, domain, and URL enrichers called premium VT endpoints (communicating_files, downloaded_files, historical_whois) without checking the tier. Free-tier users would hit HTTP 403 errors with no graceful handling.
+
+**Fix:** Two-pronged approach: (1) `client.py _get()` now accepts a `premium_optional` parameter — when True, HTTP 403 responses return an empty dict with a logged info message instead of raising. Applied to all 6 premium relationship methods as defense-in-depth. (2) The enrichers (`ip.py`, `domain.py`, `url.py`) now gate premium calls behind `config.is_premium`, matching the existing pattern from `hash.py`. Free-tier resolutions (passive DNS) remain ungated.
+
+### Change 3: Entry-Point Plugin Discovery
+
+**Problem:** The plugin loader only registered the built-in VirusTotal plugin. The entry_points discovery code was present but commented out. Third-party plugins had no supported installation path.
+
+**Fix:** Implemented `importlib.metadata.entry_points(group="vex.plugins")` discovery in `loader.py` with Python 3.11 compatibility fallback. Each entry point is loaded inside a try/except with logging — a broken third-party plugin logs a warning but never crashes the CLI. Added `[project.entry-points."vex.plugins"]` section to `pyproject.toml` as documentation for plugin authors. Added `PluginConfig(load_local)` to config for future `~/.vex/plugins/` directory scanning (opt-in). `vex version` now shows loaded plugins.
+
+### Change 4: IPv6 Detection Upgraded to RFC 4291
+
+**Problem:** The IPv6 regex pattern (13 alternations) could not match IPv4-mapped addresses (`::ffff:192.0.2.1`), IPv4-compatible addresses (`::192.0.2.1`), or zone-scoped link-local addresses (`fe80::1%eth0`).
+
+**Fix:** Replaced the regex with Python's `ipaddress.ip_address()` stdlib module, which natively handles all RFC 4291 forms. Zone ID suffixes (`%eth0`) are stripped before validation and not included in the normalised IOC sent to VT. The returned value uses canonical compressed form via `str(addr)`. The IPv4 regex check runs first, preventing IPv4 addresses from being misclassified as IPv6.
+
+### Change 5: Passive Version Update Check
+
+**Problem:** Users had no way of knowing when a newer vex release was available on GitHub. Stale security tooling can miss detection improvements.
+
+**Fix:** New `vex/version_check.py` module queries the GitHub releases API (`/repos/duathron/vex/releases/latest`) with a 3-second timeout. Results are cached in `~/.vex/version_check.json` with configurable interval (default: 24 hours). The notice is displayed after the banner on stderr (yellow bold). Pre-releases and drafts are skipped. All errors fail silently — the version check never breaks the tool. Configurable via `update_check.enabled` and `update_check.check_interval_hours` in config.yaml. No auto-update command was implemented (MeetUp decision: supply chain risk, SOC change management concerns).
+
+---
+
 *Documentation created on 2026-03-13 based on the complete source code and end-user test session.*
 *Updated 2026-03-16 for v1.0.1 (UX improvements, QM process, config fix).*
+*Updated 2026-03-16 for v1.1.0 (known limitations resolved, MeetUp VEX-2026-003).*

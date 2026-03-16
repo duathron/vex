@@ -1,6 +1,7 @@
 """VirusTotal API v3 client with rate limiting and retry logic."""
 
 import base64
+import logging
 import threading
 import time
 from typing import Any, Optional
@@ -40,10 +41,13 @@ class VTClient:
             verify=True,
         )
 
-    def _get(self, path: str, params: Optional[dict] = None) -> dict[str, Any]:
+    def _get(self, path: str, params: Optional[dict] = None, *, premium_optional: bool = False) -> dict[str, Any]:
         self._limiter.wait()
         resp = self._client.get(path, params=params)
         if resp.status_code == 404:
+            return {}
+        if resp.status_code == 403 and premium_optional:
+            logging.getLogger("vex.client").info("Premium endpoint skipped (free tier): %s", path)
             return {}
         if resp.status_code == 429:
             time.sleep(60)
@@ -87,7 +91,7 @@ class VTClient:
 
     def get_file_behaviors(self, hash_value: str, limit: int = 1) -> dict[str, Any]:
         """Sandbox behavior reports (premium tier)."""
-        return self._get(f"/files/{hash_value}/behaviours", params={"limit": limit})
+        return self._get(f"/files/{hash_value}/behaviours", params={"limit": limit}, premium_optional=True)
 
     def get_file_contacted_ips(self, hash_value: str, limit: int = 10) -> dict[str, Any]:
         return self._get(f"/files/{hash_value}/contacted_ips", params={"limit": limit})
@@ -103,24 +107,24 @@ class VTClient:
         return self._get(f"/ip_addresses/{ip}/resolutions", params={"limit": limit})
 
     def get_ip_communicating_files(self, ip: str, limit: int = 10) -> dict[str, Any]:
-        return self._get(f"/ip_addresses/{ip}/communicating_files", params={"limit": limit})
+        return self._get(f"/ip_addresses/{ip}/communicating_files", params={"limit": limit}, premium_optional=True)
 
     def get_ip_downloaded_files(self, ip: str, limit: int = 10) -> dict[str, Any]:
-        return self._get(f"/ip_addresses/{ip}/downloaded_files", params={"limit": limit})
+        return self._get(f"/ip_addresses/{ip}/downloaded_files", params={"limit": limit}, premium_optional=True)
 
     def get_domain_resolutions(self, domain: str, limit: int = 10) -> dict[str, Any]:
         """Passive DNS: which IPs this domain resolved to."""
         return self._get(f"/domains/{domain}/resolutions", params={"limit": limit})
 
     def get_domain_communicating_files(self, domain: str, limit: int = 10) -> dict[str, Any]:
-        return self._get(f"/domains/{domain}/communicating_files", params={"limit": limit})
+        return self._get(f"/domains/{domain}/communicating_files", params={"limit": limit}, premium_optional=True)
 
     def get_domain_whois(self, domain: str) -> dict[str, Any]:
-        return self._get(f"/domains/{domain}/historical_whois")
+        return self._get(f"/domains/{domain}/historical_whois", premium_optional=True)
 
     def get_url_related_files(self, url: str, limit: int = 10) -> dict[str, Any]:
         url_id = base64.urlsafe_b64encode(url.encode()).rstrip(b"=").decode()
-        return self._get(f"/urls/{url_id}/downloaded_files", params={"limit": limit})
+        return self._get(f"/urls/{url_id}/downloaded_files", params={"limit": limit}, premium_optional=True)
 
     def close(self) -> None:
         self._client.close()

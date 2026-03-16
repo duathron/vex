@@ -255,7 +255,11 @@ def cmd_triage(
     config = load_config(config_path)
     if api_key:
         config.api.key = api_key
-    print_banner(quiet=quiet or config.output.quiet)
+    print_banner(
+        quiet=quiet or config.output.quiet,
+        update_check_enabled=config.update_check.enabled,
+        check_interval_hours=config.update_check.check_interval_hours,
+    )
     iocs = _collect_iocs(ioc, file)
 
     try:
@@ -267,35 +271,40 @@ def cmd_triage(
     results: list[TriageResult] = []
     failed_count = 0
 
-    with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
-        with VTClient(config) as client:
-            for raw_ioc in iocs:
-                ioc_type, normalised_ioc = detect(raw_ioc)
+    if len(iocs) > 1:
+        from .batch import batch_triage
+        show_progress = output in (OutputFormat.rich, OutputFormat.console)
+        results, failed_count = batch_triage(iocs, config, no_cache=no_cache, show_progress=show_progress)
+    else:
+        with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
+            with VTClient(config) as client:
+                for raw_ioc in iocs:
+                    ioc_type, normalised_ioc = detect(raw_ioc)
 
-                if ioc_type == IOCType.UNKNOWN:
-                    err_console.print(f"[yellow]Warning:[/yellow] Cannot detect IOC type for '{raw_ioc}' - skipping.")
-                    failed_count += 1
-                    continue
-
-                cache_key = f"triage:{ioc_type.value}:{normalised_ioc}"
-                cached = cache.get(cache_key)
-
-                if cached:
-                    result = TriageResult.model_validate(cached)
-                    result.from_cache = True
-                else:
-                    enricher = _resolve_enricher(ioc_type)
-                    if output in (OutputFormat.rich, OutputFormat.console):
-                        err_console.print(f"[dim]→ Looking up {ioc_type.value}: {normalised_ioc}[/dim]")
-                    try:
-                        result = enricher.triage(normalised_ioc, ioc_type.value, client, config)
-                        cache.set(cache_key, result.model_dump(mode="json"))
-                    except Exception as e:
-                        err_console.print(f"[red]Error enriching {normalised_ioc}:[/red] {type(e).__name__}")
+                    if ioc_type == IOCType.UNKNOWN:
+                        err_console.print(f"[yellow]Warning:[/yellow] Cannot detect IOC type for '{raw_ioc}' - skipping.")
                         failed_count += 1
                         continue
 
-                results.append(result)
+                    cache_key = f"triage:{ioc_type.value}:{normalised_ioc}"
+                    cached = cache.get(cache_key)
+
+                    if cached:
+                        result = TriageResult.model_validate(cached)
+                        result.from_cache = True
+                    else:
+                        enricher = _resolve_enricher(ioc_type)
+                        if output in (OutputFormat.rich, OutputFormat.console):
+                            err_console.print(f"[dim]→ Looking up {ioc_type.value}: {normalised_ioc}[/dim]")
+                        try:
+                            result = enricher.triage(normalised_ioc, ioc_type.value, client, config)
+                            cache.set(cache_key, result.model_dump(mode="json"))
+                        except Exception as e:
+                            err_console.print(f"[red]Error enriching {normalised_ioc}:[/red] {type(e).__name__}")
+                            failed_count += 1
+                            continue
+
+                    results.append(result)
 
     if failed_count:
         err_console.print(f"[yellow]{len(results)} processed, {failed_count} failed (see errors above)[/yellow]")
@@ -353,7 +362,11 @@ def cmd_investigate(
     config = load_config(config_path)
     if api_key:
         config.api.key = api_key
-    print_banner(quiet=quiet or config.output.quiet)
+    print_banner(
+        quiet=quiet or config.output.quiet,
+        update_check_enabled=config.update_check.enabled,
+        check_interval_hours=config.update_check.check_interval_hours,
+    )
     iocs = _collect_iocs(ioc, file)
 
     try:
@@ -365,37 +378,42 @@ def cmd_investigate(
     results: list[InvestigateResult] = []
     failed_count = 0
 
-    with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
-        with VTClient(config) as client:
-            for raw_ioc in iocs:
-                ioc_type, normalised_ioc = detect(raw_ioc)
+    if len(iocs) > 1:
+        from .batch import batch_investigate
+        show_progress = output in (OutputFormat.rich, OutputFormat.console)
+        results, failed_count = batch_investigate(iocs, config, no_cache=no_cache, show_progress=show_progress)
+    else:
+        with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
+            with VTClient(config) as client:
+                for raw_ioc in iocs:
+                    ioc_type, normalised_ioc = detect(raw_ioc)
 
-                if ioc_type == IOCType.UNKNOWN:
-                    err_console.print(f"[yellow]Warning:[/yellow] Cannot detect IOC type for '{raw_ioc}' - skipping.")
-                    failed_count += 1
-                    continue
-
-                cache_key = f"investigate:{ioc_type.value}:{normalised_ioc}"
-                cached = cache.get(cache_key)
-
-                if cached:
-                    result = InvestigateResult.model_validate(cached)
-                    result.triage.from_cache = True
-                else:
-                    enricher = _resolve_enricher(ioc_type)
-                    if output in (OutputFormat.rich, OutputFormat.console):
-                        err_console.print(f"[dim]→ Investigating {ioc_type.value}: {normalised_ioc}[/dim]")
-                    try:
-                        result = enricher.investigate(normalised_ioc, ioc_type.value, client, config)
-                        # MITRE ATT&CK mapping
-                        result.attack_mappings = map_to_attack(result)
-                        cache.set(cache_key, result.model_dump(mode="json"))
-                    except Exception as e:
-                        err_console.print(f"[red]Error investigating {normalised_ioc}:[/red] {type(e).__name__}")
+                    if ioc_type == IOCType.UNKNOWN:
+                        err_console.print(f"[yellow]Warning:[/yellow] Cannot detect IOC type for '{raw_ioc}' - skipping.")
                         failed_count += 1
                         continue
 
-                results.append(result)
+                    cache_key = f"investigate:{ioc_type.value}:{normalised_ioc}"
+                    cached = cache.get(cache_key)
+
+                    if cached:
+                        result = InvestigateResult.model_validate(cached)
+                        result.triage.from_cache = True
+                    else:
+                        enricher = _resolve_enricher(ioc_type)
+                        if output in (OutputFormat.rich, OutputFormat.console):
+                            err_console.print(f"[dim]→ Investigating {ioc_type.value}: {normalised_ioc}[/dim]")
+                        try:
+                            result = enricher.investigate(normalised_ioc, ioc_type.value, client, config)
+                            # MITRE ATT&CK mapping
+                            result.attack_mappings = map_to_attack(result)
+                            cache.set(cache_key, result.model_dump(mode="json"))
+                        except Exception as e:
+                            err_console.print(f"[red]Error investigating {normalised_ioc}:[/red] {type(e).__name__}")
+                            failed_count += 1
+                            continue
+
+                    results.append(result)
 
     if failed_count:
         err_console.print(f"[yellow]{len(results)} processed, {failed_count} failed (see errors above)[/yellow]")
@@ -457,7 +475,19 @@ def cmd_cache_clear(config_path: _ConfigOpt = None) -> None:
 
 @app.command(name="version", help="Show version.")
 def cmd_version() -> None:
+    from .plugins.loader import load_plugins
     console.print(f"vex [bold]{__version__}[/bold]")
+    registry = load_plugins()
+    names = [p.name for p in registry.plugins]
+    if names:
+        console.print(f"[dim]Plugins: {', '.join(names)}[/dim]")
+    try:
+        from .version_check import check_for_update
+        latest = check_for_update(check_interval_hours=24)
+        if latest:
+            console.print(f"  [yellow]Latest: {latest}[/yellow] [dim](update available)[/dim]")
+    except Exception:
+        pass
 
 
 @app.command(name="config", help="[bold blue]Manage configuration[/bold blue] - save API key, settings.")

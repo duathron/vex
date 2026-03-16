@@ -31,7 +31,12 @@ _BANNER = """\
 """
 
 
-def print_banner(*, quiet: bool = False) -> None:
+def print_banner(
+    *,
+    quiet: bool = False,
+    update_check_enabled: bool = True,
+    check_interval_hours: int = 24,
+) -> None:
     """Print the vex ASCII-art banner to stderr.
 
     The banner is suppressed when:
@@ -45,3 +50,15 @@ def print_banner(*, quiet: bool = False) -> None:
 
     err = Console(stderr=True)
     err.print(_BANNER.format(version=__version__), highlight=False)
+
+    # Version update notice (non-blocking, fail-silent)
+    if update_check_enabled:
+        try:
+            from .version_check import check_for_update
+
+            latest = check_for_update(check_interval_hours)
+            if latest:
+                err.print(f"  [bold yellow]Update available: {__version__} -> {latest}[/bold yellow]")
+                err.print("  [dim]pip install --upgrade vex  |  https://github.com/duathron/vex/releases[/dim]")
+        except Exception:
+            pass

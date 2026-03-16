@@ -33,3 +33,12 @@ output:
   default_format: json
   # Suppress ASCII banner (-q)
   quiet: false
+
+plugins:
+  # Enable loading plugins from ~/.vex/plugins/
+  load_local: false
+
+update_check:
+  # Check for new releases on GitHub
+  enabled: true
+  check_interval_hours: 24
