@@ -62,11 +62,11 @@ def _triage_panel(r: TriageResult) -> Panel:
     )
 
     if r.malware_families:
-        grid.add_row("Families", ", ".join(r.malware_families[:5]))
+        grid.add_row("Families", _truncated(r.malware_families, 5))
     if r.categories:
-        grid.add_row("Categories", ", ".join(r.categories[:5]))
+        grid.add_row("Categories", _truncated(r.categories, 5))
     if r.tags:
-        grid.add_row("Tags", ", ".join(r.tags[:8]))
+        grid.add_row("Tags", _truncated(r.tags, 8))
     if r.reputation is not None:
         grid.add_row("Reputation", str(r.reputation))
     if r.first_seen:
@@ -279,35 +279,47 @@ def _print_sandbox_rich(sb: SandboxBehavior) -> None:
 # Plain console output (no rich dependency at runtime for piping)
 # ---------------------------------------------------------------------------
 
+def _truncated(items: list[str], limit: int) -> str:
+    """Join items with truncation indicator if list exceeds limit."""
+    shown = items[:limit]
+    remaining = len(items) - limit
+    text = ", ".join(shown)
+    if remaining > 0:
+        text += f" (+{remaining} more)"
+    return text
+
+
 def print_triage_console(result: TriageResult) -> None:
-    print(f"\n{'='*60}")
-    print(f"IOC     : {result.ioc}")
-    print(f"Type    : {result.ioc_type.upper()}")
-    print(f"Verdict : {result.verdict.value}")
-    print(f"Engines : {result.detection_stats.ratio_str}")
+    verdict_markup = _VERDICT_ICON.get(result.verdict, result.verdict.value)
+    console.print(f"\n{'='*60}")
+    console.print(f"IOC     : {result.ioc}")
+    console.print(f"Type    : {result.ioc_type.upper()}")
+    console.print(f"Verdict : {verdict_markup}")
+    console.print(f"Engines : {result.detection_stats.ratio_str}")
     if result.malware_families:
-        print(f"Families: {', '.join(result.malware_families[:5])}")
+        console.print(f"Families: {_truncated(result.malware_families, 5)}")
     if result.categories:
-        print(f"Categs  : {', '.join(result.categories[:5])}")
+        console.print(f"Categs  : {_truncated(result.categories, 5)}")
     if result.tags:
-        print(f"Tags    : {', '.join(result.tags[:8])}")
+        console.print(f"Tags    : {_truncated(result.tags, 8)}")
     if result.reputation is not None:
-        print(f"Repute  : {result.reputation}")
+        console.print(f"Repute  : {result.reputation}")
     if result.first_seen:
-        print(f"First   : {result.first_seen.strftime('%Y-%m-%d %H:%M UTC')}")
+        console.print(f"First   : {result.first_seen.strftime('%Y-%m-%d %H:%M UTC')}")
     if result.last_seen:
-        print(f"Last    : {result.last_seen.strftime('%Y-%m-%d %H:%M UTC')}")
+        console.print(f"Last    : {result.last_seen.strftime('%Y-%m-%d %H:%M UTC')}")
     if result.last_analysis_date:
-        print(f"Analysis: {result.last_analysis_date.strftime('%Y-%m-%d %H:%M UTC')}")
+        console.print(f"Analysis: {result.last_analysis_date.strftime('%Y-%m-%d %H:%M UTC')}")
     if result.flagging_engines:
-        print("Engines flagging:")
+        console.print("Engines flagging:")
         for e in result.flagging_engines[:8]:
-            print(f"  [{e.category}] {e.engine}: {e.result or '-'}")
+            style = "red" if e.category == "malicious" else "yellow"
+            console.print(f"  [{style}][{e.category}] {e.engine}: {e.result or '-'}[/{style}]")
     if result.from_cache:
-        print("(from cache)")
+        console.print("[dim](from cache)[/dim]")
     if result.error:
-        print(f"ERROR   : {result.error}")
-    print(f"{'='*60}")
+        console.print(f"[red]ERROR   : {result.error}[/red]")
+    console.print(f"{'='*60}")
 
 
 def print_summary(results: list[TriageResult]) -> None:
@@ -377,43 +389,43 @@ def print_investigate_console(result: InvestigateResult) -> None:
     print_triage_console(result.triage)
 
     if result.file_type:
-        print(f"File Type : {result.file_type}")
+        console.print(f"File Type : {result.file_type}")
     if result.file_size:
-        print(f"File Size : {result.file_size:,} bytes")
+        console.print(f"File Size : {result.file_size:,} bytes")
     if result.magic:
-        print(f"Magic     : {result.magic}")
+        console.print(f"Magic     : {result.magic}")
     if result.file_names:
-        print(f"Names     : {', '.join(result.file_names[:5])}")
+        console.print(f"Names     : {_truncated(result.file_names, 5)}")
     if result.yara_hits:
-        print(f"YARA      : {', '.join(result.yara_hits[:5])}")
+        console.print(f"YARA      : {_truncated(result.yara_hits, 5)}")
     if result.pe_info and result.pe_info.compilation_timestamp:
-        print(f"Compiled  : {result.pe_info.compilation_timestamp.strftime('%Y-%m-%d %H:%M UTC')}")
+        console.print(f"Compiled  : {result.pe_info.compilation_timestamp.strftime('%Y-%m-%d %H:%M UTC')}")
 
     for sb in result.sandbox_behaviors[:2]:
-        print(f"\n-- Sandbox: {sb.sandbox_name or 'Unknown'} --")
+        console.print(f"\n-- Sandbox: {sb.sandbox_name or 'Unknown'} --")
         if sb.processes_created:
-            print(f"  Processes : {', '.join(sb.processes_created[:5])}")
+            console.print(f"  Processes : {_truncated(sb.processes_created, 5)}")
         if sb.network_connections:
-            print(f"  Network   : {', '.join(sb.network_connections[:5])}")
+            console.print(f"  Network   : {_truncated(sb.network_connections, 5)}")
         if sb.dns_lookups:
-            print(f"  DNS       : {', '.join(sb.dns_lookups[:5])}")
+            console.print(f"  DNS       : {_truncated(sb.dns_lookups, 5)}")
 
     if result.contacted_ips:
-        print(f"Contacted IPs     : {', '.join(result.contacted_ips[:10])}")
+        console.print(f"Contacted IPs     : {_truncated(result.contacted_ips, 10)}")
     if result.contacted_domains:
-        print(f"Contacted Domains : {', '.join(result.contacted_domains[:10])}")
+        console.print(f"Contacted Domains : {_truncated(result.contacted_domains, 10)}")
 
     if result.asn:
-        print(f"ASN     : AS{result.asn} {result.asn_owner or ''}")
+        console.print(f"ASN     : AS{result.asn} {result.asn_owner or ''}")
     if result.country:
-        print(f"Country : {result.country}")
+        console.print(f"Country : {result.country}")
 
     if result.passive_dns:
-        print("\nPassive DNS:")
+        console.print("\nPassive DNS:")
         for r in result.passive_dns[:10]:
             resolved = r.last_resolved.strftime("%Y-%m-%d") if r.last_resolved else ""
-            print(f"  {r.hostname or r.ip_address} -> {r.ip_address or r.hostname}  [{resolved}]")
+            console.print(f"  [cyan]{r.hostname or r.ip_address}[/cyan] -> [green]{r.ip_address or r.hostname}[/green]  [dim]\\[{resolved}][/dim]")
 
     if result.whois:
         w = result.whois
-        print(f"\nWHOIS: registrar={w.registrar}, created={w.creation_date}, expires={w.expiration_date}")
+        console.print(f"\nWHOIS: registrar={w.registrar}, created={w.creation_date}, expires={w.expiration_date}")

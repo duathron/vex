@@ -265,6 +265,7 @@ def cmd_triage(
         raise typer.Exit(code=1)
 
     results: list[TriageResult] = []
+    failed_count = 0
 
     with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
         with VTClient(config) as client:
@@ -273,6 +274,7 @@ def cmd_triage(
 
                 if ioc_type == IOCType.UNKNOWN:
                     err_console.print(f"[yellow]Warning:[/yellow] Cannot detect IOC type for '{raw_ioc}' - skipping.")
+                    failed_count += 1
                     continue
 
                 cache_key = f"triage:{ioc_type.value}:{normalised_ioc}"
@@ -290,9 +292,13 @@ def cmd_triage(
                         cache.set(cache_key, result.model_dump(mode="json"))
                     except Exception as e:
                         err_console.print(f"[red]Error enriching {normalised_ioc}:[/red] {type(e).__name__}")
+                        failed_count += 1
                         continue
 
                 results.append(result)
+
+    if failed_count:
+        err_console.print(f"[yellow]{len(results)} processed, {failed_count} failed (see errors above)[/yellow]")
 
     # Apply defanging if requested
     if do_defang:
@@ -302,7 +308,10 @@ def cmd_triage(
     exit_code = _EXIT_CODES.get(_max_severity(results), 0)
 
     # Filter by alert threshold
+    pre_filter_count = len(results)
     results = _filter_by_alert(results, alert)
+    if alert and not results and pre_filter_count > 0:
+        err_console.print(f"[dim]No IOCs matched alert threshold {alert.upper()} ({pre_filter_count} below threshold)[/dim]")
 
     # Summary to stderr
     if summary:
@@ -354,6 +363,7 @@ def cmd_investigate(
         raise typer.Exit(code=1)
 
     results: list[InvestigateResult] = []
+    failed_count = 0
 
     with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
         with VTClient(config) as client:
@@ -362,6 +372,7 @@ def cmd_investigate(
 
                 if ioc_type == IOCType.UNKNOWN:
                     err_console.print(f"[yellow]Warning:[/yellow] Cannot detect IOC type for '{raw_ioc}' - skipping.")
+                    failed_count += 1
                     continue
 
                 cache_key = f"investigate:{ioc_type.value}:{normalised_ioc}"
@@ -381,9 +392,13 @@ def cmd_investigate(
                         cache.set(cache_key, result.model_dump(mode="json"))
                     except Exception as e:
                         err_console.print(f"[red]Error investigating {normalised_ioc}:[/red] {type(e).__name__}")
+                        failed_count += 1
                         continue
 
                 results.append(result)
+
+    if failed_count:
+        err_console.print(f"[yellow]{len(results)} processed, {failed_count} failed (see errors above)[/yellow]")
 
     # Apply defanging if requested
     if do_defang:
@@ -395,7 +410,10 @@ def cmd_investigate(
     )
 
     # Filter by alert threshold
+    pre_filter_count = len(results)
     results = _filter_inv_by_alert(results, alert)
+    if alert and not results and pre_filter_count > 0:
+        err_console.print(f"[dim]No IOCs matched alert threshold {alert.upper()} ({pre_filter_count} below threshold)[/dim]")
 
     # Summary to stderr
     if summary:

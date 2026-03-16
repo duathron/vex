@@ -1,15 +1,15 @@
 # vex configuration
-# Copy to config.yaml and adjust as needed
+# Copy to ~/.vex/config.yaml or ./config.yaml and adjust as needed
 
 api:
   key: ""              # or set VT_API_KEY env var
-  premium: false       # true for VT Premium API (1000 req/min)
+  tier: "free"         # "free" (4 req/min) or "premium" (1000 req/min)
 
 cache:
   enabled: true
-  ttl: 86400           # 24h in seconds
-  # path: ~/.vex/cache.db
+  ttl_hours: 24        # cache TTL in hours
+  # db_path: ~/.vex/cache.db
 
 output:
-  format: json         # json | rich | console
+  default_format: json # json | rich | console
   quiet: false         # suppress banner (-q)
