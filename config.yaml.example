@@ -1,15 +1,35 @@
-# vex configuration
-# Copy to ~/.vex/config.yaml or ./config.yaml and adjust as needed
+# vex configuration example
+# Copy to ~/.vex/config.yaml and adjust as needed
 
 api:
-  key: ""              # or set VT_API_KEY env var
-  tier: "free"         # "free" (4 req/min) or "premium" (1000 req/min)
+  # API key — set here OR use environment variable VT_API_KEY
+  # key: "your-virustotal-api-key-here"
+  tier: free  # free | premium
+
+  rate_limit:
+    free:
+      requests_per_minute: 4
+      requests_per_day: 500
+    premium:
+      requests_per_minute: 1000
+      requests_per_day: 50000
+
+thresholds:
+  # Minimum engine detections for MALICIOUS verdict
+  malicious_min_detections: 3
+  # Minimum engine detections for SUSPICIOUS verdict
+  suspicious_min_detections: 1
+  # Zero detections = UNKNOWN (not CLEAN) if analysis_count < this
+  min_engines_for_clean: 10
 
 cache:
   enabled: true
-  ttl_hours: 24        # cache TTL in hours
-  # db_path: ~/.vex/cache.db
+  ttl_hours: 24
+  # Cache DB path (default: ~/.vex/cache.db)
+  # db_path: "~/.vex/cache.db"
 
 output:
-  default_format: json # json | rich | console
-  quiet: false         # suppress banner (-q)
+  # Default output format: json | rich | console
+  default_format: json
+  # Suppress ASCII banner (-q)
+  quiet: false
