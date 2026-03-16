@@ -13,7 +13,7 @@ import httpx
 from . import __version__
 
 _STATE_PATH = Path.home() / ".vex" / "version_check.json"
-_GITHUB_API = "https://api.github.com/repos/duathron/vex/releases/latest"
+_PYPI_API = "https://pypi.org/pypi/vex-ioc/json"
 _CHECK_TIMEOUT = 3.0
 
 
@@ -48,21 +48,13 @@ def _save_state(state: dict) -> None:
 
 
 def _fetch_latest_version() -> Optional[str]:
-    """Query GitHub releases API for the latest stable version."""
+    """Query PyPI JSON API for the latest stable version of vex-ioc."""
     try:
-        resp = httpx.get(
-            _GITHUB_API,
-            timeout=_CHECK_TIMEOUT,
-            headers={"Accept": "application/vnd.github.v3+json"},
-            follow_redirects=True,
-        )
+        resp = httpx.get(_PYPI_API, timeout=_CHECK_TIMEOUT, follow_redirects=True)
         if resp.status_code != 200:
             return None
         data = resp.json()
-        if data.get("prerelease") or data.get("draft"):
-            return None
-        tag = data.get("tag_name", "")
-        return tag if tag else None
+        return data.get("info", {}).get("version")
     except (httpx.HTTPError, ValueError, KeyError):
         return None
 

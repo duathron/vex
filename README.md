@@ -46,6 +46,14 @@
 
 ### Installation
 
+**From PyPI (recommended):**
+
+```bash
+pip install vex-ioc
+```
+
+**From source:**
+
 ```bash
 git clone https://github.com/duathron/vex.git
 cd vex
@@ -60,14 +68,14 @@ pip install -e .
 ### Upgrade
 
 ```bash
+# If installed from PyPI
+pip install --upgrade vex-ioc
+
 # If installed from git clone (editable)
 cd vex
 git pull
 pip install -r requirements.txt
 pip install -e .
-
-# If installed from PyPI (pip install vex)
-pip install --upgrade vex
 ```
 
 ### API Key
@@ -258,7 +266,7 @@ output:
 
 ```
 vex/
-├── __init__.py          # Package version (1.0.0)
+├── __init__.py          # Package version (1.1.0)
 ├── main.py              # Typer CLI app with all subcommands
 ├── banner.py            # ASCII art banner (ffuf-style)
 ├── client.py            # Sync VT API v3 client + rate limiter
