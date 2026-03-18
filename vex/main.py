@@ -613,7 +613,7 @@ def cmd_config(
         if set_ai_provider.lower() in ("anthropic", "openai") and not config.ai_api_key:
             console.print("[yellow]Note:[/yellow] Set the AI API key with [bold]--set-ai-key[/bold] or [bold]VEX_AI_API_KEY[/bold] env var.")
         if set_ai_provider.lower() in ("anthropic", "openai"):
-            console.print("[dim]Install AI packages: pip install vex-ioc\[ai][/dim]")
+            console.print(r"[dim]Install AI packages: pip install vex-ioc\[ai][/dim]")
 
     if set_ai_key:
         config.ai.api_key = set_ai_key
@@ -699,7 +699,7 @@ def _show_config(config) -> None:
 # ---------------------------------------------------------------------------
 
 _MANUAL_TOPICS: dict[str, str] = {
-    "ai": """\
+    "ai": r"""\
 [bold cyan]AI-POWERED EXPLANATIONS[/bold cyan]
 
 vex can generate natural-language threat explanations using LLM providers.
