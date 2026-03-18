@@ -9,6 +9,10 @@ jobs:
   build-and-publish:
     name: Build and publish vex-ioc
     runs-on: ubuntu-latest
+    environment: pypi
+
+    permissions:
+      id-token: write   # required for OIDC trusted publisher
 
     steps:
       - name: Checkout source
@@ -20,16 +24,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install build tools
-        run: pip install build twine
+        run: pip install build
 
       - name: Build package
         run: python -m build
 
-      - name: Check package
-        run: twine check dist/*
-
       - name: Publish to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: twine upload dist/*
+        uses: pypa/gh-action-pypi-publish@release/v1
