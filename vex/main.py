@@ -28,6 +28,8 @@ from .output.stix import to_stix_bundle
 from .output.formatter import (
     console,
     err_console,
+    print_barb_context_console,
+    print_barb_context_rich,
     print_explanation_console,
     print_explanation_rich,
     print_investigate_console,
@@ -136,6 +138,22 @@ _ExplainModelOpt = Annotated[
     Optional[str],
     typer.Option("--explain-model", help="Override AI model (e.g. claude-sonnet-4-20250514, gpt-4o, llama3). Requires provider in ~/.vex/config.yaml."),
 ]
+_FromBarbOpt = Annotated[
+    bool,
+    typer.Option("--from-barb", help=(
+        "Read barb JSON from stdin and use URLs as IOCs. "
+        "Displays barb pre-scan verdict alongside VT enrichment. "
+        "Usage: barb analyze <url> -o json | vex triage --from-barb. "
+        "See 'vex manual pipeline'."
+    )),
+]
+_NavigatorOpt = Annotated[
+    bool,
+    typer.Option("--navigator", help=(
+        "Export ATT&CK Navigator layer JSON to stdout (investigate only). "
+        "Redirect to file: vex investigate <ioc> --navigator > layer.json"
+    )),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -226,20 +244,28 @@ def _filter_inv_by_alert(results: list[InvestigateResult], alert: Optional[str])
     return [r for r in results if r.triage.verdict.severity >= threshold]
 
 
-def _output_triage(result: TriageResult, fmt: OutputFormat) -> None:
+def _output_triage(result: TriageResult, fmt: OutputFormat, barb_map: Optional[dict] = None) -> None:
     if fmt == OutputFormat.rich:
         print_triage_rich(result)
+        if barb_map and result.ioc in barb_map:
+            print_barb_context_rich(barb_map[result.ioc])
     elif fmt == OutputFormat.console:
         print_triage_console(result)
+        if barb_map and result.ioc in barb_map:
+            print_barb_context_console(barb_map[result.ioc])
     else:
         print(to_json(result))
 
 
-def _output_investigate(result: InvestigateResult, fmt: OutputFormat) -> None:
+def _output_investigate(result: InvestigateResult, fmt: OutputFormat, barb_map: Optional[dict] = None) -> None:
     if fmt == OutputFormat.rich:
         print_investigate_rich(result)
+        if barb_map and result.triage.ioc in barb_map:
+            print_barb_context_rich(barb_map[result.triage.ioc])
     elif fmt == OutputFormat.console:
         print_investigate_console(result)
+        if barb_map and result.triage.ioc in barb_map:
+            print_barb_context_console(barb_map[result.triage.ioc])
     else:
         print(to_json(result))
 
@@ -324,6 +350,7 @@ def cmd_triage(
     quiet: _QuietOpt = False,
     explain: _ExplainOpt = False,
     explain_model: _ExplainModelOpt = None,
+    from_barb: _FromBarbOpt = False,
 ) -> None:
     config = load_config(config_path)
     if api_key:
@@ -333,7 +360,25 @@ def cmd_triage(
         update_check_enabled=config.update_check.enabled,
         check_interval_hours=config.update_check.check_interval_hours,
     )
-    iocs = _collect_iocs(ioc, file)
+
+    # --from-barb: read barb JSON from stdin, extract URLs as IOCs
+    barb_map: dict = {}
+    if from_barb:
+        from .pipeline.barb_bridge import parse_barb_json
+        try:
+            raw_barb = sys.stdin.read()
+            barb_entries = parse_barb_json(raw_barb)
+            if not barb_entries:
+                err_console.print("[red]Error:[/red] No valid barb entries found in stdin.")
+                raise typer.Exit(code=1)
+            iocs = [entry.url for entry in barb_entries]
+            barb_map = {entry.url: entry for entry in barb_entries}
+            err_console.print(f"[dim]→ barb pipeline: {len(iocs)} URL(s) loaded[/dim]")
+        except ValueError as e:
+            err_console.print(f"[red]Error parsing barb JSON:[/red] {e}")
+            raise typer.Exit(code=1)
+    else:
+        iocs = _collect_iocs(ioc, file)
 
     try:
         config.api_key  # validate key exists before proceeding
@@ -405,10 +450,22 @@ def cmd_triage(
     elif csv:
         print(to_csv_triage(results))
     elif output == OutputFormat.json:
-        print(to_json_list(results) if len(results) > 1 else to_json(results[0]) if results else "[]")
+        if from_barb and barb_map:
+            # Inject barb_context into JSON output
+            import json as _json
+            out = []
+            for r in results:
+                d = r.model_dump(mode="json")
+                bc = barb_map.get(r.ioc)
+                if bc:
+                    d["barb_context"] = bc.model_dump(mode="json")
+                out.append(d)
+            print(_json.dumps(out if len(out) > 1 else out[0] if out else [], indent=2, ensure_ascii=False))
+        else:
+            print(to_json_list(results) if len(results) > 1 else to_json(results[0]) if results else "[]")
     else:
         for r in results:
-            _output_triage(r, output)
+            _output_triage(r, output, barb_map=barb_map)
 
     # AI explanation (opt-in)
     if explain and results:
@@ -437,6 +494,8 @@ def cmd_investigate(
     quiet: _QuietOpt = False,
     explain: _ExplainOpt = False,
     explain_model: _ExplainModelOpt = None,
+    from_barb: _FromBarbOpt = False,
+    navigator: _NavigatorOpt = False,
 ) -> None:
     config = load_config(config_path)
     if api_key:
@@ -446,7 +505,25 @@ def cmd_investigate(
         update_check_enabled=config.update_check.enabled,
         check_interval_hours=config.update_check.check_interval_hours,
     )
-    iocs = _collect_iocs(ioc, file)
+
+    # --from-barb: read barb JSON from stdin, extract URLs as IOCs
+    barb_map: dict = {}
+    if from_barb:
+        from .pipeline.barb_bridge import parse_barb_json
+        try:
+            raw_barb = sys.stdin.read()
+            barb_entries = parse_barb_json(raw_barb)
+            if not barb_entries:
+                err_console.print("[red]Error:[/red] No valid barb entries found in stdin.")
+                raise typer.Exit(code=1)
+            iocs = [entry.url for entry in barb_entries]
+            barb_map = {entry.url: entry for entry in barb_entries}
+            err_console.print(f"[dim]→ barb pipeline: {len(iocs)} URL(s) loaded[/dim]")
+        except ValueError as e:
+            err_console.print(f"[red]Error parsing barb JSON:[/red] {e}")
+            raise typer.Exit(code=1)
+    else:
+        iocs = _collect_iocs(ioc, file)
 
     try:
         config.api_key  # validate key exists before proceeding
@@ -516,6 +593,13 @@ def cmd_investigate(
     if summary:
         print_summary([r.triage for r in results])
 
+    # ATT&CK Navigator export (exclusive — skips all other output)
+    if navigator:
+        from .output.navigator import to_navigator_layer
+        sys.stdout.write(to_navigator_layer(results, ioc=iocs[0] if iocs else None))
+        sys.stdout.write("\n")
+        raise typer.Exit(code=exit_code)
+
     # Output results
     if stix:
         print(to_stix_bundle(results))
@@ -523,7 +607,7 @@ def cmd_investigate(
         print(to_json_list(results) if len(results) > 1 else to_json(results[0]) if results else "[]")
     else:
         for r in results:
-            _output_investigate(r, output)
+            _output_investigate(r, output, barb_map=barb_map)
 
     # Timeline (appended after main output)
     if timeline:
@@ -805,12 +889,17 @@ vex reads configuration from multiple sources (priority order):
 [bold]Deep investigation:[/bold]
   [green]vex investigate evil.com -o rich --timeline --explain[/green]
   [green]vex investigate <hash> --stix > bundle.json[/green]
+  [green]vex investigate evil.com --navigator > layer.json[/green]
 
 [bold]Batch processing:[/bold]
   [green]vex triage -f iocs.txt -o rich[/green]
   [green]vex triage -f iocs.txt --csv > results.csv[/green]
   [green]vex triage -f iocs.txt --alert SUSPICIOUS --summary[/green]
   [green]cat iocs.txt | vex triage -o json[/green]
+
+[bold]barb pipeline:[/bold]
+  [green]barb analyze https://evil.com -o json | vex triage --from-barb -o rich[/green]
+  [green]barb analyze https://evil.com -o json | vex investigate --from-barb -o rich[/green]
 
 [bold]Defanged IOC support:[/bold]
   [green]vex triage "hxxps[://]evil[.]com"[/green]
@@ -830,14 +919,60 @@ vex reads configuration from multiple sources (priority order):
   [green]vex triage <ioc> && echo "clean" || echo "alert"[/green]
   Exit 0 = clean/unknown, 1 = suspicious, 2 = malicious, 3 = error
 """,
+
+    "pipeline": r"""\
+[bold cyan]barb → vex PIPELINE[/bold cyan]
+
+vex integrates with [bold]barb[/bold] (heuristic phishing URL analyzer) to combine
+offline pre-screening with VirusTotal enrichment in a single workflow.
+
+[bold]WHAT IS barb?[/bold]
+  barb is a CLI tool for offline heuristic phishing URL analysis.
+  It runs 8 analyzers (entropy, homoglyphs, brand squatting, etc.)
+  and produces a verdict (SAFE/LOW_RISK/SUSPICIOUS/HIGH_RISK/PHISHING)
+  with a risk score — without making any HTTP requests to the target URL.
+  Install: [green]pip install barb-phish[/green]   |   GitHub: https://github.com/duathron/barb
+
+[bold]HOW THE PIPELINE WORKS:[/bold]
+  1. barb analyzes the URL heuristically (offline, instant)
+  2. barb outputs JSON with verdict, risk_score, and signal breakdown
+  3. vex reads the barb JSON, extracts URLs as IOCs
+  4. vex queries VirusTotal for live enrichment
+  5. vex displays both barb pre-scan context AND VT results side-by-side
+
+[bold]USAGE:[/bold]
+  [green]barb analyze https://evil.com -o json | vex triage --from-barb[/green]
+  [green]barb analyze https://evil.com -o json | vex triage --from-barb -o rich[/green]
+  [green]barb analyze https://evil.com -o json | vex investigate --from-barb -o rich[/green]
+  [green]barb analyze https://evil.com -o json | vex triage --from-barb -o json[/green]
+
+  Batch (multiple URLs from a file via barb):
+  [green]barb analyze -f urls.txt -o json | vex triage --from-barb --alert SUSPICIOUS[/green]
+
+[bold]OUTPUT:[/bold]
+  Rich/console: barb pre-scan panel shown alongside VT enrichment result.
+  JSON: result includes a [cyan]"barb_context"[/cyan] field with verdict, risk_score, signals.
+
+[bold]BARB VERDICT LEVELS:[/bold]
+  [green]SAFE[/green]          No heuristic indicators
+  [cyan]LOW_RISK[/cyan]      Minor indicators, likely benign
+  [yellow]SUSPICIOUS[/yellow]    Moderate risk signals
+  [dark_orange]HIGH_RISK[/dark_orange]     Strong phishing indicators
+  [red]PHISHING[/red]      Confirmed phishing pattern
+
+[bold]WHY USE BOTH TOOLS?[/bold]
+  barb is instant and offline — no API calls, no rate limits.
+  Use it to pre-screen large batches before spending VT API quota.
+  vex then provides ground truth with live VT detection data.
+""",
 }
 
 
-@app.command(name="manual", help="[bold blue]Show usage guide[/bold blue] — setup, AI, config, examples.")
+@app.command(name="manual", help="[bold blue]Show usage guide[/bold blue] — setup, AI, config, pipeline, examples.")
 def cmd_manual(
     topic: Annotated[
         Optional[str],
-        typer.Argument(help="Topic: ai, config, examples. Omit for overview."),
+        typer.Argument(help="Topic: ai, config, examples, pipeline. Omit for overview."),
     ] = None,
 ) -> None:
     """Display comprehensive usage guides."""
@@ -860,6 +995,7 @@ def cmd_manual(
     console.print("  [green]vex manual ai[/green]         AI-powered explanations setup guide")
     console.print("  [green]vex manual config[/green]     Configuration reference")
     console.print("  [green]vex manual examples[/green]   Usage examples")
+    console.print("  [green]vex manual pipeline[/green]   barb → vex pipeline integration")
     console.print()
     console.print("[bold]Quick start:[/bold]")
     console.print("  [green]vex config --set-api-key YOUR_VT_KEY[/green]")
@@ -867,6 +1003,7 @@ def cmd_manual(
     console.print("  [green]vex investigate <domain> -o rich --explain[/green]")
     console.print()
     console.print("[dim]Part of the security portfolio: vex (IOC enrichment) + barb (phishing URL analysis)[/dim]")
+    console.print("[dim]Pipeline: barb analyze <url> -o json | vex triage --from-barb -o rich[/dim]")
 
 
 # ---------------------------------------------------------------------------

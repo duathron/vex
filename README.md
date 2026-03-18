@@ -29,6 +29,7 @@
 - **Two modes**: `triage` (fast, 1 API call) and `investigate` (deep, multiple calls)
 - **Output formats**: JSON (default), Rich tables, plain console, CSV, STIX 2.1
 - **MITRE ATT&CK mapping** from sandbox behaviors and VT tags
+- **ATT&CK Navigator export**: `--navigator` to export ATT&CK layer JSON for Navigator
 - **IOC defanging/refanging** for safe sharing (`hxxps[://]evil[.]com`)
 - **Automation-ready**: exit codes, `--alert` filtering, `--summary` on stderr
 - **Timeline enrichment**: chronological event reconstruction for DFIR
@@ -36,8 +37,10 @@
 - **Plugin architecture**: extensible enrichment sources via Protocol interface
 - **Parallel batch processing** with progress bar for large IOC lists
 - **STIX 2.1 export** for threat intelligence sharing
+- **WHOIS enrichment**: direct WHOIS lookups for domain IOCs (free-tier friendly)
 - **SQLite cache** with configurable TTL (default 24h)
 - **AI-powered explanations**: `--explain` for threat narratives via Claude, OpenAI, or Ollama (opt-in)
+- **barb pipeline**: `--from-barb` to combine barb heuristic pre-scan with VT enrichment
 - **Rate limiting**: token-bucket, free tier (4 req/min) and premium configurable
 
 > **Part of the security portfolio:** Use [**barb**](https://github.com/duathron/barb) for offline heuristic phishing URL triage. Use **vex** for VirusTotal IOC enrichment. Pipe barb JSON output into vex for full enrichment (v1.2).
@@ -60,6 +63,12 @@ pip install vex-ioc
 
 # With AI support (Claude + OpenAI)
 pip install vex-ioc[ai]
+
+# With direct WHOIS enrichment
+pip install vex-ioc[whois]
+
+# Everything
+pip install vex-ioc[ai,whois]
 
 # Ollama (local models) works out of the box — no extras needed
 ```
@@ -148,6 +157,17 @@ vex config --show
 # Automation: exit code + alert filter + summary
 vex triage -f iocs.txt --alert SUSPICIOUS --summary
 echo $?  # 0=clean, 1=suspicious, 2=malicious
+
+# barb → vex pipeline (combine heuristic pre-scan with VT enrichment)
+barb analyze https://evil.com -o json | vex triage --from-barb -o rich
+barb analyze https://evil.com -o json | vex investigate --from-barb -o rich
+
+# ATT&CK Navigator layer export
+vex investigate evil.com --navigator > layer.json
+# Open layer.json at https://mitre-attack.github.io/attack-navigator/
+
+# Domain WHOIS enrichment (free-tier, requires pip install vex-ioc[whois])
+vex investigate evil.com -o rich   # WHOIS panel shown automatically
 ```
 
 ---
@@ -166,6 +186,7 @@ echo $?  # 0=clean, 1=suspicious, 2=malicious
 | `vex tag <ioc>` | Manage IOC tags in local knowledge base |
 | `vex note <ioc>` | Manage IOC notes in local knowledge base |
 | `vex watchlist <name>` | Manage IOC watchlists |
+| `vex manual [topic]` | Show usage guide (topics: ai, config, examples, pipeline) |
 
 ### Triage / Investigate Options
 
@@ -185,6 +206,8 @@ echo $?  # 0=clean, 1=suspicious, 2=malicious
 | `--timeline` | Show chronological timeline (investigate only) |
 | `-e` / `--explain` | Add AI-powered threat explanation to output |
 | `--explain-model` | Override AI model (e.g. `claude-sonnet-4-20250514`, `gpt-4o`, `llama3`) |
+| `--from-barb` | Read barb JSON from stdin, use URLs as IOCs (triage & investigate) |
+| `--navigator` | Export ATT&CK Navigator layer JSON to stdout (investigate only) |
 
 ### Configuration Command
 
@@ -229,6 +252,59 @@ Defanged IOCs are automatically refanged before lookup:
 ### MITRE ATT&CK Mapping
 
 In `investigate` mode, vex maps sandbox behaviors and VT tags to MITRE ATT&CK techniques. Mappings cover 80+ keywords across all major tactics (Execution, Persistence, Defense Evasion, etc.) and appear in Rich output and STIX exports.
+
+### ATT&CK Navigator Export
+
+Export investigation results as an [ATT&CK Navigator](https://mitre-attack.github.io/attack-navigator/) v4.5 layer JSON:
+
+```bash
+# Export a Navigator layer
+vex investigate evil.com --navigator > layer.json
+
+# Open layer.json at https://mitre-attack.github.io/attack-navigator/
+# Click "Open Existing Layer" → upload layer.json
+```
+
+The layer visualizes all mapped techniques with a red heat gradient, tactic labels, and evidence comments. Requires at least one `investigate` result with ATT&CK mappings.
+
+### WHOIS Enrichment
+
+In `investigate` mode, vex automatically performs a direct WHOIS lookup for domain IOCs. This is especially useful for free-tier VT users (VT WHOIS is a premium feature).
+
+```bash
+# Install the optional dependency
+pip install vex-ioc[whois]
+
+# WHOIS data appears automatically in rich/console output
+vex investigate evil.com -o rich
+```
+
+To disable: set `enrichment.whois_enabled: false` in `~/.vex/config.yaml`.
+
+### barb → vex Pipeline
+
+Combine [**barb**](https://github.com/duathron/barb) offline heuristic analysis with VirusTotal live enrichment:
+
+```bash
+# Install barb
+pip install barb-phish
+
+# Pipe barb JSON into vex triage
+barb analyze https://evil.com -o json | vex triage --from-barb -o rich
+
+# Deep investigation with barb context
+barb analyze https://evil.com -o json | vex investigate --from-barb -o rich
+
+# Batch: screen multiple URLs, enrich high-risk ones
+barb analyze -f urls.txt -o json | vex triage --from-barb --alert SUSPICIOUS -o rich
+
+# JSON output includes barb_context field
+barb analyze https://evil.com -o json | vex triage --from-barb -o json
+```
+
+**Workflow:** barb runs offline (no HTTP requests to target), providing instant verdict + signal breakdown. vex then enriches with live VT detection data. The `--from-barb` flag reads barb's JSON from stdin, extracts URLs as IOCs, and displays a "barb pre-scan" panel alongside VT results.
+
+See `vex manual pipeline` for full documentation.
 
 ### Knowledge Base
 
@@ -329,10 +405,14 @@ vex/
 ├── knowledge/
 │   ├── db.py            # SQLite knowledge base (tags/notes/watchlists)
 │   └── api.py           # High-level knowledge base API
+├── pipeline/
+│   ├── __init__.py      # Package marker
+│   └── barb_bridge.py   # barb JSON parser, BarbContext model
 └── output/
-    ├── formatter.py     # Rich + console + timeline formatters
+    ├── formatter.py     # Rich + console + timeline + barb formatters
     ├── export.py        # JSON + CSV export
-    └── stix.py          # STIX 2.1 bundle generation
+    ├── stix.py          # STIX 2.1 bundle generation
+    └── navigator.py     # ATT&CK Navigator layer export
 ```
 
 ---
@@ -341,6 +421,10 @@ vex/
 
 ### 2026-03-18
 - **v1.2.0** — AI integration: `--explain` flag for AI-powered threat narratives (Claude, OpenAI, Ollama), template-based fallback, AI response caching (72h), `vex config --show`, optional deps (`pip install vex-ioc[ai]`)
+- **v1.2.0** — barb pipeline: `--from-barb` to pipe barb heuristic JSON into vex triage/investigate, barb pre-scan panel in Rich/console output, `barb_context` field in JSON output
+- **v1.2.0** — WHOIS enrichment: direct WHOIS lookups for domains via python-whois (`pip install vex-ioc[whois]`), free-tier supplement for VT premium WHOIS
+- **v1.2.0** — ATT&CK Navigator export: `--navigator` to generate Navigator v4.5 layer JSON from investigation results
+- **v1.2.0** — `vex manual pipeline` topic, updated `vex manual examples` with new flags
 
 ### 2026-03-16
 - **v1.1.0** — Resolved all known limitations: batch processing activated, premium endpoint graceful degradation, entry-point plugin discovery, IPv6 detection upgraded to RFC 4291, passive version update check

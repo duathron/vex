@@ -36,6 +36,7 @@ dependencies = [
 ai = ["anthropic>=0.40.0", "openai>=1.50.0"]
 ai-local = []  # ollama uses httpx (already a core dep)
 ai-all = ["anthropic>=0.40.0", "openai>=1.50.0"]
+whois = ["python-whois>=0.9.0"]
 
 [project.scripts]
 vex = "vex.main:main"

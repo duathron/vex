@@ -409,6 +409,86 @@ def print_explanation_console(explanation: str, provider: str = "template") -> N
 
 
 # ---------------------------------------------------------------------------
+# barb pre-scan context output
+# ---------------------------------------------------------------------------
+
+_BARB_VERDICT_STYLE: dict[str, str] = {
+    "SAFE": "bold green",
+    "LOW_RISK": "bold cyan",
+    "SUSPICIOUS": "bold yellow",
+    "HIGH_RISK": "bold dark_orange",
+    "PHISHING": "bold red",
+}
+
+_BARB_VERDICT_ICON: dict[str, str] = {
+    "SAFE": "[green]✓ SAFE[/green]",
+    "LOW_RISK": "[cyan]~ LOW RISK[/cyan]",
+    "SUSPICIOUS": "[yellow]⚠ SUSPICIOUS[/yellow]",
+    "HIGH_RISK": "[dark_orange]⚠ HIGH RISK[/dark_orange]",
+    "PHISHING": "[red]✗ PHISHING[/red]",
+}
+
+
+def print_barb_context_rich(ctx) -> None:  # ctx: BarbContext (lazy import to avoid circular)
+    """Print barb pre-scan verdict as a Rich panel with orange border."""
+    grid = Table.grid(padding=(0, 2))
+    grid.add_column(style="bold cyan", no_wrap=True)
+    grid.add_column()
+
+    verdict_upper = ctx.verdict.upper()
+    verdict_icon = _BARB_VERDICT_ICON.get(verdict_upper, f"[white]{ctx.verdict}[/white]")
+    grid.add_row("Verdict", verdict_icon)
+    grid.add_row("Risk Score", f"{ctx.risk_score:.1f} / 100")
+
+    if ctx.defanged_url:
+        grid.add_row("URL", ctx.defanged_url)
+
+    top = ctx.top_signals
+    if top:
+        sig_table = Table(box=box.SIMPLE, show_header=True, padding=(0, 1))
+        sig_table.add_column("Analyzer", style="dim", no_wrap=True)
+        sig_table.add_column("Severity", no_wrap=True)
+        sig_table.add_column("Signal")
+        _sev_style = {"CRITICAL": "red", "HIGH": "dark_orange", "MEDIUM": "yellow", "LOW": "cyan", "INFO": "dim"}
+        for s in top:
+            sev_style = _sev_style.get(s.severity.upper(), "white")
+            sig_table.add_row(
+                s.analyzer,
+                f"[{sev_style}]{s.severity}[/{sev_style}]",
+                s.label,
+            )
+        grid.add_row("Signals", sig_table)
+
+    if ctx.explanation:
+        grid.add_row("Explanation", ctx.explanation[:200] + ("…" if len(ctx.explanation) > 200 else ""))
+
+    border_style = "dark_orange"
+    console.print(Panel(
+        grid,
+        title="[bold]barb pre-scan[/bold]",
+        border_style=border_style,
+        subtitle="[dim]offline heuristic analysis[/dim]",
+    ))
+
+
+def print_barb_context_console(ctx) -> None:  # ctx: BarbContext
+    """Print barb pre-scan context in plain text."""
+    verdict_upper = ctx.verdict.upper()
+    verdict_icon = _BARB_VERDICT_ICON.get(verdict_upper, ctx.verdict)
+    console.print(f"\n{'─' * 60}")
+    console.print(f"barb pre-scan")
+    console.print(f"{'─' * 60}")
+    console.print(f"Verdict   : {verdict_icon}  (risk score: {ctx.risk_score:.1f}/100)")
+    if ctx.defanged_url:
+        console.print(f"URL       : {ctx.defanged_url}")
+    for s in ctx.top_signals:
+        console.print(f"  [{s.severity}] {s.analyzer}: {s.label}")
+    if ctx.explanation:
+        console.print(f"Note      : {ctx.explanation[:200]}")
+    console.print(f"{'─' * 60}")
+
+
+# ---------------------------------------------------------------------------
 # Plain console output (no rich dependency at runtime for piping)
 # ---------------------------------------------------------------------------
 

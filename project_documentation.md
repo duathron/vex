@@ -527,11 +527,12 @@ New Pydantic model in `config.py`:
 
 ### Optional Dependencies
 
-AI packages are optional extras in `pyproject.toml`:
+Optional extras in `pyproject.toml`:
 
 - `pip install vex-ioc[ai]` — installs `anthropic` + `openai`
 - `pip install vex-ioc[ai-local]` — no extras (Ollama uses httpx, already a core dep)
 - `pip install vex-ioc[ai-all]` — installs all AI packages
+- `pip install vex-ioc[whois]` — installs `python-whois` for direct WHOIS enrichment
 
 Base install remains unchanged (6 core deps).
 
@@ -558,8 +559,94 @@ AI responses are cached in `~/.vex/ai_cache.db` (separate from the main result c
 
 ---
 
+## v1.2.0 — barb Pipeline, WHOIS, ATT&CK Navigator (2026-03-18)
+
+### Feature: barb → vex Pipeline
+
+**Problem:** Analysts needed to manually switch between barb (heuristic URL analysis) and vex (VT enrichment). No data flow connected them.
+
+**Solution:** `--from-barb` flag on both `triage` and `investigate` reads barb JSON from stdin, extracts URLs as IOCs, and displays barb's pre-scan verdict and signal breakdown alongside VT results.
+
+**New files:**
+- `vex/pipeline/__init__.py` — package marker
+- `vex/pipeline/barb_bridge.py` — `BarbContext` + `BarbSignal` models, `parse_barb_json()` function
+
+**Models (`BarbContext`):**
+- `url: str`, `verdict: str`, `risk_score: float`, `signals: list[BarbSignal]`, `defanged_url: Optional[str]`
+- `top_signals` property: up to 5 signals sorted by severity (CRITICAL > HIGH > MEDIUM > LOW > INFO)
+
+**Formatter additions (`vex/output/formatter.py`):**
+- `print_barb_context_rich()` — orange-bordered panel with verdict badge, risk score, signal table
+- `print_barb_context_console()` — plain-text barb pre-scan block
+
+**CLI changes (`vex/main.py`):**
+- `--from-barb` on `triage` and `investigate`
+- JSON output with `--from-barb -o json` includes `"barb_context"` field per result
+- `vex manual pipeline` topic added
+
+**Usage:**
+```bash
+barb analyze https://evil.com -o json | vex triage --from-barb -o rich
+barb analyze https://evil.com -o json | vex investigate --from-barb -o rich
+barb analyze -f urls.txt -o json | vex triage --from-barb --alert SUSPICIOUS
+```
+
+---
+
+### Feature: WHOIS Enrichment
+
+**Problem:** VT WHOIS is a premium-only endpoint. Free-tier users saw empty WHOIS panels in `investigate` output even though the `WHOISInfo` model already existed.
+
+**Solution:** Direct WHOIS lookup via `python-whois` (optional dep) as a fallback when VT WHOIS is not available.
+
+**New file:** `vex/enrichers/whois_enricher.py`
+- `is_available()` — checks if python-whois is installed
+- `enrich_whois(domain)` — queries WHOIS, handles all python-whois quirks (list values, datetime coercion), catches all exceptions gracefully
+
+**Config change (`vex/config.py`):**
+- `EnrichmentConfig(whois_enabled: bool = True)` model added
+- `enrichment: EnrichmentConfig = EnrichmentConfig()` on `Config`
+
+**Integration (`vex/enrichers/domain.py`):**
+```python
+if whois is None and config.enrichment.whois_enabled:
+    from .whois_enricher import enrich_whois
+    whois = enrich_whois(ioc)
+```
+
+**No formatter changes needed** — `WHOISInfo` rendering was already implemented in `print_investigate_rich()` and `print_investigate_console()`.
+
+**Optional dep:** `pip install vex-ioc[whois]` (adds `python-whois>=0.9.0`)
+
+---
+
+### Feature: ATT&CK Navigator Layer Export
+
+**Problem:** No way to visualize vex's ATT&CK mappings in standard tooling.
+
+**Solution:** `--navigator` flag on `investigate` exports a Navigator v4.5 compatible JSON layer, ready for upload to https://mitre-attack.github.io/attack-navigator/
+
+**New file:** `vex/output/navigator.py`
+- `to_navigator_layer(results, *, title, ioc)` — serializes `ATTACKMapping` objects
+- `_TACTIC_NORMALIZE` dict — maps vex tactic names (Title Case) to Navigator IDs (lowercase-hyphenated)
+- Deduplication by technique_id (first occurrence wins)
+- Full Navigator v4.5 JSON structure: name, versions, domain, techniques, gradient, metadata
+
+**CLI changes (`vex/main.py`):**
+- `--navigator` on `investigate` — exclusive with other output formats (outputs only Navigator JSON)
+- Redirect to file: `vex investigate evil.com --navigator > layer.json`
+
+**Usage:**
+```bash
+vex investigate evil.com --navigator > layer.json
+# Open layer.json at https://mitre-attack.github.io/attack-navigator/
+```
+
+---
+
 *Documentation created on 2026-03-13 based on the complete source code and end-user test session.*
 *Updated 2026-03-16 for v1.0.1 (UX improvements, QM process, config fix).*
 *Updated 2026-03-16 for v1.1.0 (known limitations resolved, MeetUp VEX-2026-003).*
 *Updated 2026-03-16: PyPI publication as vex-ioc, version check switched to PyPI JSON API, GitHub Actions CI/CD workflow added.*
 *Updated 2026-03-18 for v1.2.0 (AI integration, config --show, MeetUp VEX-2026-006).*
+*Updated 2026-03-18 for v1.2.0 (barb pipeline, WHOIS enrichment, ATT&CK Navigator export).*

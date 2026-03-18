@@ -58,3 +58,9 @@ ai:
   local_only: false
   # Cache AI responses (hours). Set to 0 to disable.
   cache_ttl_hours: 72
+
+enrichment:
+  # Direct WHOIS lookup for domain IOCs (investigate mode).
+  # Supplements VT premium WHOIS — works for free-tier users too.
+  # Requires: pip install vex-ioc[whois]
+  whois_enabled: true

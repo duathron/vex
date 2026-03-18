@@ -66,6 +66,10 @@ class UpdateCheckConfig(BaseModel):
     check_interval_hours: int = 24
 
 
+class EnrichmentConfig(BaseModel):
+    whois_enabled: bool = True  # Direct WHOIS lookup (requires: pip install vex-ioc[whois])
+
+
 def _ensure_dir(path: Path) -> None:
     """Create directory with restrictive permissions (owner-only)."""
     path.mkdir(parents=True, exist_ok=True)
@@ -80,6 +84,7 @@ class Config(BaseModel):
     plugins: PluginConfig = PluginConfig()
     update_check: UpdateCheckConfig = UpdateCheckConfig()
     ai: AIConfig = AIConfig()
+    enrichment: EnrichmentConfig = EnrichmentConfig()
 
     @property
     def api_key(self) -> str:

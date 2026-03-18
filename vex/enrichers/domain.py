@@ -120,6 +120,11 @@ def investigate(ioc: str, ioc_type: str, client: VTClient, config: Config, from_
     # Subdomains from attributes
     subdomains = attrs.get("subdomains", [])[:20]
 
+    # Direct WHOIS fallback for free-tier users (supplements VT premium WHOIS)
+    if whois is None and config.enrichment.whois_enabled:
+        from .whois_enricher import enrich_whois
+        whois = enrich_whois(ioc)
+
     return InvestigateResult(
         triage=triage_result,
         passive_dns=passive_dns,
