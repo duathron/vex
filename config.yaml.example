@@ -39,6 +39,22 @@ plugins:
   load_local: false
 
 update_check:
-  # Check for new releases on GitHub
+  # Check for new releases on PyPI
   enabled: true
   check_interval_hours: 24
+
+ai:
+  # AI provider for --explain: none | anthropic | openai | ollama
+  provider: none
+  # Model override (default per provider: claude-sonnet-4-20250514, gpt-4o, llama3)
+  # model: "claude-sonnet-4-20250514"
+  # API key — set here OR use environment variable VEX_AI_API_KEY
+  # api_key: "your-ai-api-key-here"
+  # Base URL for Ollama (default: http://localhost:11434)
+  # base_url: "http://localhost:11434"
+  max_tokens: 500
+  temperature: 0.3
+  # When true, only allow local providers (ollama). Blocks anthropic/openai.
+  local_only: false
+  # Cache AI responses (hours). Set to 0 to disable.
+  cache_ttl_hours: 72

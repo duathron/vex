@@ -28,6 +28,8 @@ from .output.stix import to_stix_bundle
 from .output.formatter import (
     console,
     err_console,
+    print_explanation_console,
+    print_explanation_rich,
     print_investigate_console,
     print_investigate_rich,
     print_summary,
@@ -43,10 +45,11 @@ _EXIT_CODES = {0: 0, 1: 0, 2: 1, 3: 2}  # severity → exit code
 
 app = typer.Typer(
     name="vex",
-    help="VirusTotal IOC Enrichment Tool - query VT API v3 for malware analysis.",
+    help="VirusTotal IOC Enrichment Tool - query VT API v3 for malware analysis with optional AI-powered explanations.",
     add_completion=False,
     rich_markup_mode="rich",
     invoke_without_command=True,
+    epilog="[dim]Quick start:  vex config --set-api-key YOUR_VT_KEY  |  vex triage <ioc>  |  vex triage <ioc> --explain[/dim]",
 )
 
 
@@ -124,6 +127,14 @@ _ApiKeyOpt = Annotated[
 _QuietOpt = Annotated[
     bool,
     typer.Option("--quiet", "-q", help="Suppress the ASCII banner."),
+]
+_ExplainOpt = Annotated[
+    bool,
+    typer.Option("--explain", "-e", help="Add AI-powered threat explanation. Providers: anthropic, openai, ollama. Falls back to template if unconfigured. See 'vex manual ai' for setup."),
+]
+_ExplainModelOpt = Annotated[
+    Optional[str],
+    typer.Option("--explain-model", help="Override AI model (e.g. claude-sonnet-4-20250514, gpt-4o, llama3). Requires provider in ~/.vex/config.yaml."),
 ]
 
 
@@ -233,6 +244,66 @@ def _output_investigate(result: InvestigateResult, fmt: OutputFormat) -> None:
         print(to_json(result))
 
 
+def _run_explain(
+    results: list,
+    config,
+    model_override: Optional[str],
+    output_fmt: OutputFormat,
+) -> None:
+    """Generate and display AI explanations for results."""
+    from .ai import get_provider
+    from .ai.cache import AICache
+    from .ai.prompt import build_explain_prompt
+    from .ai.template import template_explain
+
+    if model_override:
+        config.ai.model = model_override
+
+    # Get provider (None = use template fallback)
+    provider = None
+    try:
+        provider = get_provider(config)
+    except (ValueError, ImportError) as e:
+        err_console.print(f"[yellow]AI:[/yellow] {e}")
+        err_console.print("[dim]Falling back to template-based explanation.[/dim]")
+
+    for result in results:
+        prompt = build_explain_prompt(result)
+
+        if provider:
+            model_name = config.ai.model or "default"
+            with AICache(config.ai.cache_ttl_hours) as cache:
+                cached = cache.get(provider.name, model_name, prompt)
+                if cached:
+                    explanation = cached
+                    err_console.print(f"[dim]AI explanation from cache ({provider.name})[/dim]")
+                else:
+                    try:
+                        err_console.print(f"[dim]→ Generating AI explanation ({provider.name})...[/dim]")
+                        explanation = provider.explain(
+                            prompt,
+                            max_tokens=config.ai.max_tokens,
+                            temperature=config.ai.temperature,
+                        )
+                        cache.set(provider.name, model_name, prompt, explanation)
+                    except Exception as e:
+                        err_console.print(f"[yellow]AI error ({provider.name}):[/yellow] {e}")
+                        err_console.print("[dim]Falling back to template-based explanation.[/dim]")
+                        explanation = template_explain(result)
+                        provider = None  # mark as fallback for display
+            provider_name = provider.name if provider else "template"
+        else:
+            explanation = template_explain(result)
+            provider_name = "template"
+
+        # Output explanation
+        if output_fmt == OutputFormat.rich:
+            print_explanation_rich(explanation, provider_name)
+        elif output_fmt == OutputFormat.console:
+            print_explanation_console(explanation, provider_name)
+        # JSON: explanation is added to the result dict (handled separately)
+
+
 # ---------------------------------------------------------------------------
 # Subcommand: triage
 # ---------------------------------------------------------------------------
@@ -251,6 +322,8 @@ def cmd_triage(
     stix: _StixOpt = False,
     api_key: _ApiKeyOpt = None,
     quiet: _QuietOpt = False,
+    explain: _ExplainOpt = False,
+    explain_model: _ExplainModelOpt = None,
 ) -> None:
     config = load_config(config_path)
     if api_key:
@@ -337,6 +410,10 @@ def cmd_triage(
         for r in results:
             _output_triage(r, output)
 
+    # AI explanation (opt-in)
+    if explain and results:
+        _run_explain(results, config, explain_model, output)
+
     raise typer.Exit(code=exit_code)
 
 
@@ -358,6 +435,8 @@ def cmd_investigate(
     timeline: _TimelineOpt = False,
     api_key: _ApiKeyOpt = None,
     quiet: _QuietOpt = False,
+    explain: _ExplainOpt = False,
+    explain_model: _ExplainModelOpt = None,
 ) -> None:
     config = load_config(config_path)
     if api_key:
@@ -455,6 +534,10 @@ def cmd_investigate(
             else:
                 print_timeline_console(tl)
 
+    # AI explanation (opt-in)
+    if explain and results:
+        _run_explain(results, config, explain_model, output)
+
     raise typer.Exit(code=exit_code)
 
 
@@ -490,21 +573,300 @@ def cmd_version() -> None:
         pass
 
 
-@app.command(name="config", help="[bold blue]Manage configuration[/bold blue] - save API key, settings.")
+@app.command(name="config", help="[bold blue]Manage configuration[/bold blue] - save API key, AI provider, show settings.")
 def cmd_config(
     set_api_key: Annotated[
         Optional[str],
-        typer.Option("--set-api-key", help="Save VirusTotal API key to ~/.vex/config.yaml")
+        typer.Option("--set-api-key", help="Save VirusTotal API key to ~/.vex/config.yaml"),
     ] = None,
+    set_ai_provider: Annotated[
+        Optional[str],
+        typer.Option("--set-ai-provider", help="Set AI provider (anthropic | openai | ollama | none)."),
+    ] = None,
+    set_ai_key: Annotated[
+        Optional[str],
+        typer.Option("--set-ai-key", help="Save AI provider API key to ~/.vex/config.yaml."),
+    ] = None,
+    show: Annotated[
+        bool,
+        typer.Option("--show", help="Display active configuration with masked secrets."),
+    ] = False,
 ) -> None:
     config = load_config()
+    changed = False
+
     if set_api_key:
         config.api.key = set_api_key
+        changed = True
         path = save_config(config)
-        console.print(f"[green]✓[/green] API key saved to [bold]{path}[/bold]")
-    else:
+        console.print(f"[green]✓[/green] VT API key saved to [bold]{path}[/bold]")
+
+    if set_ai_provider:
+        valid = ("anthropic", "openai", "ollama", "none")
+        if set_ai_provider.lower() not in valid:
+            console.print(f"[red]Error:[/red] Invalid provider '{set_ai_provider}'. Use: {', '.join(valid)}")
+            raise typer.Exit(code=1)
+        config.ai.provider = set_ai_provider.lower()
+        changed = True
+        path = save_config(config)
+        console.print(f"[green]✓[/green] AI provider set to [bold]{set_ai_provider.lower()}[/bold] in {path}")
+        if set_ai_provider.lower() in ("anthropic", "openai") and not config.ai_api_key:
+            console.print("[yellow]Note:[/yellow] Set the AI API key with [bold]--set-ai-key[/bold] or [bold]VEX_AI_API_KEY[/bold] env var.")
+        if set_ai_provider.lower() in ("anthropic", "openai"):
+            console.print("[dim]Install AI packages: pip install vex-ioc\[ai][/dim]")
+
+    if set_ai_key:
+        config.ai.api_key = set_ai_key
+        changed = True
+        path = save_config(config)
+        console.print(f"[green]✓[/green] AI API key saved to [bold]{path}[/bold]")
+
+    if show:
+        _show_config(config)
+    elif not changed:
         console.print("[cyan]vex config[/cyan] — Manage configuration")
-        console.print("  [bold]--set-api-key KEY[/bold]  Save VirusTotal API key permanently")
+        console.print("  [bold]--set-api-key KEY[/bold]      Save VirusTotal API key permanently")
+        console.print("  [bold]--set-ai-provider NAME[/bold] Set AI provider (anthropic | openai | ollama | none)")
+        console.print("  [bold]--set-ai-key KEY[/bold]       Save AI provider API key")
+        console.print("  [bold]--show[/bold]                 Display active configuration")
+        console.print()
+        console.print("[dim]AI setup: run 'vex manual ai' for a step-by-step guide.[/dim]")
+
+
+def _show_config(config) -> None:
+    """Display active config with masked secrets."""
+    import os
+    from rich.table import Table
+    from rich import box
+
+    def mask(val: Optional[str]) -> str:
+        if not val:
+            return "[dim]not set[/dim]"
+        if len(val) <= 8:
+            return "****"
+        return f"{'*' * (len(val) - 4)}{val[-4:]}"
+
+    t = Table(title="vex configuration", box=box.ROUNDED)
+    t.add_column("Key", style="cyan")
+    t.add_column("Value")
+
+    # API
+    t.add_row("api.key (config)", mask(config.api.key))
+    t.add_row("api.key (env VT_API_KEY)", mask(os.getenv("VT_API_KEY")))
+    t.add_row("api.tier", config.api.tier)
+    t.add_row("api.rate_limit", f"{config.rate_limit.requests_per_minute} req/min, {config.rate_limit.requests_per_day} req/day")
+
+    # Thresholds
+    t.add_row("thresholds.malicious_min", str(config.thresholds.malicious_min_detections))
+    t.add_row("thresholds.suspicious_min", str(config.thresholds.suspicious_min_detections))
+    t.add_row("thresholds.min_engines_clean", str(config.thresholds.min_engines_for_clean))
+
+    # Cache
+    t.add_row("cache.enabled", str(config.cache.enabled))
+    t.add_row("cache.ttl_hours", str(config.cache.ttl_hours))
+
+    # Output
+    t.add_row("output.default_format", config.output.default_format)
+    t.add_row("output.quiet", str(config.output.quiet))
+
+    # Plugins
+    t.add_row("plugins.load_local", str(config.plugins.load_local))
+
+    # Update check
+    t.add_row("update_check.enabled", str(config.update_check.enabled))
+    t.add_row("update_check.interval", f"{config.update_check.check_interval_hours}h")
+
+    # AI
+    t.add_row("ai.provider", config.ai.provider)
+    t.add_row("ai.model", config.ai.model or "[dim]default[/dim]")
+    t.add_row("ai.api_key", mask(config.ai_api_key))
+    t.add_row("ai.base_url", config.ai.base_url or "[dim]not set[/dim]")
+    t.add_row("ai.max_tokens", str(config.ai.max_tokens))
+    t.add_row("ai.temperature", str(config.ai.temperature))
+    t.add_row("ai.local_only", str(config.ai.local_only))
+    t.add_row("ai.cache_ttl_hours", str(config.ai.cache_ttl_hours))
+
+    console.print(t)
+
+    # AI setup hint
+    if config.ai.provider == "none":
+        console.print()
+        console.print("[dim]Hint: AI explanations not configured. Run 'vex manual ai' for setup instructions.[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# Manual / help subcommand
+# ---------------------------------------------------------------------------
+
+_MANUAL_TOPICS: dict[str, str] = {
+    "ai": """\
+[bold cyan]AI-POWERED EXPLANATIONS[/bold cyan]
+
+vex can generate natural-language threat explanations using LLM providers.
+The [bold]--explain[/bold] flag is strictly opt-in — it is never active by default.
+
+[bold]SUPPORTED PROVIDERS:[/bold]
+  [cyan]anthropic[/cyan]   Claude models (cloud, requires API key)
+  [cyan]openai[/cyan]      GPT models (cloud, requires API key)
+  [cyan]ollama[/cyan]      Local models (no API key, privacy-friendly)
+  [cyan]none[/cyan]        Disabled (default) — uses template-based fallback
+
+[bold]INSTALLATION:[/bold]
+  Cloud providers:   [green]pip install vex-ioc\[ai][/green]
+  Local (Ollama):    [green]pip install vex-ioc[/green]        (uses built-in httpx)
+  All providers:     [green]pip install vex-ioc\[ai-all][/green]
+
+[bold]QUICK SETUP:[/bold]
+  [green]vex config --set-ai-provider anthropic[/green]
+  [green]vex config --set-ai-key sk-ant-...[/green]
+  [green]vex triage 44d88612fea8a8f36de82e1278abb02f --explain[/green]
+
+[bold]CONFIGURATION (~/.vex/config.yaml):[/bold]
+  ai:
+    provider: anthropic           # or: openai, ollama, none
+    model: claude-sonnet-4-20250514   # optional, uses provider default
+    api_key: sk-...               # or set VEX_AI_API_KEY env var
+    base_url: http://localhost:11434  # for Ollama only
+    local_only: false             # true = block cloud providers
+    max_tokens: 500
+    temperature: 0.3
+    cache_ttl_hours: 72
+
+[bold]ENVIRONMENT VARIABLES:[/bold]
+  [cyan]VEX_AI_API_KEY[/cyan]     AI provider API key (overrides config.yaml)
+  [cyan]VEX_AI_PROVIDER[/cyan]    AI provider name (overrides config.yaml)
+
+[bold]USAGE EXAMPLES:[/bold]
+  [green]vex triage <hash> --explain[/green]
+  [green]vex triage <hash> --explain --explain-model gpt-4o[/green]
+  [green]vex investigate <domain> -o rich --explain[/green]
+
+[bold]OLLAMA (LOCAL MODELS):[/bold]
+  1. Install Ollama: https://ollama.com
+  2. Pull a model:   [green]ollama pull llama3[/green]
+  3. Configure vex:  [green]vex config --set-ai-provider ollama[/green]
+  4. Run:            [green]vex triage <ioc> --explain[/green]
+
+[bold]PRIVACY:[/bold]
+  With --explain, vex sends IOC enrichment data (detection stats, verdict,
+  malware families, sandbox behaviors) to the configured LLM provider.
+  • Set [cyan]ai.local_only: true[/cyan] to enforce local-only processing (Ollama).
+  • Without --explain, no data leaves your machine (except VT API queries).
+  • IOCs are defanged in prompts for safety.
+
+[bold]TEMPLATE FALLBACK:[/bold]
+  If no AI provider is configured, --explain produces a deterministic
+  template-based explanation from enrichment data. No external calls.
+  This ensures --explain always produces useful output.
+""",
+
+    "config": """\
+[bold cyan]CONFIGURATION REFERENCE[/bold cyan]
+
+vex reads configuration from multiple sources (priority order):
+
+  1. [bold]CLI flags[/bold] (--api-key, --explain-model)    [highest priority]
+  2. [bold]Environment variables[/bold] (VT_API_KEY, VEX_AI_API_KEY)
+  3. [bold]~/.vex/config.yaml[/bold] (user config)
+  4. [bold]Default values[/bold] from Pydantic models        [lowest priority]
+
+[bold]QUICK SETUP:[/bold]
+  [green]vex config --set-api-key YOUR_VT_KEY[/green]       Save VirusTotal API key
+  [green]vex config --set-ai-provider anthropic[/green]     Set AI provider
+  [green]vex config --set-ai-key sk-ant-...[/green]         Save AI API key
+  [green]vex config --show[/green]                          Show active configuration
+
+[bold]CONFIG FILE LOCATION:[/bold]
+  ~/.vex/config.yaml  (permissions: 0o600, directory: 0o700)
+
+[bold]CONFIG SECTIONS:[/bold]
+  api:           VT API key, tier (free/premium), rate limits
+  thresholds:    malicious/suspicious detection thresholds
+  cache:         SQLite cache TTL (default 24h)
+  output:        Default format (json/rich/console), quiet mode
+  plugins:       Plugin loading settings
+  update_check:  PyPI version check interval
+  ai:            AI provider, model, API key, privacy settings
+
+[bold]ENVIRONMENT VARIABLES:[/bold]
+  VT_API_KEY         VirusTotal API key
+  VEX_AI_API_KEY     AI provider API key
+  VEX_AI_PROVIDER    AI provider name
+""",
+
+    "examples": """\
+[bold cyan]USAGE EXAMPLES[/bold cyan]
+
+[bold]Basic triage:[/bold]
+  [green]vex triage 44d88612fea8a8f36de82e1278abb02f[/green]
+  [green]vex triage 8.8.8.8 -o rich[/green]
+  [green]vex triage evil.com --explain[/green]
+
+[bold]Deep investigation:[/bold]
+  [green]vex investigate evil.com -o rich --timeline --explain[/green]
+  [green]vex investigate <hash> --stix > bundle.json[/green]
+
+[bold]Batch processing:[/bold]
+  [green]vex triage -f iocs.txt -o rich[/green]
+  [green]vex triage -f iocs.txt --csv > results.csv[/green]
+  [green]vex triage -f iocs.txt --alert SUSPICIOUS --summary[/green]
+  [green]cat iocs.txt | vex triage -o json[/green]
+
+[bold]Defanged IOC support:[/bold]
+  [green]vex triage "hxxps[://]evil[.]com"[/green]
+  [green]vex investigate "8[.]8[.]8[.]8" --defang[/green]
+
+[bold]Knowledge base:[/bold]
+  [green]vex tag 8.8.8.8 --add dns --add google[/green]
+  [green]vex note evil.com --add "Seen in phishing Q4"[/green]
+  [green]vex watchlist priority --add 8.8.8.8 --list[/green]
+
+[bold]Configuration:[/bold]
+  [green]vex config --set-api-key YOUR_KEY[/green]
+  [green]vex config --set-ai-provider ollama[/green]
+  [green]vex config --show[/green]
+
+[bold]Automation (exit codes):[/bold]
+  [green]vex triage <ioc> && echo "clean" || echo "alert"[/green]
+  Exit 0 = clean/unknown, 1 = suspicious, 2 = malicious, 3 = error
+""",
+}
+
+
+@app.command(name="manual", help="[bold blue]Show usage guide[/bold blue] — setup, AI, config, examples.")
+def cmd_manual(
+    topic: Annotated[
+        Optional[str],
+        typer.Argument(help="Topic: ai, config, examples. Omit for overview."),
+    ] = None,
+) -> None:
+    """Display comprehensive usage guides."""
+    if topic and topic.lower() in _MANUAL_TOPICS:
+        console.print(_MANUAL_TOPICS[topic.lower()])
+        return
+
+    if topic:
+        console.print(f"[red]Unknown topic:[/red] '{topic}'")
+        console.print()
+
+    # Overview
+    console.print("[bold cyan]VEX MANUAL[/bold cyan]")
+    console.print()
+    console.print(f"  vex {__version__} — VirusTotal IOC Enrichment Tool")
+    console.print("  https://github.com/duathron/vex")
+    console.print("  https://pypi.org/project/vex-ioc/")
+    console.print()
+    console.print("[bold]Available topics:[/bold]")
+    console.print("  [green]vex manual ai[/green]         AI-powered explanations setup guide")
+    console.print("  [green]vex manual config[/green]     Configuration reference")
+    console.print("  [green]vex manual examples[/green]   Usage examples")
+    console.print()
+    console.print("[bold]Quick start:[/bold]")
+    console.print("  [green]vex config --set-api-key YOUR_VT_KEY[/green]")
+    console.print("  [green]vex triage <ioc>[/green]")
+    console.print("  [green]vex investigate <domain> -o rich --explain[/green]")
+    console.print()
+    console.print("[dim]Part of the security portfolio: vex (IOC enrichment) + barb (phishing URL analysis)[/dim]")
 
 
 # ---------------------------------------------------------------------------

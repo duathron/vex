@@ -475,7 +475,91 @@ Decision: no OIDC trusted publisher setup for simplicity; API token via GitHub S
 
 ---
 
+## v1.2.0 — AI Integration
+
+**MeetUp:** VEX-2026-006 (Architect, SOC Analyst, DFIR, Code Security, UX Design, AI Specialist, Marketing, QM — 8 agents)
+**Date:** 2026-03-18
+
+### Overview
+
+v1.2.0 adds AI-powered threat explanations as a strictly opt-in feature via the `--explain` flag. Three LLM providers are supported: Anthropic Claude, OpenAI, and Ollama (local). When no AI provider is configured, a deterministic template-based fallback produces structured explanations. AI is never default-on — the base install and all existing commands work exactly as before.
+
+### New Package: vex/ai/
+
+```
+vex/ai/
+├── __init__.py      # get_provider(config) factory, availability checks
+├── protocol.py      # LLMProviderProtocol (runtime_checkable)
+├── prompt.py        # build_explain_prompt(result), input sanitization (defanged IOCs)
+├── template.py      # template_explain(result) — deterministic, no LLM needed
+├── cache.py         # AI response cache (SQLite, SHA-256 key, 72h TTL)
+├── anthropic.py     # ClaudeProvider (anthropic SDK)
+├── openai.py        # OpenAIProvider (openai SDK)
+└── ollama.py        # OllamaProvider (httpx, no extra deps)
+```
+
+Architecture follows the established Protocol pattern from `enrichers/protocol.py`. `LLMProviderProtocol` defines `explain(prompt) -> str` and `is_available() -> bool`. Providers are instantiated via `get_provider(config)` which enforces `ai.local_only` and validates API keys.
+
+### Data Flow
+
+```
+triage/investigate result
+    ↓
+prompt.py → build_explain_prompt(result) → prompt string (defanged IOC, sanitized)
+    ↓
+provider.explain(prompt) → explanation string  [or template.py fallback]
+    ↓
+formatter.py → Rich panel "AI Analysis" (blue border) / console text
+```
+
+### AIConfig
+
+New Pydantic model in `config.py`:
+
+- `provider`: `none` | `anthropic` | `openai` | `ollama` (default: `none`)
+- `model`: optional override per provider
+- `api_key`: overridden by `VEX_AI_API_KEY` env var
+- `base_url`: for Ollama (default: `http://localhost:11434`)
+- `max_tokens`: 500 (default)
+- `temperature`: 0.3 (default)
+- `local_only`: when `true`, blocks cloud providers (Anthropic, OpenAI)
+- `cache_ttl_hours`: 72 (default)
+
+### Optional Dependencies
+
+AI packages are optional extras in `pyproject.toml`:
+
+- `pip install vex-ioc[ai]` — installs `anthropic` + `openai`
+- `pip install vex-ioc[ai-local]` — no extras (Ollama uses httpx, already a core dep)
+- `pip install vex-ioc[ai-all]` — installs all AI packages
+
+Base install remains unchanged (6 core deps).
+
+### Security Controls (MeetUp decision: unanimous)
+
+1. **`ai.local_only: true`** — blocks all cloud providers, only allows Ollama. For air-gapped SOCs.
+2. **Input sanitization** — IOCs are defanged in prompts (`evil.com` → `evil[.]com`). No raw user input in system prompt sections.
+3. **Explicit data documentation** — the prompt contains only VT enrichment data (verdict, detections, families, ATT&CK techniques). No config, API keys, or file system paths.
+4. **API keys** — same security model as VT API key: env var > config file (0o600) > CLI flag.
+5. **Graceful degradation** — if AI provider fails, falls back to template. AI never blocks the main enrichment pipeline.
+
+### CLI Changes
+
+New flags on `triage` and `investigate`:
+- `--explain` / `-e` — generate AI explanation after results
+- `--explain-model <name>` — override the configured model
+
+New flag on `config`:
+- `--show` — display active configuration as Rich table with masked API keys
+
+### AI Response Cache
+
+AI responses are cached in `~/.vex/ai_cache.db` (separate from the main result cache). Cache key is SHA-256 of `(provider, model, prompt)`. Default TTL: 72 hours. This avoids redundant API calls when re-analyzing the same IOC with the same AI configuration.
+
+---
+
 *Documentation created on 2026-03-13 based on the complete source code and end-user test session.*
 *Updated 2026-03-16 for v1.0.1 (UX improvements, QM process, config fix).*
 *Updated 2026-03-16 for v1.1.0 (known limitations resolved, MeetUp VEX-2026-003).*
 *Updated 2026-03-16: PyPI publication as vex-ioc, version check switched to PyPI JSON API, GitHub Actions CI/CD workflow added.*
+*Updated 2026-03-18 for v1.2.0 (AI integration, config --show, MeetUp VEX-2026-006).*

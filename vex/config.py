@@ -50,6 +50,17 @@ class PluginConfig(BaseModel):
     load_local: bool = False  # opt-in ~/.vex/plugins/ scanning
 
 
+class AIConfig(BaseModel):
+    provider: str = "none"  # none | anthropic | openai | ollama
+    model: Optional[str] = None  # default per provider
+    api_key: Optional[str] = None  # overridden by VEX_AI_API_KEY env
+    base_url: Optional[str] = None  # for Ollama: http://localhost:11434
+    max_tokens: int = 500
+    temperature: float = 0.3
+    local_only: bool = False  # when True, reject cloud providers
+    cache_ttl_hours: int = 72
+
+
 class UpdateCheckConfig(BaseModel):
     enabled: bool = True
     check_interval_hours: int = 24
@@ -68,6 +79,7 @@ class Config(BaseModel):
     output: OutputConfig = OutputConfig()
     plugins: PluginConfig = PluginConfig()
     update_check: UpdateCheckConfig = UpdateCheckConfig()
+    ai: AIConfig = AIConfig()
 
     @property
     def api_key(self) -> str:
@@ -80,6 +92,11 @@ class Config(BaseModel):
                 "  Option 3: Run 'vex config set-api-key YOUR_KEY' to save permanently"
             )
         return key
+
+    @property
+    def ai_api_key(self) -> Optional[str]:
+        """AI provider API key: VEX_AI_API_KEY env > config ai.api_key."""
+        return os.getenv("VEX_AI_API_KEY") or self.ai.api_key
 
     @property
     def is_premium(self) -> bool:

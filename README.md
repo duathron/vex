@@ -8,6 +8,8 @@
   <b>VirusTotal IOC enrichment for SOC triage and DFIR investigations, straight from your terminal.</b>
 </p>
 
+<div align="center">
+
 ```
  ██╗   ██╗███████╗██╗  ██╗
  ██║   ██║██╔════╝╚██╗██╔╝
@@ -16,6 +18,8 @@
   ╚████╔╝ ███████╗██╔╝ ██╗
    ╚═══╝  ╚══════╝╚═╝  ╚═╝
 ```
+
+</div>
 
 ---
 
@@ -33,7 +37,10 @@
 - **Parallel batch processing** with progress bar for large IOC lists
 - **STIX 2.1 export** for threat intelligence sharing
 - **SQLite cache** with configurable TTL (default 24h)
+- **AI-powered explanations**: `--explain` for threat narratives via Claude, OpenAI, or Ollama (opt-in)
 - **Rate limiting**: token-bucket, free tier (4 req/min) and premium configurable
+
+> **Part of the security portfolio:** Use [**barb**](https://github.com/duathron/barb) for offline heuristic phishing URL triage. Use **vex** for VirusTotal IOC enrichment. Pipe barb JSON output into vex for full enrichment (v1.2).
 
 ---
 
@@ -50,6 +57,11 @@
 
 ```bash
 pip install vex-ioc
+
+# With AI support (Claude + OpenAI)
+pip install vex-ioc[ai]
+
+# Ollama (local models) works out of the box — no extras needed
 ```
 
 **From source:**
@@ -124,6 +136,15 @@ vex investigate evil.com --stix > bundle.json
 # Timeline reconstruction
 vex investigate evil.com -o rich --timeline
 
+# AI-powered explanation (template fallback if no LLM configured)
+vex triage 44d88612fea8a8f36de82e1278abb02f --explain
+
+# With Claude as AI provider
+vex investigate evil.com -o rich --explain --explain-model claude-sonnet-4-20250514
+
+# Show active configuration
+vex config --show
+
 # Automation: exit code + alert filter + summary
 vex triage -f iocs.txt --alert SUSPICIOUS --summary
 echo $?  # 0=clean, 1=suspicious, 2=malicious
@@ -162,6 +183,8 @@ echo $?  # 0=clean, 1=suspicious, 2=malicious
 | `--alert <LEVEL>` | Only show results >= verdict level |
 | `--summary` | Print verdict summary to stderr |
 | `--timeline` | Show chronological timeline (investigate only) |
+| `-e` / `--explain` | Add AI-powered threat explanation to output |
+| `--explain-model` | Override AI model (e.g. `claude-sonnet-4-20250514`, `gpt-4o`, `llama3`) |
 
 ### Configuration Command
 
@@ -171,8 +194,8 @@ Manage vex configuration:
 # Save API key permanently
 vex config --set-api-key YOUR_KEY
 
-# Show usage
-vex config
+# Show active configuration (API keys masked)
+vex config --show
 ```
 
 Saved config is stored at `~/.vex/config.yaml` with restricted permissions (0o600).
@@ -266,7 +289,7 @@ output:
 
 ```
 vex/
-├── __init__.py          # Package version (1.1.0)
+├── __init__.py          # Package version (1.2.0)
 ├── main.py              # Typer CLI app with all subcommands
 ├── banner.py            # ASCII art banner (ffuf-style)
 ├── client.py            # Sync VT API v3 client + rate limiter
@@ -278,7 +301,17 @@ vex/
 ├── models.py            # Pydantic v2 models + Verdict enum
 ├── batch.py             # Parallel batch processing
 ├── timeline.py          # Timeline event reconstruction
+├── version_check.py     # PyPI update check
 ├── vex.png              # Logo
+├── ai/
+│   ├── __init__.py      # Provider factory + availability
+│   ├── protocol.py      # LLMProviderProtocol interface
+│   ├── prompt.py        # Prompt builder (input sanitization)
+│   ├── template.py      # Template-based fallback (no LLM)
+│   ├── cache.py         # AI response cache (SQLite, 72h TTL)
+│   ├── anthropic.py     # Claude provider
+│   ├── openai.py        # OpenAI provider
+│   └── ollama.py        # Ollama local provider
 ├── enrichers/
 │   ├── base.py          # Shared enricher utilities
 │   ├── protocol.py      # EnricherProtocol interface
@@ -305,6 +338,9 @@ vex/
 ---
 
 ## Changelog
+
+### 2026-03-18
+- **v1.2.0** — AI integration: `--explain` flag for AI-powered threat narratives (Claude, OpenAI, Ollama), template-based fallback, AI response caching (72h), `vex config --show`, optional deps (`pip install vex-ioc[ai]`)
 
 ### 2026-03-16
 - **v1.1.0** — Resolved all known limitations: batch processing activated, premium endpoint graceful degradation, entry-point plugin discovery, IPv6 detection upgraded to RFC 4291, passive version update check

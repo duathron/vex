@@ -385,6 +385,33 @@ def print_timeline_console(timeline: TimelineResult) -> None:
     print(f"{'='*60}")
 
 
+# ---------------------------------------------------------------------------
+# AI explanation output
+# ---------------------------------------------------------------------------
+
+def print_explanation_rich(explanation: str, provider: str = "template") -> None:
+    """Print AI explanation as a Rich panel with blue border."""
+    console.print(Panel(
+        explanation,
+        title=f"[bold]AI Analysis[/bold] [dim]({provider})[/dim]",
+        border_style="blue",
+        padding=(1, 2),
+    ))
+
+
+def print_explanation_console(explanation: str, provider: str = "template") -> None:
+    """Print AI explanation in plain text."""
+    console.print(f"\n{'─' * 60}")
+    console.print(f"AI Analysis ({provider}):")
+    console.print(f"{'─' * 60}")
+    console.print(explanation)
+    console.print(f"{'─' * 60}")
+
+
+# ---------------------------------------------------------------------------
+# Plain console output (no rich dependency at runtime for piping)
+# ---------------------------------------------------------------------------
+
 def print_investigate_console(result: InvestigateResult) -> None:
     print_triage_console(result.triage)
 
