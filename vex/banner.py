@@ -1,10 +1,16 @@
 """CLI banner display — ffuf-inspired ASCII art header."""
 
 import sys
+from pathlib import Path
 
 from rich.console import Console
 
 from . import __version__
+
+try:
+    _FIRST_RUN_FLAG: Path | None = Path.home() / ".vex" / ".first_run_complete"
+except RuntimeError:
+    _FIRST_RUN_FLAG = None  # no home dir (e.g. containers with no HOME env)
 
 _BANNER = """\
 [bold cyan]                        ██▀   ▄▄▄▄▄▄
@@ -60,5 +66,14 @@ def print_banner(
             if latest:
                 err.print(f"  [bold yellow]Update available: {__version__} -> {latest}[/bold yellow]")
                 err.print("  [dim]pip install --upgrade vex  |  https://github.com/duathron/vex/releases[/dim]")
+        except Exception:
+            pass
+
+    # First-run addon hint (shown once, suppressed by -q and pipe)
+    if _FIRST_RUN_FLAG is not None and not _FIRST_RUN_FLAG.exists():
+        err.print("[dim]Tip: Run 'vex addons' to see available extras (AI explanations, pipeline).[/dim]")
+        try:
+            _FIRST_RUN_FLAG.parent.mkdir(parents=True, exist_ok=True)
+            _FIRST_RUN_FLAG.touch()
         except Exception:
             pass

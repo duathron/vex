@@ -42,8 +42,8 @@ err_console = Console(stderr=True)
 # ---------------------------------------------------------------------------
 
 def _verdict_badge(verdict: Verdict) -> Text:
-    style = _VERDICT_STYLE.get(verdict, "white")
-    return Text(f" {verdict.value} ", style=f"on {style.split()[1]} bold white")
+    style = _VERDICT_STYLE.get(verdict, "bold white")
+    return Text(f" {verdict.value} ", style=f"on {style.split()[-1]} bold white")
 
 
 def _triage_panel(r: TriageResult) -> Panel:
@@ -390,19 +390,24 @@ def print_timeline_console(timeline: TimelineResult) -> None:
 # ---------------------------------------------------------------------------
 
 def print_explanation_rich(explanation: str, provider: str = "template") -> None:
-    """Print AI explanation as a Rich panel with blue border."""
+    """Print AI or template explanation as a Rich panel with blue border."""
+    if provider == "template":
+        title = "[bold]Template Explanation[/bold]"
+    else:
+        title = f"[bold]AI Explanation[/bold] [dim]({provider})[/dim]"
     console.print(Panel(
         explanation,
-        title=f"[bold]AI Analysis[/bold] [dim]({provider})[/dim]",
+        title=title,
         border_style="blue",
         padding=(1, 2),
     ))
 
 
 def print_explanation_console(explanation: str, provider: str = "template") -> None:
-    """Print AI explanation in plain text."""
+    """Print AI or template explanation in plain text."""
+    label = "Template Explanation" if provider == "template" else f"AI Explanation ({provider})"
     console.print(f"\n{'─' * 60}")
-    console.print(f"AI Analysis ({provider}):")
+    console.print(f"{label}:")
     console.print(f"{'─' * 60}")
     console.print(explanation)
     console.print(f"{'─' * 60}")

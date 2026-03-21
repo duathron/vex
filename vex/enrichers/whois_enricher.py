@@ -1,13 +1,8 @@
-"""Direct WHOIS enrichment via python-whois (optional dependency).
+"""Direct WHOIS enrichment for domain IOCs.
 
-For free-tier users who don't have access to VirusTotal's premium WHOIS
-endpoint, this module provides direct WHOIS lookups using the python-whois
-library.
-
-Falls back gracefully when python-whois is not installed::
-
-    # Install optional dep
-    pip install vex-ioc[whois]
+python-whois is a core dependency as of vex v1.2.0.
+Provides WHOIS data for free-tier users who don't have access to
+VirusTotal's premium WHOIS endpoint.
 
 Integration point in domain.py::
 
@@ -20,18 +15,11 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
+import whois  # type: ignore[import]  # core dep since v1.2.0
+
 from ..models import WHOISInfo
 
 logger = logging.getLogger("vex.enrichers.whois")
-
-
-def is_available() -> bool:
-    """Return True if python-whois is installed."""
-    try:
-        import whois  # noqa: F401
-        return True
-    except ImportError:
-        return False
 
 
 def enrich_whois(domain: str) -> Optional[WHOISInfo]:
@@ -40,21 +28,15 @@ def enrich_whois(domain: str) -> Optional[WHOISInfo]:
     Handles all python-whois quirks:
     - Values may be single items or lists; we always take the first.
     - Dates may be datetime objects or strings; we coerce to str.
-    - Exceptions are caught and logged as warnings (never raises).
+    - All exceptions are caught and logged (never raises).
 
     Args:
         domain: Bare domain name (e.g. "evil.com"). No protocol prefix.
 
     Returns:
-        Populated WHOISInfo or None if lookup failed / lib unavailable.
+        Populated WHOISInfo or None if lookup failed.
     """
-    if not is_available():
-        logger.debug("python-whois not installed — skipping direct WHOIS lookup")
-        return None
-
     try:
-        import whois  # type: ignore[import]
-
         w = whois.whois(domain)
         if not w:
             return None

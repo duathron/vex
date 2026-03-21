@@ -37,10 +37,11 @@
 - **Plugin architecture**: extensible enrichment sources via Protocol interface
 - **Parallel batch processing** with progress bar for large IOC lists
 - **STIX 2.1 export** for threat intelligence sharing
-- **WHOIS enrichment**: direct WHOIS lookups for domain IOCs (free-tier friendly)
+- **WHOIS enrichment**: direct WHOIS lookups for domain IOCs (included in base install)
 - **SQLite cache** with configurable TTL (default 24h)
 - **AI-powered explanations**: `--explain` for threat narratives via Claude, OpenAI, or Ollama (opt-in)
 - **barb pipeline**: `--from-barb` to combine barb heuristic pre-scan with VT enrichment
+- **Addon discoverability**: `vex addons` shows available extras and install status
 - **Rate limiting**: token-bucket, free tier (4 req/min) and premium configurable
 
 > **Part of the security portfolio:** Use [**barb**](https://github.com/duathron/barb) for offline heuristic phishing URL triage. Use **vex** for VirusTotal IOC enrichment. Pipe barb JSON output into vex for full enrichment (v1.2).
@@ -64,14 +65,18 @@ pip install vex-ioc
 # With AI support (Claude + OpenAI)
 pip install vex-ioc[ai]
 
-# With direct WHOIS enrichment
-pip install vex-ioc[whois]
-
-# Everything
-pip install vex-ioc[ai,whois]
-
 # Ollama (local models) works out of the box — no extras needed
+# WHOIS enrichment is included in the base install (core dep since v1.2.0)
 ```
+
+> **Kali Linux / Debian / system Python?** Use `pipx` to avoid system package conflicts:
+> ```bash
+> sudo apt install pipx && pipx ensurepath
+> pipx install vex-ioc
+> pipx install "vex-ioc[ai]"   # with AI support
+> ```
+
+After installation, run `vex addons` to see all available extras and their status.
 
 **From source:**
 
@@ -166,7 +171,7 @@ barb analyze https://evil.com -o json | vex investigate --from-barb -o rich
 vex investigate evil.com --navigator > layer.json
 # Open layer.json at https://mitre-attack.github.io/attack-navigator/
 
-# Domain WHOIS enrichment (free-tier, requires pip install vex-ioc[whois])
+# Domain WHOIS enrichment (included in base install since v1.2.0)
 vex investigate evil.com -o rich   # WHOIS panel shown automatically
 ```
 
@@ -183,10 +188,11 @@ vex investigate evil.com -o rich   # WHOIS panel shown automatically
 | `vex config` | Manage configuration (save API key, etc.) |
 | `vex cache-clear` | Clear the SQLite result cache |
 | `vex version` | Show version |
+| `vex addons` | Show available extras and installation status |
 | `vex tag <ioc>` | Manage IOC tags in local knowledge base |
 | `vex note <ioc>` | Manage IOC notes in local knowledge base |
 | `vex watchlist <name>` | Manage IOC watchlists |
-| `vex manual [topic]` | Show usage guide (topics: ai, config, examples, pipeline) |
+| `vex manual [topic]` | Show usage guide (topics: ai, config, examples, pipeline, addons) |
 
 ### Triage / Investigate Options
 
@@ -269,12 +275,9 @@ The layer visualizes all mapped techniques with a red heat gradient, tactic labe
 
 ### WHOIS Enrichment
 
-In `investigate` mode, vex automatically performs a direct WHOIS lookup for domain IOCs. This is especially useful for free-tier VT users (VT WHOIS is a premium feature).
+In `investigate` mode, vex automatically performs a direct WHOIS lookup for domain IOCs. This is especially useful for free-tier VT users (VT WHOIS is a premium feature). `python-whois` is included in the base install since v1.2.0 — no extra needed.
 
 ```bash
-# Install the optional dependency
-pip install vex-ioc[whois]
-
 # WHOIS data appears automatically in rich/console output
 vex investigate evil.com -o rich
 ```
@@ -375,6 +378,7 @@ vex/
 ├── ioc_detector.py      # Regex auto-detection of IOC types
 ├── defang.py            # IOC defanging/refanging
 ├── models.py            # Pydantic v2 models + Verdict enum
+├── addons.py            # Addon registry + get_addon_status()
 ├── batch.py             # Parallel batch processing
 ├── timeline.py          # Timeline event reconstruction
 ├── version_check.py     # PyPI update check
@@ -422,9 +426,11 @@ vex/
 ### 2026-03-18
 - **v1.2.0** — AI integration: `--explain` flag for AI-powered threat narratives (Claude, OpenAI, Ollama), template-based fallback, AI response caching (72h), `vex config --show`, optional deps (`pip install vex-ioc[ai]`)
 - **v1.2.0** — barb pipeline: `--from-barb` to pipe barb heuristic JSON into vex triage/investigate, barb pre-scan panel in Rich/console output, `barb_context` field in JSON output
-- **v1.2.0** — WHOIS enrichment: direct WHOIS lookups for domains via python-whois (`pip install vex-ioc[whois]`), free-tier supplement for VT premium WHOIS
+- **v1.2.0** — WHOIS enrichment: direct WHOIS lookups for domains via python-whois (now a **core dependency**), free-tier supplement for VT premium WHOIS
 - **v1.2.0** — ATT&CK Navigator export: `--navigator` to generate Navigator v4.5 layer JSON from investigation results
 - **v1.2.0** — `vex manual pipeline` topic, updated `vex manual examples` with new flags
+- **v1.2.0** — Addon discoverability (MeetUp VEX-2026-007): `vex addons` command, addon status in `vex config --show`, one-time first-run hint, `vex manual addons` topic, AI/Template explanation labels
+- **v1.2.0** — `pipx` install documented for Kali/Debian/system-Python environments
 
 ### 2026-03-16
 - **v1.1.0** — Resolved all known limitations: batch processing activated, premium endpoint graceful degradation, entry-point plugin discovery, IPv6 detection upgraded to RFC 4291, passive version update check

@@ -650,3 +650,4 @@ vex investigate evil.com --navigator > layer.json
 *Updated 2026-03-16: PyPI publication as vex-ioc, version check switched to PyPI JSON API, GitHub Actions CI/CD workflow added.*
 *Updated 2026-03-18 for v1.2.0 (AI integration, config --show, MeetUp VEX-2026-006).*
 *Updated 2026-03-18 for v1.2.0 (barb pipeline, WHOIS enrichment, ATT&CK Navigator export).*
+*Updated 2026-03-21 for v1.2.0 (addon discoverability: vex addons, config --show addon section, first-run hint, explanation labels, python-whois promoted to core, pipx install docs, MeetUp VEX-2026-007).*

@@ -657,6 +657,39 @@ def cmd_version() -> None:
         pass
 
 
+@app.command(name="addons", help="[bold green]Show available addons[/bold green] — AI providers, extras, installation status.")
+def cmd_addons() -> None:
+    """Display all optional vex addons and their installation status."""
+    from .addons import get_addon_status
+    from rich.table import Table
+    from rich import box
+
+    addons = get_addon_status()
+    t = Table(title="vex addons", box=box.ROUNDED)
+    t.add_column("Package", style="cyan", no_wrap=True)
+    t.add_column("Group", style="dim", no_wrap=True)
+    t.add_column("Status", no_wrap=True)
+    t.add_column("Description")
+    t.add_column("Install", style="dim")
+
+    for a in addons:
+        if a.installed:
+            ver = f" [dim]{a.version}[/dim]" if a.version else ""
+            status = f"[green]✓ installed[/green]{ver}"
+            install = "[dim]—[/dim]"
+        else:
+            status = "[dim]not installed[/dim]"
+            install = a.install_cmd
+
+        t.add_row(a.name, a.group, status, a.description, install)
+
+    console.print(t)
+    console.print()
+    console.print("[dim]AI explanations (--explain): requires anthropic or openai addon.[/dim]")
+    console.print("[dim]WHOIS enrichment: included in base install.[/dim]")
+    console.print("[dim]barb pipeline (--from-barb): requires 'pip install barb-phish'.[/dim]")
+
+
 @app.command(name="config", help="[bold blue]Manage configuration[/bold blue] - save API key, AI provider, show settings.")
 def cmd_config(
     set_api_key: Annotated[
@@ -770,9 +803,28 @@ def _show_config(config) -> None:
     t.add_row("ai.local_only", str(config.ai.local_only))
     t.add_row("ai.cache_ttl_hours", str(config.ai.cache_ttl_hours))
 
+    # Enrichment
+    t.add_row("enrichment.whois_enabled", str(config.enrichment.whois_enabled))
+
     console.print(t)
 
-    # AI setup hint
+    # Addon status
+    from .addons import get_addon_status
+    addons = get_addon_status()
+    addon_t = Table(title="Addons", box=box.ROUNDED)
+    addon_t.add_column("Package", style="cyan")
+    addon_t.add_column("Group", style="dim")
+    addon_t.add_column("Status")
+    addon_t.add_column("Description")
+    for a in addons:
+        if a.installed:
+            status = f"[green]✓ installed[/green]" + (f" [dim]{a.version}[/dim]" if a.version else "")
+        else:
+            status = f"[dim]not installed[/dim]  [dim]{a.install_cmd}[/dim]"
+        addon_t.add_row(a.name, a.group, status, a.description)
+    console.print(addon_t)
+
+    # Hints
     if config.ai.provider == "none":
         console.print()
         console.print("[dim]Hint: AI explanations not configured. Run 'vex manual ai' for setup instructions.[/dim]")
@@ -965,14 +1017,55 @@ offline pre-screening with VirusTotal enrichment in a single workflow.
   Use it to pre-screen large batches before spending VT API quota.
   vex then provides ground truth with live VT detection data.
 """,
+
+    "addons": r"""\
+[bold cyan]ADDONS & EXTRAS[/bold cyan]
+
+vex ships with a small core (VirusTotal enrichment, WHOIS, MITRE ATT&CK,
+STIX 2.1, barb pipeline). Optional extras enable additional capabilities.
+
+[bold]RUN 'vex addons' TO SEE CURRENT STATUS[/bold]
+
+[bold]OPTIONAL EXTRAS:[/bold]
+
+  [cyan]AI explanations[/cyan]  (extras group: ai)
+    Adds --explain flag: generate threat narratives via Claude, GPT, or Ollama.
+    Install cloud providers:  [green]pip install vex-ioc\[ai][/green]
+    Local (Ollama):           no extras needed (uses built-in httpx)
+    Setup:                    [green]vex config --set-ai-provider anthropic[/green]
+    Docs:                     [green]vex manual ai[/green]
+
+[bold]INCLUDED IN BASE INSTALL (no extras needed):[/bold]
+
+  [cyan]WHOIS enrichment[/cyan]  (python-whois, core dep since v1.2.0)
+    Direct WHOIS lookups for domain IOCs (supplements VT premium WHOIS).
+    Works automatically in 'vex investigate' for domain IOCs.
+    Toggle: [green]enrichment.whois_enabled: true/false[/green] in ~/.vex/config.yaml
+
+  [cyan]barb pipeline[/cyan]  (requires barb-phish)
+    Pipe barb heuristic output into vex for combined analysis.
+    Install barb:  [green]pip install barb-phish[/green]
+    Usage:         [green]barb analyze <url> -o json | vex triage --from-barb[/green]
+    Docs:          [green]vex manual pipeline[/green]
+
+[bold]INSTALL ON KALI/DEBIAN (system Python):[/bold]
+  Use [bold]pipx[/bold] to avoid system package conflicts:
+    [green]sudo apt install pipx && pipx ensurepath[/green]
+    [green]pipx install vex-ioc[/green]
+    [green]pipx install "vex-ioc\[ai]"[/green]
+
+[bold]CHECKING ADDON STATUS:[/bold]
+  [green]vex addons[/green]          List all addons and installation status
+  [green]vex config --show[/green]   Full config + addon status overview
+""",
 }
 
 
-@app.command(name="manual", help="[bold blue]Show usage guide[/bold blue] — setup, AI, config, pipeline, examples.")
+@app.command(name="manual", help="[bold blue]Show usage guide[/bold blue] — setup, AI, config, addons, pipeline, examples.")
 def cmd_manual(
     topic: Annotated[
         Optional[str],
-        typer.Argument(help="Topic: ai, config, examples, pipeline. Omit for overview."),
+        typer.Argument(help="Topic: ai, config, examples, pipeline, addons. Omit for overview."),
     ] = None,
 ) -> None:
     """Display comprehensive usage guides."""
@@ -996,6 +1089,7 @@ def cmd_manual(
     console.print("  [green]vex manual config[/green]     Configuration reference")
     console.print("  [green]vex manual examples[/green]   Usage examples")
     console.print("  [green]vex manual pipeline[/green]   barb → vex pipeline integration")
+    console.print("  [green]vex manual addons[/green]     Optional extras and installation")
     console.print()
     console.print("[bold]Quick start:[/bold]")
     console.print("  [green]vex config --set-api-key YOUR_VT_KEY[/green]")

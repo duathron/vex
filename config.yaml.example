@@ -62,5 +62,5 @@ ai:
 enrichment:
   # Direct WHOIS lookup for domain IOCs (investigate mode).
   # Supplements VT premium WHOIS — works for free-tier users too.
-  # Requires: pip install vex-ioc[whois]
+  # python-whois is included in the base install (core dependency).
   whois_enabled: true
