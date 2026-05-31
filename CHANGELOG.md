@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- STIX 2.1 export hardened for OpenCTI: bundles now include a vex `identity` (`created_by_ref` provenance), STIX **Cyber-observables (SCOs)** with `indicator → based-on → observable` relationships, ATT&CK `external_references` on attack-patterns, and **TLP `marking-definition`s** — when an IOC carries a MISP TLP, the canonical STIX 2.1 TLP marking is attached via `object_marking_refs` (markings never dropped). Deterministic IDs (idempotent re-export). README "Feeding OpenCTI" section added. (v1.5.0 P1, MeetUp VEX-2026-010)
 - MISP IOC lookup: investigate now consults a MISP instance (`/attributes/restSearch`) for every IOC type when `MISP_URL` + `MISP_API_KEY` are configured, attaching `misp_known`, event IDs, tags, **TLP marking** (most-restrictive wins), and last-seen. Built-in secondary enricher, raw httpx (no `pymisp` dep), fail-open, no-op without config, TLS-verify on by default (`misp_verify_tls` to opt out for lab instances). TLP/markings are carried through, never dropped. (v1.5.0 P0, MeetUp VEX-2026-010)
 
 ## [1.4.0] - 2026-05-31

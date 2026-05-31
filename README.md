@@ -271,6 +271,25 @@ vex investigate evil.com --navigator > layer.json
 
 The layer visualizes all mapped techniques with a red heat gradient, tactic labels, and evidence comments. Requires at least one `investigate` result with ATT&CK mappings.
 
+### Feeding OpenCTI
+
+Export a STIX 2.1 bundle and import it directly into [OpenCTI](https://www.opencti.io/):
+
+```bash
+# Export single IOC (investigate for full ATT&CK + TLP markings)
+vex investigate evil.com --stix > bundle.json
+
+# Batch export
+vex investigate -f iocs.txt --stix > bundle.json
+```
+
+**Import into OpenCTI:**
+
+- **File import:** Data → Import → Upload a file → select `bundle.json`
+- **TAXII:** Publish via a TAXII server and point OpenCTI at the collection endpoint
+
+The bundle carries: a `vex` identity SDO (source attribution), TLP `marking-definition` objects from MISP enrichment (`object_marking_refs` on each indicator), STIX Cyber Observable SCOs linked via `indicator → based-on → <observable>`, and `attack-pattern` SDOs with `mitre-attack` external references so OpenCTI resolves them against the ATT&CK knowledge base automatically.
+
 ### WHOIS Enrichment
 
 In `investigate` mode, vex automatically performs a direct WHOIS lookup for domain IOCs. This is especially useful for free-tier VT users (VT WHOIS is a premium feature). `python-whois` is included in the base install since v1.2.0 — no extra needed.

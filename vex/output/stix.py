@@ -4,6 +4,13 @@ Generates valid STIX 2.1 JSON bundles without requiring the heavy ``stix2``
 library.  Each IOC becomes a STIX ``indicator`` with an appropriate pattern,
 malware families become ``malware`` SDOs, ATT&CK mappings become
 ``attack-pattern`` SDOs, and relationships tie them together.
+
+OpenCTI hardening (v1.5.0):
+- ``identity`` SDO for source attribution (created_by_ref on all SDOs).
+- TLP ``marking-definition`` objects + ``object_marking_refs`` per result.
+- Cyber-observable SCOs (domain-name / ipv4-addr / ipv6-addr / url / file)
+  with ``indicator → based-on → <observable>`` relationships.
+- ``external_references`` on ``attack-pattern`` SDOs for ATT&CK alignment.
 """
 
 from __future__ import annotations
@@ -56,6 +63,139 @@ def _verdict_to_labels(verdict: Verdict) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Identity SDO (vex system identity — fixed, deterministic)
+# ---------------------------------------------------------------------------
+
+_VEX_IDENTITY_ID = _deterministic_id("identity", "vex", "system")
+
+_VEX_IDENTITY: dict[str, Any] = {
+    "type": "identity",
+    "spec_version": "2.1",
+    "id": _VEX_IDENTITY_ID,
+    "created": "2024-01-01T00:00:00.000Z",
+    "modified": "2024-01-01T00:00:00.000Z",
+    "name": "vex",
+    "identity_class": "system",
+    "description": "vex — VirusTotal IOC Enrichment Tool for SOC/DFIR workflows.",
+}
+
+# ---------------------------------------------------------------------------
+# TLP marking-definitions (canonical STIX 2.1 ids — do not change)
+# ---------------------------------------------------------------------------
+
+_TLP_MARKING_IDS: dict[str, str] = {
+    "white": "marking-definition--613f2e26-407d-48c7-9eca-b8e91df99dc9",
+    "clear": "marking-definition--613f2e26-407d-48c7-9eca-b8e91df99dc9",
+    "green": "marking-definition--34098fce-860f-48ae-8e50-ebd3cc5e41da",
+    "amber": "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82",
+    "red": "marking-definition--5e57c739-391a-4eb3-b6be-7d15ca92d5ed",
+}
+
+_TLP_MARKING_DEFS: dict[str, dict[str, Any]] = {
+    "marking-definition--613f2e26-407d-48c7-9eca-b8e91df99dc9": {
+        "type": "marking-definition",
+        "spec_version": "2.1",
+        "id": "marking-definition--613f2e26-407d-48c7-9eca-b8e91df99dc9",
+        "created": "2017-01-20T00:00:00.000Z",
+        "definition_type": "tlp",
+        "name": "TLP:WHITE",
+        "definition": {"tlp": "white"},
+    },
+    "marking-definition--34098fce-860f-48ae-8e50-ebd3cc5e41da": {
+        "type": "marking-definition",
+        "spec_version": "2.1",
+        "id": "marking-definition--34098fce-860f-48ae-8e50-ebd3cc5e41da",
+        "created": "2017-01-20T00:00:00.000Z",
+        "definition_type": "tlp",
+        "name": "TLP:GREEN",
+        "definition": {"tlp": "green"},
+    },
+    "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82": {
+        "type": "marking-definition",
+        "spec_version": "2.1",
+        "id": "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82",
+        "created": "2017-01-20T00:00:00.000Z",
+        "definition_type": "tlp",
+        "name": "TLP:AMBER",
+        "definition": {"tlp": "amber"},
+    },
+    "marking-definition--5e57c739-391a-4eb3-b6be-7d15ca92d5ed": {
+        "type": "marking-definition",
+        "spec_version": "2.1",
+        "id": "marking-definition--5e57c739-391a-4eb3-b6be-7d15ca92d5ed",
+        "created": "2017-01-20T00:00:00.000Z",
+        "definition_type": "tlp",
+        "name": "TLP:RED",
+        "definition": {"tlp": "red"},
+    },
+}
+
+
+def _tlp_marking_id(misp_tlp: str) -> str | None:
+    """Return the canonical TLP marking-definition id for a misp_tlp string."""
+    return _TLP_MARKING_IDS.get(misp_tlp.lower()) if misp_tlp else None
+
+
+# ---------------------------------------------------------------------------
+# SCO (Cyber Observable Object) helpers
+# ---------------------------------------------------------------------------
+
+def _make_sco(ioc: str, ioc_type: str) -> dict[str, Any] | None:
+    """Return a STIX SCO dict for the given IOC, or None if unmapped."""
+    t = ioc_type.lower()
+    if t == "domain":
+        return {
+            "type": "domain-name",
+            "spec_version": "2.1",
+            "id": _deterministic_id("domain-name", ioc),
+            "value": ioc,
+        }
+    if t == "ipv4":
+        return {
+            "type": "ipv4-addr",
+            "spec_version": "2.1",
+            "id": _deterministic_id("ipv4-addr", ioc),
+            "value": ioc,
+        }
+    if t == "ipv6":
+        return {
+            "type": "ipv6-addr",
+            "spec_version": "2.1",
+            "id": _deterministic_id("ipv6-addr", ioc),
+            "value": ioc,
+        }
+    if t == "url":
+        return {
+            "type": "url",
+            "spec_version": "2.1",
+            "id": _deterministic_id("url", ioc),
+            "value": ioc,
+        }
+    if t == "sha256":
+        return {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": _deterministic_id("file", "sha256", ioc),
+            "hashes": {"SHA-256": ioc},
+        }
+    if t == "sha1":
+        return {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": _deterministic_id("file", "sha1", ioc),
+            "hashes": {"SHA-1": ioc},
+        }
+    if t == "md5":
+        return {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": _deterministic_id("file", "md5", ioc),
+            "hashes": {"MD5": ioc},
+        }
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -66,18 +206,33 @@ def to_stix_bundle(
     now = _now_iso()
     objects: list[dict[str, Any]] = []
 
+    # Always include the vex identity SDO first
+    objects.append(_VEX_IDENTITY)
+
+    # Track which TLP marking-definitions are needed
+    used_tlp_marking_ids: set[str] = set()
+
     for result in results:
         triage = result.triage if isinstance(result, InvestigateResult) else result
         is_investigate = isinstance(result, InvestigateResult)
 
+        # Resolve TLP marking for this result
+        misp_tlp: str | None = result.misp_tlp if is_investigate else None
+        tlp_id: str | None = _tlp_marking_id(misp_tlp) if misp_tlp else None
+        if tlp_id:
+            used_tlp_marking_ids.add(tlp_id)
+
+        object_marking_refs: list[str] = [tlp_id] if tlp_id else []
+
         # 1. Indicator SDO
         indicator_id = _deterministic_id("indicator", triage.ioc, triage.ioc_type)
-        indicator = {
+        indicator: dict[str, Any] = {
             "type": "indicator",
             "spec_version": "2.1",
             "id": indicator_id,
             "created": now,
             "modified": now,
+            "created_by_ref": _VEX_IDENTITY_ID,
             "name": f"VEX: {triage.ioc}",
             "description": (
                 f"VirusTotal verdict: {triage.verdict.value}. "
@@ -93,46 +248,81 @@ def to_stix_bundle(
             "labels": _verdict_to_labels(triage.verdict),
             "confidence": min(100, triage.detection_stats.malicious * 10),
         }
+        if object_marking_refs:
+            indicator["object_marking_refs"] = object_marking_refs
         objects.append(indicator)
 
-        # 2. Malware SDOs for each family
+        # 2. SCO observable + based-on relationship
+        sco = _make_sco(triage.ioc, triage.ioc_type)
+        if sco is not None:
+            if object_marking_refs:
+                sco["object_marking_refs"] = object_marking_refs
+            objects.append(sco)
+
+            based_on_id = _deterministic_id(
+                "relationship", indicator_id, "based-on", sco["id"]
+            )
+            based_on_rel: dict[str, Any] = {
+                "type": "relationship",
+                "spec_version": "2.1",
+                "id": based_on_id,
+                "created": now,
+                "modified": now,
+                "created_by_ref": _VEX_IDENTITY_ID,
+                "relationship_type": "based-on",
+                "source_ref": indicator_id,
+                "target_ref": sco["id"],
+            }
+            if object_marking_refs:
+                based_on_rel["object_marking_refs"] = object_marking_refs
+            objects.append(based_on_rel)
+
+        # 3. Malware SDOs for each family
         for family in triage.malware_families:
             malware_id = _deterministic_id("malware", family.lower())
-            malware_sdo = {
+            malware_sdo: dict[str, Any] = {
                 "type": "malware",
                 "spec_version": "2.1",
                 "id": malware_id,
                 "created": now,
                 "modified": now,
+                "created_by_ref": _VEX_IDENTITY_ID,
                 "name": family,
                 "is_family": True,
                 "malware_types": ["unknown"],
             }
+            if object_marking_refs:
+                malware_sdo["object_marking_refs"] = object_marking_refs
             objects.append(malware_sdo)
 
             # Relationship: indicator → indicates → malware
             rel_id = _deterministic_id("relationship", indicator_id, "indicates", malware_id)
-            objects.append({
+            indicates_rel: dict[str, Any] = {
                 "type": "relationship",
                 "spec_version": "2.1",
                 "id": rel_id,
                 "created": now,
                 "modified": now,
+                "created_by_ref": _VEX_IDENTITY_ID,
                 "relationship_type": "indicates",
                 "source_ref": indicator_id,
                 "target_ref": malware_id,
-            })
+            }
+            if object_marking_refs:
+                indicates_rel["object_marking_refs"] = object_marking_refs
+            objects.append(indicates_rel)
 
-        # 3. ATT&CK patterns (investigate mode only)
+        # 4. ATT&CK patterns (investigate mode only)
         if is_investigate:
             for mapping in result.attack_mappings:
                 ap_id = _deterministic_id("attack-pattern", mapping.technique_id)
-                ap_sdo = {
+                ap_sdo: dict[str, Any] = {
                     "type": "attack-pattern",
                     "spec_version": "2.1",
                     "id": ap_id,
                     "created": now,
                     "modified": now,
+                    "created_by_ref": _VEX_IDENTITY_ID,
                     "name": f"{mapping.technique_id}: {mapping.technique_name}",
                     "external_references": [
                         {
@@ -142,24 +332,38 @@ def to_stix_bundle(
                         }
                     ],
                 }
+                if object_marking_refs:
+                    ap_sdo["object_marking_refs"] = object_marking_refs
                 objects.append(ap_sdo)
 
-                rel_id = _deterministic_id("relationship", indicator_id, "uses", ap_id)
-                objects.append({
+                uses_rel_id = _deterministic_id("relationship", indicator_id, "uses", ap_id)
+                uses_rel: dict[str, Any] = {
                     "type": "relationship",
                     "spec_version": "2.1",
-                    "id": rel_id,
+                    "id": uses_rel_id,
                     "created": now,
                     "modified": now,
+                    "created_by_ref": _VEX_IDENTITY_ID,
                     "relationship_type": "uses",
                     "source_ref": indicator_id,
                     "target_ref": ap_id,
-                })
+                }
+                if object_marking_refs:
+                    uses_rel["object_marking_refs"] = object_marking_refs
+                objects.append(uses_rel)
 
-    # Deduplicate by ID
+    # Prepend referenced TLP marking-definition objects (before other objects,
+    # after identity — stable order for deterministic output)
+    tlp_objects: list[dict[str, Any]] = [
+        _TLP_MARKING_DEFS[mid]
+        for mid in sorted(used_tlp_marking_ids)
+        if mid in _TLP_MARKING_DEFS
+    ]
+
+    # Deduplicate by ID (identity first, then tlp markings, then rest)
     seen_ids: set[str] = set()
     deduped: list[dict[str, Any]] = []
-    for obj in objects:
+    for obj in tlp_objects + objects:
         if obj["id"] not in seen_ids:
             seen_ids.add(obj["id"])
             deduped.append(obj)
