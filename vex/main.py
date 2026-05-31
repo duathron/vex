@@ -23,7 +23,7 @@ from .ioc_detector import IOCType, detect
 from .plugins.loader import load_plugins
 from .mitre.mapper import map_to_attack
 from .models import InvestigateResult, TriageResult, Verdict
-from .output.export import to_csv_triage, to_json, to_json_list, to_json_list_with_clusters
+from .output.export import to_csv_triage, to_json, to_json_list, to_json_list_with_clusters, to_ndjson
 from .output.html import write_html_report
 from .output.stix import to_stix_bundle
 from .output.formatter import (
@@ -75,6 +75,7 @@ class OutputFormat(str, Enum):
     json = "json"
     rich = "rich"
     console = "console"
+    ndjson = "ndjson"
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +92,7 @@ _FileOpt = Annotated[
 ]
 _OutputOpt = Annotated[
     OutputFormat,
-    typer.Option("--output", "-o", help="Output format: json | rich | console"),
+    typer.Option("--output", "-o", help="Output format: json | rich | console | ndjson"),
 ]
 _ConfigOpt = Annotated[
     Optional[Path],
@@ -172,6 +173,10 @@ _HtmlOpt = Annotated[
         "Works alongside normal console/rich output."
     )),
 ]
+_NoDedupOpt = Annotated[
+    bool,
+    typer.Option("--no-dedup", help="Disable IOC deduplication (default: dedup enabled)."),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +185,22 @@ _HtmlOpt = Annotated[
 
 _MAX_IOC_LEN = 2048  # max IOC string length (URLs can be long)
 _MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+def dedup_iocs(iocs: list[str]) -> tuple[list[str], int]:
+    """Remove duplicate IOC strings, preserving first-seen order.
+
+    Dedup key is the exact stripped string (no network or type detection).
+    Returns (unique_list, num_removed).
+    """
+    seen: set[str] = set()
+    unique: list[str] = []
+    for ioc in iocs:
+        if ioc not in seen:
+            seen.add(ioc)
+            unique.append(ioc)
+    removed = len(iocs) - len(unique)
+    return unique, removed
 
 
 def _collect_iocs(ioc: Optional[str], file: Optional[Path]) -> list[str]:
@@ -257,6 +278,9 @@ def _output_triage(result: TriageResult, fmt: OutputFormat, barb_map: Optional[d
         print_triage_console(result)
         if barb_map and result.ioc in barb_map:
             print_barb_context_console(barb_map[result.ioc])
+    elif fmt == OutputFormat.ndjson:
+        sys.stdout.write(to_ndjson(result) + "\n")
+        sys.stdout.flush()
     else:
         print(to_json(result))
 
@@ -270,6 +294,9 @@ def _output_investigate(result: InvestigateResult, fmt: OutputFormat, barb_map: 
         print_investigate_console(result)
         if barb_map and result.triage.ioc in barb_map:
             print_barb_context_console(barb_map[result.triage.ioc])
+    elif fmt == OutputFormat.ndjson:
+        sys.stdout.write(to_ndjson(result) + "\n")
+        sys.stdout.flush()
     else:
         print(to_json(result))
 
@@ -452,6 +479,7 @@ def cmd_triage(
     from_barb: _FromBarbOpt = False,
     correlate: _CorrelateOpt = False,
     html: _HtmlOpt = None,
+    no_dedup: _NoDedupOpt = False,
 ) -> None:
     config = load_config(config_path)
     if api_key:
@@ -480,6 +508,12 @@ def cmd_triage(
             raise typer.Exit(code=1)
     else:
         iocs = _collect_iocs(ioc, file)
+
+    # Dedup IOCs (default on; use --no-dedup to disable)
+    if not no_dedup:
+        iocs, removed = dedup_iocs(iocs)
+        if removed:
+            err_console.print(f"[dim]Deduplicated: {len(iocs) + removed} IOCs → {len(iocs)} unique ({removed} removed)[/dim]")
 
     try:
         config.api_key  # validate key exists before proceeding
@@ -564,6 +598,20 @@ def cmd_triage(
         print(to_stix_bundle(results))
     elif csv:
         print(to_csv_triage(results))
+    elif output == OutputFormat.ndjson:
+        # NDJSON: one JSON object per line, flushed immediately
+        for r in results:
+            sys.stdout.write(to_ndjson(r) + "\n")
+            sys.stdout.flush()
+        # Emit cluster objects as additional NDJSON lines with _type discriminator
+        if triage_clusters:
+            import json as _json
+            from .output.export import _cluster_to_dict
+            for cl in triage_clusters:
+                d = _cluster_to_dict(cl)
+                d["_type"] = "cluster"
+                sys.stdout.write(_json.dumps(d, default=str, ensure_ascii=False) + "\n")
+                sys.stdout.flush()
     elif output == OutputFormat.json:
         if correlate and len(results) > 1:
             if explain:
@@ -594,8 +642,8 @@ def cmd_triage(
 
     # AI explanation (opt-in)
     if explain and results:
-        if triage_clusters and output != OutputFormat.json:
-            # Narratives per cluster (--correlate + --explain, non-JSON path)
+        if triage_clusters and output not in (OutputFormat.json, OutputFormat.ndjson):
+            # Narratives per cluster (--correlate + --explain, non-JSON/ndjson path)
             _run_correlation_explain(triage_clusters, config, explain_model, output)
         else:
             # Per-result explain (--explain without --correlate, or JSON already handled above)
@@ -634,6 +682,7 @@ def cmd_investigate(
     navigator: _NavigatorOpt = False,
     correlate: _CorrelateOpt = False,
     html: _HtmlOpt = None,
+    no_dedup: _NoDedupOpt = False,
 ) -> None:
     config = load_config(config_path)
     if api_key:
@@ -662,6 +711,12 @@ def cmd_investigate(
             raise typer.Exit(code=1)
     else:
         iocs = _collect_iocs(ioc, file)
+
+    # Dedup IOCs (default on; use --no-dedup to disable)
+    if not no_dedup:
+        iocs, removed = dedup_iocs(iocs)
+        if removed:
+            err_console.print(f"[dim]Deduplicated: {len(iocs) + removed} IOCs → {len(iocs)} unique ({removed} removed)[/dim]")
 
     try:
         config.api_key  # validate key exists before proceeding
@@ -761,6 +816,20 @@ def cmd_investigate(
     # Output results
     if stix:
         print(to_stix_bundle(results))
+    elif output == OutputFormat.ndjson:
+        # NDJSON: one JSON object per line, flushed immediately
+        for r in results:
+            sys.stdout.write(to_ndjson(r) + "\n")
+            sys.stdout.flush()
+        # Emit cluster objects as additional NDJSON lines with _type discriminator
+        if inv_clusters:
+            import json as _json
+            from .output.export import _cluster_to_dict
+            for cl in inv_clusters:
+                d = _cluster_to_dict(cl)
+                d["_type"] = "cluster"
+                sys.stdout.write(_json.dumps(d, default=str, ensure_ascii=False) + "\n")
+                sys.stdout.flush()
     elif output == OutputFormat.json:
         if correlate and len(results) > 1:
             if explain:
@@ -789,8 +858,8 @@ def cmd_investigate(
 
     # AI explanation (opt-in)
     if explain and results:
-        if inv_clusters and output != OutputFormat.json:
-            # Narratives per cluster (--correlate + --explain, non-JSON path)
+        if inv_clusters and output not in (OutputFormat.json, OutputFormat.ndjson):
+            # Narratives per cluster (--correlate + --explain, non-JSON/ndjson path)
             _run_correlation_explain(inv_clusters, config, explain_model, output)
         else:
             # Per-result explain (--explain without --correlate, or JSON already handled above)

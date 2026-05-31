@@ -40,6 +40,16 @@ def to_json(result: Union[TriageResult, InvestigateResult], indent: int = 2) -> 
     return json.dumps(data, indent=indent, default=_default, ensure_ascii=False)
 
 
+def to_ndjson(result: Union[TriageResult, InvestigateResult]) -> str:
+    """Serialize a single result to a compact JSON line (no trailing newline).
+
+    Machine format: real IOCs by default; caller applies defanging before calling
+    this function (same rule as to_json/to_json_list).
+    """
+    data = result.model_dump(mode="json")
+    return json.dumps(data, default=_default, ensure_ascii=False)
+
+
 def to_json_list(results: list[Union[TriageResult, InvestigateResult]], indent: int = 2) -> str:
     data = [r.model_dump(mode="json") for r in results]
     return json.dumps(data, indent=indent, default=_default, ensure_ascii=False)
