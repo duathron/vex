@@ -8,8 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Automated test suite (`tests/`): 157 unit tests covering cache (incl. v1.2.1 concurrency regression), IOC detector, defang, knowledge base, timeline, and config — all deterministic, no network
+- Automated test suite (`tests/`): 179 unit tests covering cache (incl. v1.2.1 concurrency regression), IOC detector, defang, knowledge base, timeline, config, and async client — all deterministic, no network
 - `[dev]` optional dependency group (`pytest`, `ruff`)
+- CI: GitHub Actions `tests.yml` workflow (ruff + pytest on push/PR)
+
+### Fixed
+- Lint cleanup: removed unused imports and f-strings without placeholders (ruff F401/F541) across `ai/prompt`, `main`, `mitre/mapper`, `output/formatter`, `output/stix`, `timeline`
 
 ## [1.2.1] - 2026-04-28
 

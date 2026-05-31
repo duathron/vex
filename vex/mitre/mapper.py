@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..models import ATTACKMapping, InvestigateResult, SandboxBehavior, TriageResult
+from ..models import ATTACKMapping, InvestigateResult, SandboxBehavior
 from .mapping import BEHAVIOR_MAP, TAG_MAP
 
 

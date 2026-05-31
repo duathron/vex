@@ -7,7 +7,6 @@ them into a sortable timeline useful for incident reconstruction.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
 
 from .models import InvestigateResult, TimelineEvent, TimelineResult
 
@@ -38,7 +37,7 @@ def build_timeline(result: InvestigateResult) -> TimelineResult:
             timestamp=triage.last_seen,
             event_type="last_seen",
             source="VirusTotal",
-            description=f"Last seen on VirusTotal",
+            description="Last seen on VirusTotal",
         ))
 
     if triage.last_analysis_date:

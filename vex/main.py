@@ -19,7 +19,7 @@ from .banner import print_banner
 from .cache import Cache
 from .client import VTClient
 from .config import load_config, save_config
-from .defang import defang as defang_ioc, refang as refang_ioc
+from .defang import defang as defang_ioc
 from .ioc_detector import IOCType, detect, is_hash
 from .mitre.mapper import map_to_attack
 from .models import InvestigateResult, TriageResult, Verdict
@@ -818,7 +818,7 @@ def _show_config(config) -> None:
     addon_t.add_column("Description")
     for a in addons:
         if a.installed:
-            status = f"[green]✓ installed[/green]" + (f" [dim]{a.version}[/dim]" if a.version else "")
+            status = "[green]✓ installed[/green]" + (f" [dim]{a.version}[/dim]" if a.version else "")
         else:
             status = f"[dim]not installed[/dim]  [dim]{a.install_cmd}[/dim]"
         addon_t.add_row(a.name, a.group, status, a.description)

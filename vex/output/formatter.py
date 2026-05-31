@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Union
 
 from rich.console import Console
 from rich.panel import Panel
@@ -11,7 +10,6 @@ from rich.text import Text
 from rich import box
 
 from ..models import (
-    ATTACKMapping,
     InvestigateResult,
     SandboxBehavior,
     TimelineResult,
@@ -481,7 +479,7 @@ def print_barb_context_console(ctx) -> None:  # ctx: BarbContext
     verdict_upper = ctx.verdict.upper()
     verdict_icon = _BARB_VERDICT_ICON.get(verdict_upper, ctx.verdict)
     console.print(f"\n{'─' * 60}")
-    console.print(f"barb pre-scan")
+    console.print("barb pre-scan")
     console.print(f"{'─' * 60}")
     console.print(f"Verdict   : {verdict_icon}  (risk score: {ctx.risk_score:.1f}/100)")
     if ctx.defanged_url:

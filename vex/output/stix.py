@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from ..models import ATTACKMapping, InvestigateResult, TriageResult, Verdict
+from ..models import InvestigateResult, TriageResult, Verdict
 
 # ---------------------------------------------------------------------------
 # Helpers

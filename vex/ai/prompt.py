@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Union
 
 from ..defang import defang
-from ..models import InvestigateResult, TriageResult, Verdict
+from ..models import InvestigateResult, TriageResult
 
 
 def build_explain_prompt(result: Union[TriageResult, InvestigateResult]) -> str:
