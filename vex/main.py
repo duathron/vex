@@ -334,6 +334,101 @@ def _run_explain(
         # JSON: explanation is added to the result dict (handled separately)
 
 
+def _run_correlation_explain(
+    clusters: list,
+    config,
+    model_override: Optional[str],
+    output_fmt: OutputFormat,
+) -> None:
+    """Generate and display AI narratives for correlation clusters.
+
+    Mirrors _run_explain but operates on Cluster objects.  Called only when
+    both --correlate and --explain are active on a batch run.
+    """
+    from .ai import get_provider
+    from .ai.cache import AICache
+    from .ai.prompt import build_correlation_prompt
+    from .ai.template import template_correlation
+
+    if model_override:
+        config.ai.model = model_override
+
+    # Get provider (None = use template fallback)
+    provider = None
+    try:
+        provider = get_provider(config)
+    except (ValueError, ImportError) as e:
+        err_console.print(f"[yellow]AI:[/yellow] {e}")
+        err_console.print("[dim]Falling back to template-based cluster narrative.[/dim]")
+
+    for cluster in clusters:
+        prompt = build_correlation_prompt(cluster)
+
+        if provider:
+            model_name = config.ai.model or "default"
+            with AICache(config.ai.cache_ttl_hours) as cache:
+                cached = cache.get(provider.name, model_name, prompt)
+                if cached:
+                    narrative = cached
+                    err_console.print(
+                        f"[dim]AI cluster narrative from cache ({provider.name})[/dim]"
+                    )
+                else:
+                    try:
+                        err_console.print(
+                            f"[dim]→ Generating AI cluster narrative ({provider.name})...[/dim]"
+                        )
+                        narrative = provider.explain(
+                            prompt,
+                            max_tokens=config.ai.max_tokens,
+                            temperature=config.ai.temperature,
+                        )
+                        cache.set(provider.name, model_name, prompt, narrative)
+                    except Exception as e:
+                        err_console.print(
+                            f"[yellow]AI error ({provider.name}):[/yellow] {e}"
+                        )
+                        err_console.print(
+                            "[dim]Falling back to template-based cluster narrative.[/dim]"
+                        )
+                        narrative = template_correlation(cluster)
+                        provider = None  # mark as fallback for display
+            provider_name = provider.name if provider else "template"
+        else:
+            narrative = template_correlation(cluster)
+            provider_name = "template"
+
+        # Store on the cluster object so JSON export picks it up
+        cluster.explanation = narrative
+
+        # Render as "AI Analysis" panel per cluster, reusing print_explanation_*
+        cluster_label = f"{cluster.cluster_id}: {cluster.shared_attribute}"
+        if output_fmt == OutputFormat.rich:
+            if provider_name == "template":
+                title = f"[bold]Template Analysis[/bold] [dim]— {cluster_label}[/dim]"
+            else:
+                title = f"[bold]AI Analysis[/bold] [dim]({provider_name}) — {cluster_label}[/dim]"
+            from rich.panel import Panel
+            console.print(Panel(
+                narrative,
+                title=title,
+                border_style="cyan",
+                padding=(1, 2),
+            ))
+        elif output_fmt == OutputFormat.console:
+            label = (
+                f"Template Analysis — {cluster_label}"
+                if provider_name == "template"
+                else f"AI Analysis ({provider_name}) — {cluster_label}"
+            )
+            console.print(f"\n{'─' * 60}")
+            console.print(f"{label}:")
+            console.print(f"{'─' * 60}")
+            console.print(narrative)
+            console.print(f"{'─' * 60}")
+        # JSON: cluster.explanation is already set; export handles serialisation
+
+
 # ---------------------------------------------------------------------------
 # Subcommand: triage
 # ---------------------------------------------------------------------------
@@ -458,6 +553,12 @@ def cmd_triage(
     if correlate and len(iocs) <= 1:
         err_console.print("[dim]--correlate is a no-op for a single IOC.[/dim]")
 
+    # Build clusters once (batch correlate only) so both output and explain can use them
+    triage_clusters: list = []
+    if correlate and len(results) > 1:
+        from .correlate import build_clusters
+        triage_clusters = build_clusters(results)
+
     # Output results
     if stix:
         print(to_stix_bundle(results))
@@ -465,9 +566,10 @@ def cmd_triage(
         print(to_csv_triage(results))
     elif output == OutputFormat.json:
         if correlate and len(results) > 1:
-            from .correlate import build_clusters
-            clusters = build_clusters(results)
-            print(to_json_list_with_clusters(results, clusters))
+            if explain:
+                # Generate narratives first so explanation is included in JSON
+                _run_correlation_explain(triage_clusters, config, explain_model, output)
+            print(to_json_list_with_clusters(results, triage_clusters))
         elif from_barb and barb_map:
             # Inject barb_context into JSON output
             import json as _json
@@ -484,17 +586,21 @@ def cmd_triage(
     else:
         for r in results:
             _output_triage(r, output, barb_map=barb_map)
-        if correlate and len(results) > 1:
-            from .correlate import build_clusters
-            clusters = build_clusters(results)
+        if triage_clusters:
             if output == OutputFormat.rich:
-                print_clusters_rich(clusters)
+                print_clusters_rich(triage_clusters)
             else:
-                print_clusters_console(clusters)
+                print_clusters_console(triage_clusters)
 
     # AI explanation (opt-in)
     if explain and results:
-        _run_explain(results, config, explain_model, output)
+        if triage_clusters and output != OutputFormat.json:
+            # Narratives per cluster (--correlate + --explain, non-JSON path)
+            _run_correlation_explain(triage_clusters, config, explain_model, output)
+        else:
+            # Per-result explain (--explain without --correlate, or JSON already handled above)
+            if not (correlate and len(results) > 1):
+                _run_explain(results, config, explain_model, output)
 
     # HTML report (opt-in, additive)
     if html:
@@ -646,26 +752,31 @@ def cmd_investigate(
         sys.stdout.write("\n")
         raise typer.Exit(code=exit_code)
 
+    # Build clusters once (batch correlate only) so both output and explain can use them
+    inv_clusters: list = []
+    if correlate and len(results) > 1:
+        from .correlate import build_clusters
+        inv_clusters = build_clusters(results)
+
     # Output results
     if stix:
         print(to_stix_bundle(results))
     elif output == OutputFormat.json:
         if correlate and len(results) > 1:
-            from .correlate import build_clusters
-            clusters = build_clusters(results)
-            print(to_json_list_with_clusters(results, clusters))
+            if explain:
+                # Generate narratives first so explanation is included in JSON
+                _run_correlation_explain(inv_clusters, config, explain_model, output)
+            print(to_json_list_with_clusters(results, inv_clusters))
         else:
             print(to_json_list(results) if len(results) > 1 else to_json(results[0]) if results else "[]")
     else:
         for r in results:
             _output_investigate(r, output, barb_map=barb_map)
-        if correlate and len(results) > 1:
-            from .correlate import build_clusters
-            clusters = build_clusters(results)
+        if inv_clusters:
             if output == OutputFormat.rich:
-                print_clusters_rich(clusters)
+                print_clusters_rich(inv_clusters)
             else:
-                print_clusters_console(clusters)
+                print_clusters_console(inv_clusters)
 
     # Timeline (appended after main output)
     if timeline:
@@ -678,7 +789,13 @@ def cmd_investigate(
 
     # AI explanation (opt-in)
     if explain and results:
-        _run_explain(results, config, explain_model, output)
+        if inv_clusters and output != OutputFormat.json:
+            # Narratives per cluster (--correlate + --explain, non-JSON path)
+            _run_correlation_explain(inv_clusters, config, explain_model, output)
+        else:
+            # Per-result explain (--explain without --correlate, or JSON already handled above)
+            if not (correlate and len(results) > 1):
+                _run_explain(results, config, explain_model, output)
 
     # HTML report (opt-in, additive)
     if html:

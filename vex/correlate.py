@@ -7,7 +7,7 @@ attributes (ASN, malware family, contacted IPs/domains, passive DNS, CIDR).
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Union
+from typing import Optional, Union
 
 from pydantic import BaseModel
 
@@ -24,6 +24,7 @@ class Cluster(BaseModel):
     members: list[str]  # IOC strings, sorted alphabetically
     member_count: int
     max_verdict: Verdict
+    explanation: Optional[str] = None  # AI/template narrative (populated by --explain+--correlate)
 
 
 # ---------------------------------------------------------------------------

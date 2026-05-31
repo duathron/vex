@@ -22,7 +22,7 @@ def _default(obj: Any) -> Any:
 
 def _cluster_to_dict(cluster: "Cluster") -> dict[str, Any]:
     """Serialize a Cluster to a plain dict for JSON export."""
-    return {
+    d: dict[str, Any] = {
         "cluster_id": cluster.cluster_id,
         "attribute_type": cluster.attribute_type,
         "shared_attribute": cluster.shared_attribute,
@@ -30,6 +30,9 @@ def _cluster_to_dict(cluster: "Cluster") -> dict[str, Any]:
         "members": cluster.members,
         "max_verdict": cluster.max_verdict.value,
     }
+    if cluster.explanation is not None:
+        d["explanation"] = cluster.explanation
+    return d
 
 
 def to_json(result: Union[TriageResult, InvestigateResult], indent: int = 2) -> str:

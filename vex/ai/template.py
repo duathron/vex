@@ -6,9 +6,12 @@ a structured text explanation from signals and verdict data alone.
 
 from __future__ import annotations
 
-from typing import Union
+from typing import TYPE_CHECKING, Union
 
 from ..models import InvestigateResult, TriageResult, Verdict
+
+if TYPE_CHECKING:
+    from ..correlate import Cluster
 
 
 def template_explain(result: Union[TriageResult, InvestigateResult]) -> str:
@@ -107,3 +110,49 @@ def template_explain(result: Union[TriageResult, InvestigateResult]) -> str:
         )
 
     return "\n".join(lines)
+
+
+def template_correlation(cluster: "Cluster") -> str:
+    """Generate a deterministic template narrative for a correlation cluster.
+
+    Used as fallback when no AI provider is configured or when a provider
+    call fails. No LLM required.
+    """
+    n = cluster.member_count
+    attr = cluster.shared_attribute
+    attr_type = cluster.attribute_type
+    verdict = cluster.max_verdict.value
+
+    # First sentence: state the observation
+    line1 = (
+        f"{n} IOC{'s' if n != 1 else ''} share {attr_type} attribute '{attr}' "
+        f"with a highest verdict of {verdict}."
+    )
+
+    # Second sentence: interpretation based on attribute type
+    _attr_interpretation: dict[str, str] = {
+        "asn": "Shared ASN infrastructure suggests these IOCs may belong to the same hosting provider or threat actor.",
+        "family": "Association with the same malware family indicates a coordinated campaign or shared tooling.",
+        "ip": "Shared contacted IP indicates possible common C2 infrastructure.",
+        "domain": "Shared contacted domain suggests common command-and-control or distribution infrastructure.",
+        "network": "Shared network CIDR block points to a common hosting environment or actor-controlled IP range.",
+    }
+    line2 = _attr_interpretation.get(
+        attr_type,
+        "Shared infrastructure suggests a possible common origin or threat campaign.",
+    )
+
+    # Third sentence: recommended next step
+    _attr_nextstep: dict[str, str] = {
+        "asn": "Investigate other IOCs hosted on the same ASN and check for historical abuse reports.",
+        "family": f"Cross-reference all {n} IOCs against threat intelligence feeds for this malware family.",
+        "ip": "Block the shared IP at the perimeter and pivot on it in SIEM for historical connections.",
+        "domain": "Block the shared domain and search SIEM logs for any historical resolution or connections.",
+        "network": f"Review the full {attr} CIDR block for additional malicious hosts and apply network-level blocks.",
+    }
+    line3 = _attr_nextstep.get(
+        attr_type,
+        f"Investigate all {n} associated IOCs together and search for additional shared indicators.",
+    )
+
+    return f"{line1} {line2} {line3}"

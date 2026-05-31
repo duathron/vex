@@ -6,10 +6,13 @@ appears in the system section of the prompt.
 
 from __future__ import annotations
 
-from typing import Union
+from typing import TYPE_CHECKING, Union
 
 from ..defang import defang
 from ..models import InvestigateResult, TriageResult
+
+if TYPE_CHECKING:
+    from ..correlate import Cluster
 
 
 def build_explain_prompt(result: Union[TriageResult, InvestigateResult]) -> str:
@@ -99,4 +102,38 @@ def build_explain_prompt(result: Union[TriageResult, InvestigateResult]) -> str:
         "\n"
         "Be specific and actionable. Reference technique IDs where applicable. "
         "Do not repeat the raw data verbatim."
+    )
+
+
+def build_correlation_prompt(cluster: "Cluster") -> str:
+    """Build a structured prompt for AI cluster correlation analysis.
+
+    IOC strings are defanged so they cannot be accidentally clicked or
+    executed if the prompt is logged or shared.
+    """
+    defanged_members = [defang(m) for m in cluster.members]
+    members_str = ", ".join(defanged_members)
+
+    sections: list[str] = [
+        f"Cluster ID: {cluster.cluster_id}",
+        f"Shared attribute type: {cluster.attribute_type}",
+        f"Shared attribute value: {cluster.shared_attribute}",
+        f"Member IOC count: {cluster.member_count}",
+        f"Member IOCs (defanged): {members_str}",
+        f"Highest verdict in cluster: {cluster.max_verdict.value}",
+    ]
+
+    data_block = "\n".join(sections)
+
+    return (
+        "You are a senior SOC analyst performing batch IOC correlation analysis. "
+        "Based on the following cluster data from VirusTotal enrichment, provide:\n"
+        "1. A 2-3 sentence campaign-correlation assessment (shared infrastructure, "
+        "likely common origin or threat actor)\n"
+        "2. One concrete next investigative step for the analyst\n"
+        "\n"
+        f"Cluster data:\n{data_block}\n"
+        "\n"
+        "Be concise and actionable. Do not repeat the raw data verbatim. "
+        "Focus on what the shared attribute implies about the threat campaign."
     )
