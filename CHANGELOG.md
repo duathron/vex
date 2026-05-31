@@ -8,8 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- AbuseIPDB IP enrichment: investigate on an IP now adds AbuseIPDB confidence score, total reports, and last-reported date when `VEX_ABUSEIPDB_API_KEY` (or `enrichment.abuseipdb_api_key`) is configured. Built-in secondary enricher, fail-open (never blocks the run), no-op without a key, no new dependency. (v1.3.0 P1, MeetUp VEX-2026-008)
+- Secondary-enricher abstraction (`SecondaryEnricherProtocol`): plugins can augment an investigate result in place after the primary source; third-party secondary plugins via the `vex.secondary_plugins` entry-point group
 - Batch IOC correlation: `--correlate` clusters multi-IOC runs by shared infrastructure (ASN, malware family, contacted IPs/domains, passive DNS). Deterministic cluster table (Rich/console) + `"clusters"` array in JSON. `vex/correlate.py`. (v1.3.0 P0, MeetUp VEX-2026-008)
-- Automated test suite (`tests/`): 220 unit tests
+- Automated test suite (`tests/`): 242 unit tests
 
 ### Changed
 - Internal: enrichment now dispatches through the plugin registry (`PluginRegistry`/`EnricherProtocol`) instead of a hardcoded resolver. The VirusTotal plugin owns a single lazily-created, lock-guarded `VTClient` reused across the run (and across batch threads), preserving rate-limit continuity. Foundation for multi-source enrichment (AbuseIPDB/Shodan as real plugins). covering cache (incl. v1.2.1 concurrency regression), IOC detector, defang, knowledge base, timeline, config, and async client — all deterministic, no network

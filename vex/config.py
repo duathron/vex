@@ -68,6 +68,8 @@ class UpdateCheckConfig(BaseModel):
 
 class EnrichmentConfig(BaseModel):
     whois_enabled: bool = True  # Direct WHOIS lookup (requires: pip install vex-ioc[whois])
+    abuseipdb_api_key: Optional[str] = None
+    abuseipdb_max_age_days: int = 90
 
 
 def _ensure_dir(path: Path) -> None:
@@ -102,6 +104,11 @@ class Config(BaseModel):
     def ai_api_key(self) -> Optional[str]:
         """AI provider API key: VEX_AI_API_KEY env > config ai.api_key."""
         return os.getenv("VEX_AI_API_KEY") or self.ai.api_key
+
+    @property
+    def abuseipdb_api_key(self) -> Optional[str]:
+        """AbuseIPDB API key: VEX_ABUSEIPDB_API_KEY env > config enrichment.abuseipdb_api_key."""
+        return os.getenv("VEX_ABUSEIPDB_API_KEY") or self.enrichment.abuseipdb_api_key
 
     @property
     def is_premium(self) -> bool:

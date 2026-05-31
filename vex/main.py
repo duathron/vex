@@ -583,6 +583,12 @@ def cmd_investigate(
                             result = plugin.investigate(normalised_ioc, ioc_type.value, config)
                             # MITRE ATT&CK mapping
                             result.attack_mappings = map_to_attack(result)
+                            # Secondary enrichers (fail-open, mutate result in place)
+                            for sec in registry.get_secondary(ioc_type.value):
+                                try:
+                                    sec.enrich(result, normalised_ioc, ioc_type.value, config)
+                                except Exception:
+                                    pass
                             cache.set(cache_key, result.model_dump(mode="json"))
                         except Exception as e:
                             err_console.print(f"[red]Error investigating {normalised_ioc}:[/red] {type(e).__name__}")
@@ -840,6 +846,8 @@ def _show_config(config) -> None:
 
     # Enrichment
     t.add_row("enrichment.whois_enabled", str(config.enrichment.whois_enabled))
+    t.add_row("enrichment.abuseipdb_api_key", mask(config.abuseipdb_api_key))
+    t.add_row("enrichment.abuseipdb_max_age_days", str(config.enrichment.abuseipdb_max_age_days))
 
     console.print(t)
 

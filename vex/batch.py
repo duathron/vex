@@ -85,6 +85,12 @@ def _process_single_investigate(
     try:
         result = plugin.investigate(normalised_ioc, ioc_type.value, config)
         result.attack_mappings = map_to_attack(result)
+        # Secondary enrichers (fail-open, mutate result in place)
+        for sec in registry.get_secondary(ioc_type.value):
+            try:
+                sec.enrich(result, normalised_ioc, ioc_type.value, config)
+            except Exception:
+                pass
         cache.set(cache_key, result.model_dump(mode="json"))
         return result
     except Exception as e:

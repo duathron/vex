@@ -182,7 +182,7 @@ def print_investigate_rich(result: InvestigateResult) -> None:
         console.print(Panel(net_grid, title="[bold]Network Activity[/bold]", border_style="yellow"))
 
     # --- Network IOC specific ---
-    if result.asn or result.country:
+    if result.asn or result.country or result.abuse_confidence is not None:
         net_grid = Table.grid(padding=(0, 2))
         net_grid.add_column(style="bold cyan", no_wrap=True)
         net_grid.add_column()
@@ -192,6 +192,12 @@ def print_investigate_rich(result: InvestigateResult) -> None:
             net_grid.add_row("Country", f"{result.country} ({result.continent or ''})")
         if result.network:
             net_grid.add_row("Network", result.network)
+        if result.abuse_confidence is not None:
+            reports = result.abuse_total_reports or 0
+            net_grid.add_row(
+                "AbuseIPDB",
+                f"{result.abuse_confidence}/100 ({reports} reports)",
+            )
         console.print(Panel(net_grid, title="[bold]Network Info[/bold]", border_style="blue"))
 
     if result.passive_dns:
@@ -533,6 +539,9 @@ def print_investigate_console(result: InvestigateResult) -> None:
         console.print(f"ASN     : AS{result.asn} {result.asn_owner or ''}")
     if result.country:
         console.print(f"Country : {result.country}")
+    if result.abuse_confidence is not None:
+        reports = result.abuse_total_reports or 0
+        console.print(f"AbuseIPDB: {result.abuse_confidence}/100 ({reports} reports)")
 
     if result.passive_dns:
         console.print("\nPassive DNS:")

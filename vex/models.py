@@ -169,6 +169,10 @@ class InvestigateResult(BaseModel):
     country: Optional[str] = None
     continent: Optional[str] = None
     network: Optional[str] = None
+    # AbuseIPDB enrichment (secondary enricher, IP only)
+    abuse_confidence: Optional[int] = None  # AbuseIPDB score 0-100
+    abuse_total_reports: Optional[int] = None
+    abuse_last_reported: Optional[str] = None
     passive_dns: list[PassiveDNSRecord] = Field(default_factory=list)
     communicating_files: list[RelatedFile] = Field(default_factory=list)
     downloaded_files: list[RelatedFile] = Field(default_factory=list)
