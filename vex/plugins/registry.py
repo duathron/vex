@@ -15,6 +15,13 @@ class PluginRegistry:
         registry = PluginRegistry()
         registry.register(my_plugin)
         plugin = registry.get_plugin("ipv4")
+
+    As a context manager::
+
+        with load_plugins() as registry:
+            plugin = registry.get_plugin("ipv4")
+            ...
+        # plugin clients are closed automatically on exit
     """
 
     def __init__(self) -> None:
@@ -45,3 +52,15 @@ class PluginRegistry:
 
     def __len__(self) -> int:
         return len(self._plugins)
+
+    def close(self) -> None:
+        """Close any plugin that exposes a ``close()`` method (e.g. VirusTotalPlugin)."""
+        for plugin in self._plugins:
+            if hasattr(plugin, "close"):
+                plugin.close()
+
+    def __enter__(self) -> "PluginRegistry":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()

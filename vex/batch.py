@@ -13,39 +13,21 @@ from typing import TypeVar
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from .cache import Cache
-from .client import VTClient
 from .config import Config
-from .ioc_detector import IOCType, detect, is_hash
+from .ioc_detector import IOCType, detect
 from .mitre.mapper import map_to_attack
 from .models import InvestigateResult, TriageResult
+from .plugins.loader import load_plugins
+from .plugins.registry import PluginRegistry
 
 T = TypeVar("T", TriageResult, InvestigateResult)
 
 logger = logging.getLogger("vex.batch")
 
 
-def _resolve_enricher(ioc_type: IOCType):
-    """Return the correct enricher module for an IOC type."""
-    from .enrichers import (
-        domain as domain_enricher,
-        hash as hash_enricher,
-        ip as ip_enricher,
-        url as url_enricher,
-    )
-    if is_hash(ioc_type):
-        return hash_enricher
-    if ioc_type in (IOCType.IPV4, IOCType.IPV6):
-        return ip_enricher
-    if ioc_type == IOCType.DOMAIN:
-        return domain_enricher
-    if ioc_type == IOCType.URL:
-        return url_enricher
-    return None
-
-
 def _process_single_triage(
     raw_ioc: str,
-    client: VTClient,
+    registry: PluginRegistry,
     config: Config,
     cache: Cache,
     no_cache: bool,
@@ -63,12 +45,12 @@ def _process_single_triage(
         result.from_cache = True
         return result
 
-    enricher = _resolve_enricher(ioc_type)
-    if enricher is None:
+    plugin = registry.get_plugin(ioc_type.value)
+    if plugin is None:
         return None
 
     try:
-        result = enricher.triage(normalised_ioc, ioc_type.value, client, config)
+        result = plugin.triage(normalised_ioc, ioc_type.value, config)
         cache.set(cache_key, result.model_dump(mode="json"))
         return result
     except Exception as e:
@@ -78,7 +60,7 @@ def _process_single_triage(
 
 def _process_single_investigate(
     raw_ioc: str,
-    client: VTClient,
+    registry: PluginRegistry,
     config: Config,
     cache: Cache,
     no_cache: bool,
@@ -96,12 +78,12 @@ def _process_single_investigate(
         result.triage.from_cache = True
         return result
 
-    enricher = _resolve_enricher(ioc_type)
-    if enricher is None:
+    plugin = registry.get_plugin(ioc_type.value)
+    if plugin is None:
         return None
 
     try:
-        result = enricher.investigate(normalised_ioc, ioc_type.value, client, config)
+        result = plugin.investigate(normalised_ioc, ioc_type.value, config)
         result.attack_mappings = map_to_attack(result)
         cache.set(cache_key, result.model_dump(mode="json"))
         return result
@@ -124,7 +106,7 @@ def batch_triage(
     results: list[TriageResult] = []
 
     with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
-        with VTClient(config) as client:
+        with load_plugins() as registry:
             if show_progress:
                 with Progress(
                     SpinnerColumn(),
@@ -136,7 +118,7 @@ def batch_triage(
                     task = progress.add_task("Triaging IOCs…", total=len(iocs))
                     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
                         futures = {
-                            pool.submit(_process_single_triage, ioc, client, config, cache, no_cache): ioc
+                            pool.submit(_process_single_triage, ioc, registry, config, cache, no_cache): ioc
                             for ioc in iocs
                         }
                         for future in concurrent.futures.as_completed(futures):
@@ -146,7 +128,7 @@ def batch_triage(
                             progress.advance(task)
             else:
                 for ioc in iocs:
-                    result = _process_single_triage(ioc, client, config, cache, no_cache)
+                    result = _process_single_triage(ioc, registry, config, cache, no_cache)
                     if result is not None:
                         results.append(result)
 
@@ -167,7 +149,7 @@ def batch_investigate(
     results: list[InvestigateResult] = []
 
     with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
-        with VTClient(config) as client:
+        with load_plugins() as registry:
             if show_progress:
                 with Progress(
                     SpinnerColumn(),
@@ -179,7 +161,7 @@ def batch_investigate(
                     task = progress.add_task("Investigating IOCs…", total=len(iocs))
                     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
                         futures = {
-                            pool.submit(_process_single_investigate, ioc, client, config, cache, no_cache): ioc
+                            pool.submit(_process_single_investigate, ioc, registry, config, cache, no_cache): ioc
                             for ioc in iocs
                         }
                         for future in concurrent.futures.as_completed(futures):
@@ -189,7 +171,7 @@ def batch_investigate(
                             progress.advance(task)
             else:
                 for ioc in iocs:
-                    result = _process_single_investigate(ioc, client, config, cache, no_cache)
+                    result = _process_single_investigate(ioc, registry, config, cache, no_cache)
                     if result is not None:
                         results.append(result)
 

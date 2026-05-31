@@ -17,10 +17,10 @@ import typer
 from . import __version__
 from .banner import print_banner
 from .cache import Cache
-from .client import VTClient
 from .config import load_config, save_config
 from .defang import defang as defang_ioc
-from .ioc_detector import IOCType, detect, is_hash
+from .ioc_detector import IOCType, detect
+from .plugins.loader import load_plugins
 from .mitre.mapper import map_to_attack
 from .models import InvestigateResult, TriageResult, Verdict
 from .output.export import to_csv_triage, to_json, to_json_list, to_json_list_with_clusters
@@ -192,20 +192,6 @@ def _collect_iocs(ioc: Optional[str], file: Optional[Path]) -> list[str]:
         err_console.print("[red]Error:[/red] Provide an IOC as argument, via --file, or via stdin.")
         raise typer.Exit(code=1)
     return iocs
-
-
-def _resolve_enricher(ioc_type: IOCType):
-    """Return the correct enricher module for an IOC type."""
-    from .enrichers import hash as hash_enricher, ip as ip_enricher, domain as domain_enricher, url as url_enricher
-    if is_hash(ioc_type):
-        return hash_enricher
-    if ioc_type in (IOCType.IPV4, IOCType.IPV6):
-        return ip_enricher
-    if ioc_type == IOCType.DOMAIN:
-        return domain_enricher
-    if ioc_type == IOCType.URL:
-        return url_enricher
-    return None
 
 
 def _maybe_defang(result: TriageResult, do_defang: bool) -> TriageResult:
@@ -405,7 +391,7 @@ def cmd_triage(
         results, failed_count = batch_triage(iocs, config, no_cache=no_cache, show_progress=show_progress)
     else:
         with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
-            with VTClient(config) as client:
+            with load_plugins() as registry:
                 for raw_ioc in iocs:
                     ioc_type, normalised_ioc = detect(raw_ioc)
 
@@ -421,11 +407,15 @@ def cmd_triage(
                         result = TriageResult.model_validate(cached)
                         result.from_cache = True
                     else:
-                        enricher = _resolve_enricher(ioc_type)
+                        plugin = registry.get_plugin(ioc_type.value)
+                        if plugin is None:
+                            err_console.print(f"[yellow]Warning:[/yellow] No plugin for IOC type '{ioc_type.value}' - skipping.")
+                            failed_count += 1
+                            continue
                         if output in (OutputFormat.rich, OutputFormat.console):
                             err_console.print(f"[dim]→ Looking up {ioc_type.value}: {normalised_ioc}[/dim]")
                         try:
-                            result = enricher.triage(normalised_ioc, ioc_type.value, client, config)
+                            result = plugin.triage(normalised_ioc, ioc_type.value, config)
                             cache.set(cache_key, result.model_dump(mode="json"))
                         except Exception as e:
                             err_console.print(f"[red]Error enriching {normalised_ioc}:[/red] {type(e).__name__}")
@@ -566,7 +556,7 @@ def cmd_investigate(
         results, failed_count = batch_investigate(iocs, config, no_cache=no_cache, show_progress=show_progress)
     else:
         with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
-            with VTClient(config) as client:
+            with load_plugins() as registry:
                 for raw_ioc in iocs:
                     ioc_type, normalised_ioc = detect(raw_ioc)
 
@@ -582,11 +572,15 @@ def cmd_investigate(
                         result = InvestigateResult.model_validate(cached)
                         result.triage.from_cache = True
                     else:
-                        enricher = _resolve_enricher(ioc_type)
+                        plugin = registry.get_plugin(ioc_type.value)
+                        if plugin is None:
+                            err_console.print(f"[yellow]Warning:[/yellow] No plugin for IOC type '{ioc_type.value}' - skipping.")
+                            failed_count += 1
+                            continue
                         if output in (OutputFormat.rich, OutputFormat.console):
                             err_console.print(f"[dim]→ Investigating {ioc_type.value}: {normalised_ioc}[/dim]")
                         try:
-                            result = enricher.investigate(normalised_ioc, ioc_type.value, client, config)
+                            result = plugin.investigate(normalised_ioc, ioc_type.value, config)
                             # MITRE ATT&CK mapping
                             result.attack_mappings = map_to_attack(result)
                             cache.set(cache_key, result.model_dump(mode="json"))
@@ -684,7 +678,6 @@ def cmd_cache_clear(config_path: _ConfigOpt = None) -> None:
 
 @app.command(name="version", help="Show version.")
 def cmd_version() -> None:
-    from .plugins.loader import load_plugins
     console.print(f"vex [bold]{__version__}[/bold]")
     registry = load_plugins()
     names = [p.name for p in registry.plugins]
