@@ -173,6 +173,11 @@ class InvestigateResult(BaseModel):
     abuse_confidence: Optional[int] = None  # AbuseIPDB score 0-100
     abuse_total_reports: Optional[int] = None
     abuse_last_reported: Optional[str] = None
+    # Shodan enrichment (secondary enricher, IP only)
+    shodan_ports: list[int] = Field(default_factory=list)
+    shodan_hostnames: list[str] = Field(default_factory=list)
+    shodan_org: Optional[str] = None
+    shodan_tags: list[str] = Field(default_factory=list)
     passive_dns: list[PassiveDNSRecord] = Field(default_factory=list)
     communicating_files: list[RelatedFile] = Field(default_factory=list)
     downloaded_files: list[RelatedFile] = Field(default_factory=list)

@@ -24,6 +24,7 @@ from .plugins.loader import load_plugins
 from .mitre.mapper import map_to_attack
 from .models import InvestigateResult, TriageResult, Verdict
 from .output.export import to_csv_triage, to_json, to_json_list, to_json_list_with_clusters
+from .output.html import write_html_report
 from .output.stix import to_stix_bundle
 from .output.formatter import (
     console,
@@ -161,6 +162,14 @@ _CorrelateOpt = Annotated[
     typer.Option("--correlate", help=(
         "Cluster batch IOCs by shared infrastructure (ASN, malware family, "
         "contacted IPs/domains, passive DNS). Batch only; no-op for single IOC."
+    )),
+]
+_HtmlOpt = Annotated[
+    Optional[str],
+    typer.Option("--html", help=(
+        "Write a self-contained HTML report to this path. "
+        "IOC strings are defanged in the report. "
+        "Works alongside normal console/rich output."
     )),
 ]
 
@@ -347,6 +356,7 @@ def cmd_triage(
     explain_model: _ExplainModelOpt = None,
     from_barb: _FromBarbOpt = False,
     correlate: _CorrelateOpt = False,
+    html: _HtmlOpt = None,
 ) -> None:
     config = load_config(config_path)
     if api_key:
@@ -486,6 +496,11 @@ def cmd_triage(
     if explain and results:
         _run_explain(results, config, explain_model, output)
 
+    # HTML report (opt-in, additive)
+    if html:
+        write_html_report(html, results, mode="triage")
+        console.print(f"[green]HTML report written to {html}[/green]")
+
     raise typer.Exit(code=exit_code)
 
 
@@ -512,6 +527,7 @@ def cmd_investigate(
     from_barb: _FromBarbOpt = False,
     navigator: _NavigatorOpt = False,
     correlate: _CorrelateOpt = False,
+    html: _HtmlOpt = None,
 ) -> None:
     config = load_config(config_path)
     if api_key:
@@ -663,6 +679,11 @@ def cmd_investigate(
     # AI explanation (opt-in)
     if explain and results:
         _run_explain(results, config, explain_model, output)
+
+    # HTML report (opt-in, additive)
+    if html:
+        write_html_report(html, results, mode="investigate")
+        console.print(f"[green]HTML report written to {html}[/green]")
 
     raise typer.Exit(code=exit_code)
 
@@ -848,6 +869,7 @@ def _show_config(config) -> None:
     t.add_row("enrichment.whois_enabled", str(config.enrichment.whois_enabled))
     t.add_row("enrichment.abuseipdb_api_key", mask(config.abuseipdb_api_key))
     t.add_row("enrichment.abuseipdb_max_age_days", str(config.enrichment.abuseipdb_max_age_days))
+    t.add_row("enrichment.shodan_api_key", mask(config.shodan_api_key))
 
     console.print(t)
 

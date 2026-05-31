@@ -70,6 +70,7 @@ class EnrichmentConfig(BaseModel):
     whois_enabled: bool = True  # Direct WHOIS lookup (requires: pip install vex-ioc[whois])
     abuseipdb_api_key: Optional[str] = None
     abuseipdb_max_age_days: int = 90
+    shodan_api_key: Optional[str] = None
 
 
 def _ensure_dir(path: Path) -> None:
@@ -109,6 +110,11 @@ class Config(BaseModel):
     def abuseipdb_api_key(self) -> Optional[str]:
         """AbuseIPDB API key: VEX_ABUSEIPDB_API_KEY env > config enrichment.abuseipdb_api_key."""
         return os.getenv("VEX_ABUSEIPDB_API_KEY") or self.enrichment.abuseipdb_api_key
+
+    @property
+    def shodan_api_key(self) -> Optional[str]:
+        """Shodan API key: VEX_SHODAN_API_KEY env > config enrichment.shodan_api_key."""
+        return os.getenv("VEX_SHODAN_API_KEY") or self.enrichment.shodan_api_key
 
     @property
     def is_premium(self) -> bool:

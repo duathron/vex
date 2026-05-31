@@ -182,7 +182,13 @@ def print_investigate_rich(result: InvestigateResult) -> None:
         console.print(Panel(net_grid, title="[bold]Network Activity[/bold]", border_style="yellow"))
 
     # --- Network IOC specific ---
-    if result.asn or result.country or result.abuse_confidence is not None:
+    if (
+        result.asn
+        or result.country
+        or result.abuse_confidence is not None
+        or result.shodan_ports
+        or result.shodan_org
+    ):
         net_grid = Table.grid(padding=(0, 2))
         net_grid.add_column(style="bold cyan", no_wrap=True)
         net_grid.add_column()
@@ -198,6 +204,17 @@ def print_investigate_rich(result: InvestigateResult) -> None:
                 "AbuseIPDB",
                 f"{result.abuse_confidence}/100 ({reports} reports)",
             )
+        if result.shodan_ports or result.shodan_org:
+            parts: list[str] = []
+            if result.shodan_ports:
+                parts.append(f"ports={result.shodan_ports}")
+            if result.shodan_org:
+                parts.append(f"org={result.shodan_org}")
+            if result.shodan_hostnames:
+                parts.append(f"hostnames={result.shodan_hostnames}")
+            if result.shodan_tags:
+                parts.append(f"tags={result.shodan_tags}")
+            net_grid.add_row("Shodan", " ".join(parts))
         console.print(Panel(net_grid, title="[bold]Network Info[/bold]", border_style="blue"))
 
     if result.passive_dns:
@@ -542,6 +559,17 @@ def print_investigate_console(result: InvestigateResult) -> None:
     if result.abuse_confidence is not None:
         reports = result.abuse_total_reports or 0
         console.print(f"AbuseIPDB: {result.abuse_confidence}/100 ({reports} reports)")
+    if result.shodan_ports or result.shodan_org:
+        parts: list[str] = []
+        if result.shodan_ports:
+            parts.append(f"ports={result.shodan_ports}")
+        if result.shodan_org:
+            parts.append(f"org={result.shodan_org}")
+        if result.shodan_hostnames:
+            parts.append(f"hostnames={result.shodan_hostnames}")
+        if result.shodan_tags:
+            parts.append(f"tags={result.shodan_tags}")
+        console.print(f"Shodan   : {' '.join(parts)}")
 
     if result.passive_dns:
         console.print("\nPassive DNS:")

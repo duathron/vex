@@ -16,6 +16,7 @@ import logging
 
 from .abuseipdb import AbuseIPDBPlugin
 from .registry import PluginRegistry
+from .shodan import ShodanPlugin
 from .virustotal import VirusTotalPlugin
 
 logger = logging.getLogger("vex.plugins")
@@ -46,6 +47,9 @@ def load_plugins() -> PluginRegistry:
 
     # Built-in secondary: AbuseIPDB (always present, no-op without key)
     registry.register_secondary(AbuseIPDBPlugin())
+
+    # Built-in secondary: Shodan (always present, no-op without key)
+    registry.register_secondary(ShodanPlugin())
 
     # Third-party secondary plugins via entry_points
     try:
