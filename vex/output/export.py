@@ -6,15 +6,30 @@ import csv
 import io
 import json
 from datetime import datetime
-from typing import Any, Union
+from typing import TYPE_CHECKING, Any, Union
 
 from ..models import InvestigateResult, TriageResult
+
+if TYPE_CHECKING:
+    from ..correlate import Cluster
 
 
 def _default(obj: Any) -> Any:
     if isinstance(obj, datetime):
         return obj.isoformat()
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
+
+def _cluster_to_dict(cluster: "Cluster") -> dict[str, Any]:
+    """Serialize a Cluster to a plain dict for JSON export."""
+    return {
+        "cluster_id": cluster.cluster_id,
+        "attribute_type": cluster.attribute_type,
+        "shared_attribute": cluster.shared_attribute,
+        "member_count": cluster.member_count,
+        "members": cluster.members,
+        "max_verdict": cluster.max_verdict.value,
+    }
 
 
 def to_json(result: Union[TriageResult, InvestigateResult], indent: int = 2) -> str:
@@ -24,6 +39,19 @@ def to_json(result: Union[TriageResult, InvestigateResult], indent: int = 2) -> 
 
 def to_json_list(results: list[Union[TriageResult, InvestigateResult]], indent: int = 2) -> str:
     data = [r.model_dump(mode="json") for r in results]
+    return json.dumps(data, indent=indent, default=_default, ensure_ascii=False)
+
+
+def to_json_list_with_clusters(
+    results: list[Union[TriageResult, InvestigateResult]],
+    clusters: list["Cluster"],
+    indent: int = 2,
+) -> str:
+    """Serialize results list + correlation clusters into a JSON object."""
+    data: dict[str, Any] = {
+        "results": [r.model_dump(mode="json") for r in results],
+        "clusters": [_cluster_to_dict(c) for c in clusters],
+    }
     return json.dumps(data, indent=indent, default=_default, ensure_ascii=False)
 
 

@@ -23,13 +23,15 @@ from .defang import defang as defang_ioc
 from .ioc_detector import IOCType, detect, is_hash
 from .mitre.mapper import map_to_attack
 from .models import InvestigateResult, TriageResult, Verdict
-from .output.export import to_csv_triage, to_json, to_json_list
+from .output.export import to_csv_triage, to_json, to_json_list, to_json_list_with_clusters
 from .output.stix import to_stix_bundle
 from .output.formatter import (
     console,
     err_console,
     print_barb_context_console,
     print_barb_context_rich,
+    print_clusters_console,
+    print_clusters_rich,
     print_explanation_console,
     print_explanation_rich,
     print_investigate_console,
@@ -152,6 +154,13 @@ _NavigatorOpt = Annotated[
     typer.Option("--navigator", help=(
         "Export ATT&CK Navigator layer JSON to stdout (investigate only). "
         "Redirect to file: vex investigate <ioc> --navigator > layer.json"
+    )),
+]
+_CorrelateOpt = Annotated[
+    bool,
+    typer.Option("--correlate", help=(
+        "Cluster batch IOCs by shared infrastructure (ASN, malware family, "
+        "contacted IPs/domains, passive DNS). Batch only; no-op for single IOC."
     )),
 ]
 
@@ -351,6 +360,7 @@ def cmd_triage(
     explain: _ExplainOpt = False,
     explain_model: _ExplainModelOpt = None,
     from_barb: _FromBarbOpt = False,
+    correlate: _CorrelateOpt = False,
 ) -> None:
     config = load_config(config_path)
     if api_key:
@@ -444,13 +454,21 @@ def cmd_triage(
     if summary:
         print_summary(results)
 
+    # Correlation (batch only)
+    if correlate and len(iocs) <= 1:
+        err_console.print("[dim]--correlate is a no-op for a single IOC.[/dim]")
+
     # Output results
     if stix:
         print(to_stix_bundle(results))
     elif csv:
         print(to_csv_triage(results))
     elif output == OutputFormat.json:
-        if from_barb and barb_map:
+        if correlate and len(results) > 1:
+            from .correlate import build_clusters
+            clusters = build_clusters(results)
+            print(to_json_list_with_clusters(results, clusters))
+        elif from_barb and barb_map:
             # Inject barb_context into JSON output
             import json as _json
             out = []
@@ -466,6 +484,13 @@ def cmd_triage(
     else:
         for r in results:
             _output_triage(r, output, barb_map=barb_map)
+        if correlate and len(results) > 1:
+            from .correlate import build_clusters
+            clusters = build_clusters(results)
+            if output == OutputFormat.rich:
+                print_clusters_rich(clusters)
+            else:
+                print_clusters_console(clusters)
 
     # AI explanation (opt-in)
     if explain and results:
@@ -496,6 +521,7 @@ def cmd_investigate(
     explain_model: _ExplainModelOpt = None,
     from_barb: _FromBarbOpt = False,
     navigator: _NavigatorOpt = False,
+    correlate: _CorrelateOpt = False,
 ) -> None:
     config = load_config(config_path)
     if api_key:
@@ -593,6 +619,10 @@ def cmd_investigate(
     if summary:
         print_summary([r.triage for r in results])
 
+    # Correlation (batch only)
+    if correlate and len(iocs) <= 1:
+        err_console.print("[dim]--correlate is a no-op for a single IOC.[/dim]")
+
     # ATT&CK Navigator export (exclusive — skips all other output)
     if navigator:
         from .output.navigator import to_navigator_layer
@@ -604,10 +634,22 @@ def cmd_investigate(
     if stix:
         print(to_stix_bundle(results))
     elif output == OutputFormat.json:
-        print(to_json_list(results) if len(results) > 1 else to_json(results[0]) if results else "[]")
+        if correlate and len(results) > 1:
+            from .correlate import build_clusters
+            clusters = build_clusters(results)
+            print(to_json_list_with_clusters(results, clusters))
+        else:
+            print(to_json_list(results) if len(results) > 1 else to_json(results[0]) if results else "[]")
     else:
         for r in results:
             _output_investigate(r, output, barb_map=barb_map)
+        if correlate and len(results) > 1:
+            from .correlate import build_clusters
+            clusters = build_clusters(results)
+            if output == OutputFormat.rich:
+                print_clusters_rich(clusters)
+            else:
+                print_clusters_console(clusters)
 
     # Timeline (appended after main output)
     if timeline:

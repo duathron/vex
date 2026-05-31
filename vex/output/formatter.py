@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 
 from rich.console import Console
 from rich.panel import Panel
@@ -16,6 +17,9 @@ from ..models import (
     TriageResult,
     Verdict,
 )
+
+if TYPE_CHECKING:
+    from ..correlate import Cluster
 
 _VERDICT_STYLE = {
     Verdict.MALICIOUS: "bold red",
@@ -539,3 +543,59 @@ def print_investigate_console(result: InvestigateResult) -> None:
     if result.whois:
         w = result.whois
         console.print(f"\nWHOIS: registrar={w.registrar}, created={w.creation_date}, expires={w.expiration_date}")
+
+
+# ---------------------------------------------------------------------------
+# Cluster correlation output
+# ---------------------------------------------------------------------------
+
+def print_clusters_rich(clusters: list["Cluster"]) -> None:
+    """Print correlation clusters as a Rich table."""
+    if not clusters:
+        console.print("[dim]No shared infrastructure found.[/dim]")
+        return
+
+    t = Table(
+        title="[bold]IOC Correlation Clusters[/bold]",
+        box=box.SIMPLE_HEAVY,
+        show_lines=True,
+    )
+    t.add_column("Cluster", style="bold cyan", no_wrap=True, width=7)
+    t.add_column("Type", style="dim", no_wrap=True, width=10)
+    t.add_column("Shared Attribute", style="yellow")
+    t.add_column("Members", justify="right", no_wrap=True, width=8)
+    t.add_column("Max Verdict", no_wrap=True, width=14)
+    t.add_column("IOCs")
+
+    for cl in clusters:
+        verdict_icon = _VERDICT_ICON.get(cl.max_verdict, cl.max_verdict.value)
+        t.add_row(
+            cl.cluster_id,
+            cl.attribute_type,
+            cl.shared_attribute,
+            str(cl.member_count),
+            verdict_icon,
+            "\n".join(cl.members),
+        )
+
+    console.print(t)
+
+
+def print_clusters_console(clusters: list["Cluster"]) -> None:
+    """Print correlation clusters in plain text."""
+    if not clusters:
+        console.print("No shared infrastructure found.")
+        return
+
+    console.print(f"\n{'='*60}")
+    console.print("IOC Correlation Clusters")
+    console.print(f"{'='*60}")
+    for cl in clusters:
+        verdict_label = cl.max_verdict.value
+        console.print(
+            f"{cl.cluster_id}  [{cl.attribute_type}]  {cl.shared_attribute}"
+            f"  members={cl.member_count}  max_verdict={verdict_label}"
+        )
+        for m in cl.members:
+            console.print(f"    {m}")
+    console.print(f"{'='*60}")

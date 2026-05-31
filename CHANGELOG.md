@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Automated test suite (`tests/`): 179 unit tests covering cache (incl. v1.2.1 concurrency regression), IOC detector, defang, knowledge base, timeline, config, and async client — all deterministic, no network
+- Batch IOC correlation: `--correlate` clusters multi-IOC runs by shared infrastructure (ASN, malware family, contacted IPs/domains, passive DNS). Deterministic cluster table (Rich/console) + `"clusters"` array in JSON. `vex/correlate.py`. (v1.3.0 P0, MeetUp VEX-2026-008)
+- Automated test suite (`tests/`): 205 unit tests covering cache (incl. v1.2.1 concurrency regression), IOC detector, defang, knowledge base, timeline, config, and async client — all deterministic, no network
 - `[dev]` optional dependency group (`pytest`, `ruff`)
 - CI: GitHub Actions `tests.yml` workflow (ruff + pytest on push/PR)
 
