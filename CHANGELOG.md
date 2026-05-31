@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-05-31
+
+This release bundles the **"Batch Intelligence"** (v1.3.0, never separately published) and **"Scale & Pipeline"** (v1.4.0) work. Test suite grew from 0 → 375 deterministic tests with CI.
+
 ### Added
 - sift → vex pipeline: `--from-sift` reads sift's JSON `TriageReport` from stdin, extracts the IOCs it found (cluster + alert IOCs, source/dest IPs, deduped), and enriches them. Closes the sift ↔ vex enrichment loop (symmetric to `--from-barb`; mutually exclusive with it). `vex/pipeline/sift_bridge.py`. (v1.4.x, topology clarification 2026-05-31)
 - Rate-limit-aware scheduling: multi-IOC runs print an up-front ETA (IOC count · tier · est. time) to stderr, a post-run `processed (N from API, M cached), K failed` summary (the cached count doubles as a resume signal), and a `--max-quota N` budget guard that caps fresh API lookups (cached always served; excess IOCs skipped with a notice). All notices stderr-only. (v1.4.0 P1, MeetUp VEX-2026-009)
@@ -80,7 +84,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rich CLI output for `triage` and `investigate`
 - API key configuration via terminal
 
-[Unreleased]: https://github.com/duathron/vex/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/duathron/vex/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/duathron/vex/compare/v1.2.1...v1.4.0
 [1.2.1]: https://github.com/duathron/vex/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/duathron/vex/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/duathron/vex/compare/v1.1.0...v1.1.1
