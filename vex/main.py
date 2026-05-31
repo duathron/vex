@@ -177,6 +177,10 @@ _NoDedupOpt = Annotated[
     bool,
     typer.Option("--no-dedup", help="Disable IOC deduplication (default: dedup enabled)."),
 ]
+_MaxQuotaOpt = Annotated[
+    Optional[int],
+    typer.Option("--max-quota", help="Cap the number of fresh API lookups this run. Cached IOCs are always served and do not count against the quota."),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -480,6 +484,7 @@ def cmd_triage(
     correlate: _CorrelateOpt = False,
     html: _HtmlOpt = None,
     no_dedup: _NoDedupOpt = False,
+    max_quota: _MaxQuotaOpt = None,
 ) -> None:
     config = load_config(config_path)
     if api_key:
@@ -526,8 +531,38 @@ def cmd_triage(
 
     if len(iocs) > 1:
         from .batch import batch_triage
+        from .scheduling import count_cache_hits, estimate_eta, format_batch_summary, partition_by_cache
+
+        # Part A: ETA line before starting the batch
+        err_console.print(f"[dim]{estimate_eta(len(iocs), config)}[/dim]")
+
+        # Part C: --max-quota partition (pre-check pass, no network). Only run when a
+        # budget is set; otherwise skip the extra cache reads on the default path
+        # (cache/fresh counts for Part B come from the results, not the pre-check).
+        if max_quota is not None:
+            with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as pre_cache:
+                cached_iocs, quota_iocs, skipped_iocs = partition_by_cache(
+                    iocs, pre_cache, "triage", no_cache, max_quota
+                )
+            batch_iocs = cached_iocs + quota_iocs
+            skipped_count = len(skipped_iocs)
+        else:
+            batch_iocs = iocs
+            skipped_count = 0
+        if skipped_count:
+            err_console.print(
+                f"[yellow]--max-quota {max_quota} reached: {skipped_count} IOCs skipped (not enriched). "
+                f"Re-run to continue.[/yellow]"
+            )
+
         show_progress = output in (OutputFormat.rich, OutputFormat.console)
-        results, failed_count = batch_triage(iocs, config, no_cache=no_cache, show_progress=show_progress)
+        results, failed_count = batch_triage(batch_iocs, config, no_cache=no_cache, show_progress=show_progress)
+
+        # Part B: cache/fresh counters in the post-batch summary
+        from_api, from_cache_count = count_cache_hits(results)
+        err_console.print(
+            f"[dim]{format_batch_summary(len(results), failed_count, from_api, from_cache_count)}[/dim]"
+        )
     else:
         with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
             with load_plugins() as registry:
@@ -563,7 +598,7 @@ def cmd_triage(
 
                     results.append(result)
 
-    if failed_count:
+    if failed_count and len(iocs) <= 1:
         err_console.print(f"[yellow]{len(results)} processed, {failed_count} failed (see errors above)[/yellow]")
 
     # Apply defanging if requested
@@ -683,6 +718,7 @@ def cmd_investigate(
     correlate: _CorrelateOpt = False,
     html: _HtmlOpt = None,
     no_dedup: _NoDedupOpt = False,
+    max_quota: _MaxQuotaOpt = None,
 ) -> None:
     config = load_config(config_path)
     if api_key:
@@ -729,8 +765,38 @@ def cmd_investigate(
 
     if len(iocs) > 1:
         from .batch import batch_investigate
+        from .scheduling import count_cache_hits, estimate_eta, format_batch_summary, partition_by_cache
+
+        # Part A: ETA line before starting the batch
+        err_console.print(f"[dim]{estimate_eta(len(iocs), config)}[/dim]")
+
+        # Part C: --max-quota partition (pre-check pass, no network). Only run when a
+        # budget is set; otherwise skip the extra cache reads on the default path
+        # (cache/fresh counts for Part B come from the results, not the pre-check).
+        if max_quota is not None:
+            with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as pre_cache:
+                cached_iocs, quota_iocs, skipped_iocs = partition_by_cache(
+                    iocs, pre_cache, "investigate", no_cache, max_quota
+                )
+            batch_iocs = cached_iocs + quota_iocs
+            skipped_count = len(skipped_iocs)
+        else:
+            batch_iocs = iocs
+            skipped_count = 0
+        if skipped_count:
+            err_console.print(
+                f"[yellow]--max-quota {max_quota} reached: {skipped_count} IOCs skipped (not enriched). "
+                f"Re-run to continue.[/yellow]"
+            )
+
         show_progress = output in (OutputFormat.rich, OutputFormat.console)
-        results, failed_count = batch_investigate(iocs, config, no_cache=no_cache, show_progress=show_progress)
+        results, failed_count = batch_investigate(batch_iocs, config, no_cache=no_cache, show_progress=show_progress)
+
+        # Part B: cache/fresh counters in the post-batch summary
+        from_api, from_cache_count = count_cache_hits(results)
+        err_console.print(
+            f"[dim]{format_batch_summary(len(results), failed_count, from_api, from_cache_count)}[/dim]"
+        )
     else:
         with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
             with load_plugins() as registry:
@@ -774,7 +840,7 @@ def cmd_investigate(
 
                     results.append(result)
 
-    if failed_count:
+    if failed_count and len(iocs) <= 1:
         err_console.print(f"[yellow]{len(results)} processed, {failed_count} failed (see errors above)[/yellow]")
 
     # Apply defanging if requested

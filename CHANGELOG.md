@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Rate-limit-aware scheduling: multi-IOC runs print an up-front ETA (IOC count · tier · est. time) to stderr, a post-run `processed (N from API, M cached), K failed` summary (the cached count doubles as a resume signal), and a `--max-quota N` budget guard that caps fresh API lookups (cached always served; excess IOCs skipped with a notice). All notices stderr-only. (v1.4.0 P1, MeetUp VEX-2026-009)
 - IOC deduplication: batch input is de-duplicated (order-preserving) before any query, saving API quota on pipeline-scale runs with repeated IOCs; a `N → M unique (K removed)` notice prints to stderr. `--no-dedup` disables it. (v1.4.0 P0, MeetUp VEX-2026-009)
 - NDJSON streaming output: `-o ndjson` emits one JSON object per result line, flushed per line (pipeline/crash-friendly), following the JSON defang rule (real IOCs unless `--defang`). Clusters emitted as `{"_type":"cluster",...}` lines under `--correlate`. (v1.4.0 P0, MeetUp VEX-2026-009)
 - AI correlation narratives: with `--correlate` **and** `--explain` on a batch run, vex generates a short per-cluster campaign-correlation narrative (opt-in, cached, template fallback when no LLM). `--correlate` alone stays deterministic. IOCs defanged in prompts. (v1.3.0 P1, MeetUp VEX-2026-008)
@@ -16,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - AbuseIPDB IP enrichment: investigate on an IP now adds AbuseIPDB confidence score, total reports, and last-reported date when `VEX_ABUSEIPDB_API_KEY` (or `enrichment.abuseipdb_api_key`) is configured. Built-in secondary enricher, fail-open (never blocks the run), no-op without a key, no new dependency. (v1.3.0 P1, MeetUp VEX-2026-008)
 - Secondary-enricher abstraction (`SecondaryEnricherProtocol`): plugins can augment an investigate result in place after the primary source; third-party secondary plugins via the `vex.secondary_plugins` entry-point group
 - Batch IOC correlation: `--correlate` clusters multi-IOC runs by shared infrastructure (ASN, malware family, contacted IPs/domains, passive DNS). Deterministic cluster table (Rich/console) + `"clusters"` array in JSON. `vex/correlate.py`. (v1.3.0 P0, MeetUp VEX-2026-008)
-- Automated test suite (`tests/`): 326 unit tests covering cache (incl. v1.2.1 concurrency regression), IOC detector, defang, knowledge base, timeline, config, async client, plugin dispatch, correlation, AbuseIPDB/Shodan enrichers, HTML export, and AI narratives — all deterministic, no network
+- Automated test suite (`tests/`): 353 unit tests covering cache (incl. v1.2.1 concurrency regression), IOC detector, defang, knowledge base, timeline, config, async client, plugin dispatch, correlation, AbuseIPDB/Shodan enrichers, HTML export, and AI narratives — all deterministic, no network
 
 ### Changed
 - Internal: enrichment now dispatches through the plugin registry (`PluginRegistry`/`EnricherProtocol`) instead of a hardcoded resolver. The VirusTotal plugin owns a single lazily-created, lock-guarded `VTClient` reused across the run (and across batch threads), preserving rate-limit continuity. Foundation for multi-source enrichment (AbuseIPDB/Shodan as real plugins).
