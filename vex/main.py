@@ -151,6 +151,14 @@ _FromBarbOpt = Annotated[
         "See 'vex manual pipeline'."
     )),
 ]
+_FromSiftOpt = Annotated[
+    bool,
+    typer.Option("--from-sift", help=(
+        "Read sift JSON (TriageReport) from stdin and enrich the IOCs it found. "
+        "Usage: sift triage alerts.json -o json | vex triage --from-sift. "
+        "See 'vex manual pipeline'."
+    )),
+]
 _NavigatorOpt = Annotated[
     bool,
     typer.Option("--navigator", help=(
@@ -481,6 +489,7 @@ def cmd_triage(
     explain: _ExplainOpt = False,
     explain_model: _ExplainModelOpt = None,
     from_barb: _FromBarbOpt = False,
+    from_sift: _FromSiftOpt = False,
     correlate: _CorrelateOpt = False,
     html: _HtmlOpt = None,
     no_dedup: _NoDedupOpt = False,
@@ -494,6 +503,11 @@ def cmd_triage(
         update_check_enabled=config.update_check.enabled,
         check_interval_hours=config.update_check.check_interval_hours,
     )
+
+    # --from-barb / --from-sift are mutually exclusive
+    if from_barb and from_sift:
+        err_console.print("[red]Error:[/red] --from-barb and --from-sift are mutually exclusive.")
+        raise typer.Exit(code=1)
 
     # --from-barb: read barb JSON from stdin, extract URLs as IOCs
     barb_map: dict = {}
@@ -510,6 +524,18 @@ def cmd_triage(
             err_console.print(f"[dim]→ barb pipeline: {len(iocs)} URL(s) loaded[/dim]")
         except ValueError as e:
             err_console.print(f"[red]Error parsing barb JSON:[/red] {e}")
+            raise typer.Exit(code=1)
+    elif from_sift:
+        from .pipeline.sift_bridge import extract_iocs_from_sift
+        try:
+            raw_sift = sys.stdin.read()
+            iocs = extract_iocs_from_sift(raw_sift)
+            if not iocs:
+                err_console.print("[dim]No IOCs found in sift output.[/dim]")
+                raise typer.Exit(code=0)
+            err_console.print(f"[dim]Loaded {len(iocs)} IOCs from sift output[/dim]")
+        except ValueError as e:
+            err_console.print(f"[red]Error parsing sift JSON:[/red] {e}")
             raise typer.Exit(code=1)
     else:
         iocs = _collect_iocs(ioc, file)
@@ -714,6 +740,7 @@ def cmd_investigate(
     explain: _ExplainOpt = False,
     explain_model: _ExplainModelOpt = None,
     from_barb: _FromBarbOpt = False,
+    from_sift: _FromSiftOpt = False,
     navigator: _NavigatorOpt = False,
     correlate: _CorrelateOpt = False,
     html: _HtmlOpt = None,
@@ -728,6 +755,11 @@ def cmd_investigate(
         update_check_enabled=config.update_check.enabled,
         check_interval_hours=config.update_check.check_interval_hours,
     )
+
+    # --from-barb / --from-sift are mutually exclusive
+    if from_barb and from_sift:
+        err_console.print("[red]Error:[/red] --from-barb and --from-sift are mutually exclusive.")
+        raise typer.Exit(code=1)
 
     # --from-barb: read barb JSON from stdin, extract URLs as IOCs
     barb_map: dict = {}
@@ -744,6 +776,18 @@ def cmd_investigate(
             err_console.print(f"[dim]→ barb pipeline: {len(iocs)} URL(s) loaded[/dim]")
         except ValueError as e:
             err_console.print(f"[red]Error parsing barb JSON:[/red] {e}")
+            raise typer.Exit(code=1)
+    elif from_sift:
+        from .pipeline.sift_bridge import extract_iocs_from_sift
+        try:
+            raw_sift = sys.stdin.read()
+            iocs = extract_iocs_from_sift(raw_sift)
+            if not iocs:
+                err_console.print("[dim]No IOCs found in sift output.[/dim]")
+                raise typer.Exit(code=0)
+            err_console.print(f"[dim]Loaded {len(iocs)} IOCs from sift output[/dim]")
+        except ValueError as e:
+            err_console.print(f"[red]Error parsing sift JSON:[/red] {e}")
             raise typer.Exit(code=1)
     else:
         iocs = _collect_iocs(ioc, file)
