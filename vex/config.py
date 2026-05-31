@@ -71,6 +71,9 @@ class EnrichmentConfig(BaseModel):
     abuseipdb_api_key: Optional[str] = None
     abuseipdb_max_age_days: int = 90
     shodan_api_key: Optional[str] = None
+    misp_url: Optional[str] = None
+    misp_api_key: Optional[str] = None
+    misp_verify_tls: bool = True
 
 
 def _ensure_dir(path: Path) -> None:
@@ -115,6 +118,16 @@ class Config(BaseModel):
     def shodan_api_key(self) -> Optional[str]:
         """Shodan API key: VEX_SHODAN_API_KEY env > config enrichment.shodan_api_key."""
         return os.getenv("VEX_SHODAN_API_KEY") or self.enrichment.shodan_api_key
+
+    @property
+    def misp_url(self) -> Optional[str]:
+        """MISP base URL: MISP_URL env > config enrichment.misp_url."""
+        return os.getenv("MISP_URL") or self.enrichment.misp_url
+
+    @property
+    def misp_api_key(self) -> Optional[str]:
+        """MISP API key: MISP_API_KEY env > config enrichment.misp_api_key."""
+        return os.getenv("MISP_API_KEY") or self.enrichment.misp_api_key
 
     @property
     def is_premium(self) -> bool:

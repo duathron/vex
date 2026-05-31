@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- MISP IOC lookup: investigate now consults a MISP instance (`/attributes/restSearch`) for every IOC type when `MISP_URL` + `MISP_API_KEY` are configured, attaching `misp_known`, event IDs, tags, **TLP marking** (most-restrictive wins), and last-seen. Built-in secondary enricher, raw httpx (no `pymisp` dep), fail-open, no-op without config, TLS-verify on by default (`misp_verify_tls` to opt out for lab instances). TLP/markings are carried through, never dropped. (v1.5.0 P0, MeetUp VEX-2026-010)
+
 ## [1.4.0] - 2026-05-31
 
 This release bundles the **"Batch Intelligence"** (v1.3.0, never separately published) and **"Scale & Pipeline"** (v1.4.0) work. Test suite grew from 0 → 375 deterministic tests with CI.

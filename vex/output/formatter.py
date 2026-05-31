@@ -217,6 +217,22 @@ def print_investigate_rich(result: InvestigateResult) -> None:
             net_grid.add_row("Shodan", " ".join(parts))
         console.print(Panel(net_grid, title="[bold]Network Info[/bold]", border_style="blue"))
 
+    if result.misp_known:
+        misp_grid = Table.grid(padding=(0, 2))
+        misp_grid.add_column(style="bold cyan", no_wrap=True)
+        misp_grid.add_column()
+        events_str = ", ".join(result.misp_event_ids[:10]) if result.misp_event_ids else "—"
+        tlp_str = f" · TLP:{result.misp_tlp}" if result.misp_tlp else ""
+        tags_shown = result.misp_tags[:5]
+        tags_str = f" · tags: {', '.join(tags_shown)}" if tags_shown else ""
+        misp_grid.add_row(
+            "MISP",
+            f"known — events [{events_str}]{tlp_str}{tags_str}",
+        )
+        if result.misp_last_seen:
+            misp_grid.add_row("MISP last seen", result.misp_last_seen)
+        console.print(Panel(misp_grid, title="[bold]MISP[/bold]", border_style="cyan"))
+
     if result.passive_dns:
         pdns_table = Table(title="Passive DNS", box=box.SIMPLE_HEAVY, show_lines=False)
         pdns_table.add_column("Hostname", style="cyan")
@@ -570,6 +586,15 @@ def print_investigate_console(result: InvestigateResult) -> None:
         if result.shodan_tags:
             parts.append(f"tags={result.shodan_tags}")
         console.print(f"Shodan   : {' '.join(parts)}")
+
+    if result.misp_known:
+        events_str = ", ".join(result.misp_event_ids[:10]) if result.misp_event_ids else "—"
+        tlp_str = f" · TLP:{result.misp_tlp}" if result.misp_tlp else ""
+        tags_shown = result.misp_tags[:5]
+        tags_str = f" · tags: {', '.join(tags_shown)}" if tags_shown else ""
+        console.print(f"MISP     : known — events [{events_str}]{tlp_str}{tags_str}")
+        if result.misp_last_seen:
+            console.print(f"MISP last: {result.misp_last_seen}")
 
     if result.passive_dns:
         console.print("\nPassive DNS:")

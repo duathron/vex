@@ -178,6 +178,12 @@ class InvestigateResult(BaseModel):
     shodan_hostnames: list[str] = Field(default_factory=list)
     shodan_org: Optional[str] = None
     shodan_tags: list[str] = Field(default_factory=list)
+    # MISP enrichment (secondary enricher, all IOC types)
+    misp_known: bool = False
+    misp_event_ids: list[str] = Field(default_factory=list)
+    misp_tags: list[str] = Field(default_factory=list)
+    misp_tlp: Optional[str] = None
+    misp_last_seen: Optional[str] = None
     passive_dns: list[PassiveDNSRecord] = Field(default_factory=list)
     communicating_files: list[RelatedFile] = Field(default_factory=list)
     downloaded_files: list[RelatedFile] = Field(default_factory=list)

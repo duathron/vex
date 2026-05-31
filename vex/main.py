@@ -1166,6 +1166,9 @@ def _show_config(config) -> None:
     t.add_row("enrichment.abuseipdb_api_key", mask(config.abuseipdb_api_key))
     t.add_row("enrichment.abuseipdb_max_age_days", str(config.enrichment.abuseipdb_max_age_days))
     t.add_row("enrichment.shodan_api_key", mask(config.shodan_api_key))
+    t.add_row("enrichment.misp_url", config.misp_url or "[dim]not set[/dim]")
+    t.add_row("enrichment.misp_api_key", mask(config.misp_api_key))
+    t.add_row("enrichment.misp_verify_tls", str(config.enrichment.misp_verify_tls))
 
     console.print(t)
 
