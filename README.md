@@ -178,7 +178,7 @@ vex doctor --probe       # + live connectivity, surfaces the actual error
 
 ## Known limitations
 
-- **MISP and OpenCTI lookups are validated against mocks; OpenCTI was also live-verified against the public demo (v7.26).** Both query real instances and are version-sensitive — if a server's schema differs, the enricher **fails open** (no enrichment, no crash). Use `vex doctor --probe` to confirm connectivity. `pycti` is a possible future fallback if raw GraphQL drifts.
+- **MISP (v2.5.38) and OpenCTI (demo v7.26) lookups are live-verified end-to-end**, and both have mock tests. They query real instances and stay version-sensitive: if a server's schema differs, the enricher **fails open** (no enrichment, no crash). Use `vex doctor --probe` to confirm connectivity. `pycti` is a possible future fallback if OpenCTI's GraphQL schema drifts.
 - **AI: Anthropic and Ollama are live-verified end-to-end; OpenAI shares the same code path (mock-tested).** Without a provider, `--explain` falls back to a deterministic template.
 - **Secondary enrichers run on `investigate`, not `triage`.** A `triage --explain` gets no AbuseIPDB / Shodan / MISP / OpenCTI context by design.
 - **STIX TLP:CLEAR maps to the TLP 1.0 WHITE marking id by default** — set `enrichment.stix_tlp_version: "2.0"` to switch to TLP 2.0 ids.
