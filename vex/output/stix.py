@@ -20,6 +20,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from ..config import Config
 from ..models import InvestigateResult, TriageResult, Verdict
 
 # ---------------------------------------------------------------------------
@@ -131,9 +132,70 @@ _TLP_MARKING_DEFS: dict[str, dict[str, Any]] = {
 }
 
 
-def _tlp_marking_id(misp_tlp: str) -> str | None:
-    """Return the canonical TLP marking-definition id for a misp_tlp string."""
-    return _TLP_MARKING_IDS.get(misp_tlp.lower()) if misp_tlp else None
+# ---------------------------------------------------------------------------
+# TLP 2.0 marking-definitions (FIRST TLP 2.0 canonical ids)
+# ---------------------------------------------------------------------------
+
+_TLP2_MARKING_IDS: dict[str, str] = {
+    "clear": "marking-definition--94868c89-83c2-464b-929b-a1a8aa3c8487",
+    "white": "marking-definition--94868c89-83c2-464b-929b-a1a8aa3c8487",  # alias
+    "green": "marking-definition--bab4a63c-aed9-4cf5-a766-dfca5abac2bb",
+    "amber": "marking-definition--55d920b0-5e8b-4f79-9ee9-91f868d9b421",
+    "red": "marking-definition--e828b379-4e03-4974-9ac4-e53a884c97c1",
+}
+
+_TLP2_MARKING_DEFS: dict[str, dict[str, Any]] = {
+    "marking-definition--94868c89-83c2-464b-929b-a1a8aa3c8487": {
+        "type": "marking-definition",
+        "spec_version": "2.1",
+        "id": "marking-definition--94868c89-83c2-464b-929b-a1a8aa3c8487",
+        "created": "2022-10-01T00:00:00.000Z",
+        "definition_type": "tlp",
+        "name": "TLP:CLEAR",
+        "definition": {"tlp": "clear"},
+    },
+    "marking-definition--bab4a63c-aed9-4cf5-a766-dfca5abac2bb": {
+        "type": "marking-definition",
+        "spec_version": "2.1",
+        "id": "marking-definition--bab4a63c-aed9-4cf5-a766-dfca5abac2bb",
+        "created": "2022-10-01T00:00:00.000Z",
+        "definition_type": "tlp",
+        "name": "TLP:GREEN",
+        "definition": {"tlp": "green"},
+    },
+    "marking-definition--55d920b0-5e8b-4f79-9ee9-91f868d9b421": {
+        "type": "marking-definition",
+        "spec_version": "2.1",
+        "id": "marking-definition--55d920b0-5e8b-4f79-9ee9-91f868d9b421",
+        "created": "2022-10-01T00:00:00.000Z",
+        "definition_type": "tlp",
+        "name": "TLP:AMBER",
+        "definition": {"tlp": "amber"},
+    },
+    "marking-definition--e828b379-4e03-4974-9ac4-e53a884c97c1": {
+        "type": "marking-definition",
+        "spec_version": "2.1",
+        "id": "marking-definition--e828b379-4e03-4974-9ac4-e53a884c97c1",
+        "created": "2022-10-01T00:00:00.000Z",
+        "definition_type": "tlp",
+        "name": "TLP:RED",
+        "definition": {"tlp": "red"},
+    },
+}
+
+
+def _tlp_marking_id(misp_tlp: str, tlp_version: str = "1.0") -> str | None:
+    """Return the canonical TLP marking-definition id for a misp_tlp string.
+
+    *tlp_version* selects which id set to use: ``"1.0"`` (default, unchanged
+    behaviour) or ``"2.0"`` (TLP 2.0 canonical ids).
+    """
+    if not misp_tlp:
+        return None
+    key = misp_tlp.lower()
+    if tlp_version == "2.0":
+        return _TLP2_MARKING_IDS.get(key)
+    return _TLP_MARKING_IDS.get(key)
 
 
 # ---------------------------------------------------------------------------
@@ -201,8 +263,20 @@ def _make_sco(ioc: str, ioc_type: str) -> dict[str, Any] | None:
 
 def to_stix_bundle(
     results: list[TriageResult | InvestigateResult],
+    config: Config | None = None,
 ) -> str:
-    """Convert enrichment results to a STIX 2.1 JSON bundle string."""
+    """Convert enrichment results to a STIX 2.1 JSON bundle string.
+
+    *config* is optional for backwards compatibility.  When provided,
+    ``config.enrichment.stix_tlp_version`` selects which TLP marking-definition
+    id set is used (``"1.0"`` default, ``"2.0"`` for TLP 2.0 ids).  When
+    *config* is ``None`` the behaviour is identical to v1.0 (byte-for-byte).
+    """
+    tlp_version = config.enrichment.stix_tlp_version if config is not None else "1.0"
+
+    # Select the appropriate marking-definition lookup table for building objects
+    marking_def_map = _TLP2_MARKING_DEFS if tlp_version == "2.0" else _TLP_MARKING_DEFS
+
     now = _now_iso()
     objects: list[dict[str, Any]] = []
 
@@ -218,7 +292,7 @@ def to_stix_bundle(
 
         # Resolve TLP marking for this result
         misp_tlp: str | None = result.misp_tlp if is_investigate else None
-        tlp_id: str | None = _tlp_marking_id(misp_tlp) if misp_tlp else None
+        tlp_id: str | None = _tlp_marking_id(misp_tlp, tlp_version) if misp_tlp else None
         if tlp_id:
             used_tlp_marking_ids.add(tlp_id)
 
@@ -355,9 +429,9 @@ def to_stix_bundle(
     # Prepend referenced TLP marking-definition objects (before other objects,
     # after identity — stable order for deterministic output)
     tlp_objects: list[dict[str, Any]] = [
-        _TLP_MARKING_DEFS[mid]
+        marking_def_map[mid]
         for mid in sorted(used_tlp_marking_ids)
-        if mid in _TLP_MARKING_DEFS
+        if mid in marking_def_map
     ]
 
     # Deduplicate by ID (identity first, then tlp markings, then rest)

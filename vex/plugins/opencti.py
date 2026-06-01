@@ -28,6 +28,7 @@ import httpx
 from ..config import Config
 from ..enrichers.protocol import SecondaryEnricherProtocol
 from ..models import InvestigateResult
+from ..tlp import most_restrictive_tlp as _shared_most_restrictive_tlp
 
 logger = logging.getLogger("vex.plugins.opencti")
 
@@ -64,27 +65,18 @@ query SearchObservable($value: Any!) {
 }
 """
 
-# TLP precedence — lower index = more restrictive
-_TLP_ORDER = ["tlp:red", "tlp:amber", "tlp:green", "tlp:clear", "tlp:white"]
-
-
 def _most_restrictive_tlp(definitions: list[str]) -> str | None:
     """Return the most restrictive TLP level found in the marking definitions, or None.
 
-    Accepts strings like 'TLP:AMBER', 'TLP:RED', 'TLP:GREEN', 'TLP:CLEAR', 'TLP:WHITE'.
-    Comparison is case-insensitive.
+    Accepts strings like ``'TLP:AMBER'``, ``'TLP:RED'``, ``'TLP:GREEN'``,
+    ``'TLP:CLEAR'``, ``'TLP:WHITE'`` (case-insensitive).
+
+    Delegates to the shared :func:`vex.tlp.most_restrictive_tlp` helper and
+    uppercases the result to preserve the existing field contract
+    (``opencti_tlp`` stores e.g. ``"AMBER"``, ``"RED"``).
     """
-    found: str | None = None
-    found_rank = len(_TLP_ORDER)
-    for definition in definitions:
-        def_lower = definition.lower()
-        for rank, tlp in enumerate(_TLP_ORDER):
-            if def_lower == tlp:
-                if rank < found_rank:
-                    found_rank = rank
-                    found = tlp.split(":", 1)[1].upper()  # e.g. "RED"
-                break
-    return found
+    level = _shared_most_restrictive_tlp(definitions)
+    return level.upper() if level is not None else None
 
 
 class OpenCTIEnricher:

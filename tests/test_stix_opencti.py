@@ -18,8 +18,10 @@ import json
 
 import pytest
 
+from vex.config import Config, EnrichmentConfig
 from vex.models import ATTACKMapping, DetectionStats, InvestigateResult, TriageResult, Verdict
 from vex.output.stix import (
+    _TLP2_MARKING_IDS,
     _TLP_MARKING_IDS,
     _VEX_IDENTITY_ID,
     to_stix_bundle,
@@ -535,3 +537,116 @@ class TestExistingBehaviorPreserved:
         b = _bundle([r1, r2])
         malwares = _objects_by_type(b, "malware")
         assert len(malwares) == 1
+
+
+# ---------------------------------------------------------------------------
+# Helpers for TLP 2.0 tests
+# ---------------------------------------------------------------------------
+
+def _config_v2() -> Config:
+    cfg = Config()
+    cfg.enrichment = EnrichmentConfig(stix_tlp_version="2.0")
+    return cfg
+
+
+def _config_v1() -> Config:
+    cfg = Config()
+    cfg.enrichment = EnrichmentConfig(stix_tlp_version="1.0")
+    return cfg
+
+
+def _bundle_v2(results: list[TriageResult | InvestigateResult]) -> dict:
+    raw = to_stix_bundle(results, config=_config_v2())
+    return json.loads(raw)
+
+
+def _bundle_v1(results: list[TriageResult | InvestigateResult]) -> dict:
+    raw = to_stix_bundle(results, config=_config_v1())
+    return json.loads(raw)
+
+
+# ---------------------------------------------------------------------------
+# TLP 2.0 config — stix_tlp_version="2.0"
+# ---------------------------------------------------------------------------
+
+_TLP2_CANONICAL = {
+    "clear": "marking-definition--94868c89-83c2-464b-929b-a1a8aa3c8487",
+    "green": "marking-definition--bab4a63c-aed9-4cf5-a766-dfca5abac2bb",
+    "amber": "marking-definition--55d920b0-5e8b-4f79-9ee9-91f868d9b421",
+    "red": "marking-definition--e828b379-4e03-4974-9ac4-e53a884c97c1",
+}
+
+
+class TestStixTlpVersion2:
+    def test_amber_emits_tlp2_marking_id(self) -> None:
+        """With stix_tlp_version='2.0', amber must use the TLP 2.0 id."""
+        b = _bundle_v2([_investigate(misp_tlp="amber")])
+        markings = _objects_by_type(b, "marking-definition")
+        assert len(markings) == 1
+        assert markings[0]["id"] == _TLP2_CANONICAL["amber"]
+
+    def test_amber_object_marking_refs_use_tlp2_id(self) -> None:
+        b = _bundle_v2([_investigate(ioc="evil.com", ioc_type="domain", misp_tlp="amber")])
+        indicator = _objects_by_type(b, "indicator")[0]
+        assert _TLP2_CANONICAL["amber"] in indicator.get("object_marking_refs", [])
+
+    def test_indicator_does_not_have_tlp1_id_in_v2_mode(self) -> None:
+        b = _bundle_v2([_investigate(misp_tlp="amber")])
+        indicator = _objects_by_type(b, "indicator")[0]
+        tlp1_amber = _TLP_MARKING_IDS["amber"]
+        assert tlp1_amber not in indicator.get("object_marking_refs", [])
+
+    @pytest.mark.parametrize("tlp_level", ["clear", "green", "amber", "red"])
+    def test_correct_tlp2_id_per_level(self, tlp_level: str) -> None:
+        b = _bundle_v2([_investigate(misp_tlp=tlp_level)])
+        markings = _objects_by_type(b, "marking-definition")
+        marking_ids = [m["id"] for m in markings]
+        assert _TLP2_CANONICAL[tlp_level] in marking_ids
+
+    def test_tlp2_ids_differ_from_tlp1_ids(self) -> None:
+        """Sanity: TLP 2.0 ids must be different from TLP 1.0 ids."""
+        for level in ("clear", "green", "amber", "red"):
+            assert _TLP2_MARKING_IDS[level] != _TLP_MARKING_IDS.get(level), (
+                f"TLP 2.0 id for {level} must differ from TLP 1.0 id"
+            )
+
+    def test_no_marking_when_tlp_none_in_v2(self) -> None:
+        b = _bundle_v2([_investigate(misp_tlp=None)])
+        markings = _objects_by_type(b, "marking-definition")
+        assert len(markings) == 0
+
+    def test_marking_def_has_definition_type_tlp_in_v2(self) -> None:
+        b = _bundle_v2([_investigate(misp_tlp="red")])
+        markings = _objects_by_type(b, "marking-definition")
+        assert all(m.get("definition_type") == "tlp" for m in markings)
+
+    def test_sco_has_v2_marking(self) -> None:
+        b = _bundle_v2([_investigate(ioc="evil.com", ioc_type="domain", misp_tlp="green")])
+        domain = _objects_by_type(b, "domain-name")[0]
+        assert _TLP2_CANONICAL["green"] in domain.get("object_marking_refs", [])
+
+
+# ---------------------------------------------------------------------------
+# Default (no config / config v1.0) — 1.0 ids unchanged (regression)
+# ---------------------------------------------------------------------------
+
+class TestStixTlpVersionDefault:
+    def test_no_config_uses_tlp1_amber_id(self) -> None:
+        """Calling to_stix_bundle without config must produce TLP 1.0 ids."""
+        b = json.loads(to_stix_bundle([_investigate(misp_tlp="amber")]))
+        markings = _objects_by_type(b, "marking-definition")
+        assert markings[0]["id"] == _TLP_MARKING_IDS["amber"]
+
+    def test_explicit_v1_config_uses_tlp1_amber_id(self) -> None:
+        b = _bundle_v1([_investigate(misp_tlp="amber")])
+        markings = _objects_by_type(b, "marking-definition")
+        assert markings[0]["id"] == _TLP_MARKING_IDS["amber"]
+
+    def test_no_config_result_identical_to_v1_result(self) -> None:
+        """No-config and explicit v1.0 must produce the same marking ids."""
+        r = _investigate(misp_tlp="green")
+        b_none = json.loads(to_stix_bundle([r]))
+        b_v1 = _bundle_v1([r])
+        ids_none = {m["id"] for m in _objects_by_type(b_none, "marking-definition")}
+        ids_v1 = {m["id"] for m in _objects_by_type(b_v1, "marking-definition")}
+        assert ids_none == ids_v1

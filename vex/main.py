@@ -658,7 +658,7 @@ def cmd_triage(
 
     # Output results
     if stix:
-        print(to_stix_bundle(results))
+        print(to_stix_bundle(results, config=config))
     elif csv:
         print(to_csv_triage(results))
     elif output == OutputFormat.ndjson:
@@ -927,7 +927,7 @@ def cmd_investigate(
 
     # Output results
     if stix:
-        print(to_stix_bundle(results))
+        print(to_stix_bundle(results, config=config))
     elif output == OutputFormat.ndjson:
         # NDJSON: one JSON object per line, flushed immediately
         for r in results:
