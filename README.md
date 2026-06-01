@@ -30,7 +30,7 @@
 `vex` takes an indicator (a hash, IP, domain, or URL) and turns it into a verdict with context. It started as a VirusTotal CLI and grew into an enrichment hub: one primary source (VirusTotal) plus optional secondary sources that add reputation and your own threat-intel. It runs standalone, and it slots into a pipeline (**barb → vex → sift**) over stdin/stdout.
 
 > [!NOTE]
-> This README documents the installed build, `vex 1.4.0`. The working tree on `main` already carries the v1.5.0 feature set described below (MISP/OpenCTI lookup, `vex doctor`, NDJSON, correlation); the version string is bumped at release time.
+> Current release: **`vex 1.5.0`** (on PyPI). Full manual: [`docs/`](docs/README.md).
 
 ## Install
 
@@ -113,7 +113,7 @@ vex investigate evil.com --explain
 
 ## Output formats
 
-`-o rich` (default TTY) · `-o console` · `-o json` · `-o ndjson` (one result per line, streamed) · `--csv` · `--stix` · `--navigator` (ATT&CK layer, investigate) · `--html <path>` (self-contained report). IOCs are defanged in TTY/HTML output and on `--defang`; machine formats keep real IOCs.
+`-o rich` (default TTY) · `-o console` · `-o json` · `-o ndjson` (one result per line, streamed) · `--csv` · `--stix` · `--navigator` (ATT&CK layer, investigate) · `--html <path>` (self-contained report). All formats show **real IOCs by default**; `--defang` defangs them (e.g. `evil[.]com`); **HTML reports always defang**.
 
 ```bash
 sift triage alerts.json -o json | vex triage --from-sift -o ndjson
@@ -170,11 +170,13 @@ vex doctor --probe       # + live connectivity, surfaces the actual error
 
 ## Exit codes
 
+Computed from the highest-severity verdict in the run:
+
 | Code | Meaning |
 |------|---------|
-| `0` | clean / suspicious |
-| `1` | malicious |
-| `2` | error |
+| `0` | CLEAN / UNKNOWN |
+| `1` | SUSPICIOUS — or a runtime error / bad input |
+| `2` | MALICIOUS |
 
 ## Known limitations
 
@@ -186,7 +188,7 @@ vex doctor --probe       # + live connectivity, surfaces the actual error
 
 ## Docs
 
-Built-in guide: `vex manual` (and `vex manual ai` / `pipeline` / `config`). Changelog: [`CHANGELOG.md`](CHANGELOG.md).
+Full manual: [`docs/`](docs/README.md) — getting started, every command/flag, the enrichment model, output formats, the barb/sift pipeline contracts, and configuration. Built-in guide: `vex manual` (and `vex manual ai` / `pipeline` / `config`). Changelog: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 
