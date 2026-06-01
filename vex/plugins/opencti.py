@@ -32,7 +32,7 @@ from ..models import InvestigateResult
 logger = logging.getLogger("vex.plugins.opencti")
 
 _GRAPHQL_QUERY = """
-query SearchObservable($value: String!) {
+query SearchObservable($value: Any!) {
   stixCyberObservables(
     filters: {
       mode: and
