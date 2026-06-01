@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import concurrent.futures
 import logging
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
+
+if TYPE_CHECKING:
+    from .enrichers.protocol import SecondaryEnricherProtocol
 
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
@@ -23,6 +26,65 @@ from .plugins.registry import PluginRegistry
 T = TypeVar("T", TriageResult, InvestigateResult)
 
 logger = logging.getLogger("vex.batch")
+
+_MAX_SECONDARY_WORKERS = 8
+
+
+def run_secondary_enrichers(
+    result: InvestigateResult,
+    ioc: str,
+    ioc_type: str,
+    config: Config,
+    secondaries: list[SecondaryEnricherProtocol],
+) -> None:
+    """Run secondary enrichers concurrently, fail-open per enricher.
+
+    Each secondary writes its own distinct fields on *result* (e.g.
+    ``abuse_*``, ``shodan_*``, ``misp_*``, ``opencti_*``), so concurrent
+    in-place mutation is safe — there is no shared mutable state beyond
+    the result object itself.
+
+    With 0 or 1 secondaries the pool is skipped entirely to avoid overhead.
+    With 2+ secondaries all calls are dispatched in parallel; one failure
+    never prevents the others from running.
+    """
+    if not secondaries:
+        return
+
+    if len(secondaries) == 1:
+        try:
+            secondaries[0].enrich(result, ioc, ioc_type, config)
+        except Exception:
+            pass
+        return
+
+    workers = min(len(secondaries), _MAX_SECONDARY_WORKERS)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(_enrich_one, sec, result, ioc, ioc_type, config): sec
+            for sec in secondaries
+        }
+        for future in concurrent.futures.as_completed(futures):
+            # Exceptions are already swallowed inside _enrich_one;
+            # calling result() here surfaces any unexpected propagation.
+            try:
+                future.result()
+            except Exception:
+                pass
+
+
+def _enrich_one(
+    sec: SecondaryEnricherProtocol,
+    result: InvestigateResult,
+    ioc: str,
+    ioc_type: str,
+    config: Config,
+) -> None:
+    """Call one secondary enricher, swallowing any exception (fail-open)."""
+    try:
+        sec.enrich(result, ioc, ioc_type, config)
+    except Exception:
+        pass
 
 
 def _process_single_triage(
@@ -85,12 +147,14 @@ def _process_single_investigate(
     try:
         result = plugin.investigate(normalised_ioc, ioc_type.value, config)
         result.attack_mappings = map_to_attack(result)
-        # Secondary enrichers (fail-open, mutate result in place)
-        for sec in registry.get_secondary(ioc_type.value):
-            try:
-                sec.enrich(result, normalised_ioc, ioc_type.value, config)
-            except Exception:
-                pass
+        # Secondary enrichers — run in parallel, fail-open per enricher
+        run_secondary_enrichers(
+            result,
+            normalised_ioc,
+            ioc_type.value,
+            config,
+            registry.get_secondary(ioc_type.value),
+        )
         cache.set(cache_key, result.model_dump(mode="json"))
         return result
     except Exception as e:
