@@ -74,6 +74,9 @@ class EnrichmentConfig(BaseModel):
     misp_url: Optional[str] = None
     misp_api_key: Optional[str] = None
     misp_verify_tls: bool = True
+    opencti_url: Optional[str] = None
+    opencti_token: Optional[str] = None
+    opencti_verify_tls: bool = True
 
 
 def _ensure_dir(path: Path) -> None:
@@ -128,6 +131,16 @@ class Config(BaseModel):
     def misp_api_key(self) -> Optional[str]:
         """MISP API key: MISP_API_KEY env > config enrichment.misp_api_key."""
         return os.getenv("MISP_API_KEY") or self.enrichment.misp_api_key
+
+    @property
+    def opencti_url(self) -> Optional[str]:
+        """OpenCTI base URL: OPENCTI_URL env > config enrichment.opencti_url."""
+        return os.getenv("OPENCTI_URL") or self.enrichment.opencti_url
+
+    @property
+    def opencti_token(self) -> Optional[str]:
+        """OpenCTI API token: OPENCTI_TOKEN env > config enrichment.opencti_token."""
+        return os.getenv("OPENCTI_TOKEN") or self.enrichment.opencti_token
 
     @property
     def is_premium(self) -> bool:

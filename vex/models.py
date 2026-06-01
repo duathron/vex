@@ -184,6 +184,12 @@ class InvestigateResult(BaseModel):
     misp_tags: list[str] = Field(default_factory=list)
     misp_tlp: Optional[str] = None
     misp_last_seen: Optional[str] = None
+    # OpenCTI enrichment (secondary enricher, all IOC types)
+    opencti_known: bool = False
+    opencti_id: Optional[str] = None
+    opencti_score: Optional[int] = None
+    opencti_labels: list[str] = Field(default_factory=list)
+    opencti_tlp: Optional[str] = None
     passive_dns: list[PassiveDNSRecord] = Field(default_factory=list)
     communicating_files: list[RelatedFile] = Field(default_factory=list)
     downloaded_files: list[RelatedFile] = Field(default_factory=list)

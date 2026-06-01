@@ -1169,6 +1169,9 @@ def _show_config(config) -> None:
     t.add_row("enrichment.misp_url", config.misp_url or "[dim]not set[/dim]")
     t.add_row("enrichment.misp_api_key", mask(config.misp_api_key))
     t.add_row("enrichment.misp_verify_tls", str(config.enrichment.misp_verify_tls))
+    t.add_row("enrichment.opencti_url", config.opencti_url or "[dim]not set[/dim]")
+    t.add_row("enrichment.opencti_token", mask(config.opencti_token))
+    t.add_row("enrichment.opencti_verify_tls", str(config.enrichment.opencti_verify_tls))
 
     console.print(t)
 

@@ -233,6 +233,20 @@ def print_investigate_rich(result: InvestigateResult) -> None:
             misp_grid.add_row("MISP last seen", result.misp_last_seen)
         console.print(Panel(misp_grid, title="[bold]MISP[/bold]", border_style="cyan"))
 
+    if result.opencti_known:
+        octi_grid = Table.grid(padding=(0, 2))
+        octi_grid.add_column(style="bold cyan", no_wrap=True)
+        octi_grid.add_column()
+        score_str = f"score {result.opencti_score}" if result.opencti_score is not None else "score —"
+        tlp_str = f" · TLP:{result.opencti_tlp}" if result.opencti_tlp else ""
+        labels_shown = result.opencti_labels[:5]
+        labels_str = f" · labels: {', '.join(labels_shown)}" if labels_shown else ""
+        octi_grid.add_row(
+            "OpenCTI",
+            f"known — {score_str}{tlp_str}{labels_str}",
+        )
+        console.print(Panel(octi_grid, title="[bold]OpenCTI[/bold]", border_style="cyan"))
+
     if result.passive_dns:
         pdns_table = Table(title="Passive DNS", box=box.SIMPLE_HEAVY, show_lines=False)
         pdns_table.add_column("Hostname", style="cyan")
@@ -595,6 +609,13 @@ def print_investigate_console(result: InvestigateResult) -> None:
         console.print(f"MISP     : known — events [{events_str}]{tlp_str}{tags_str}")
         if result.misp_last_seen:
             console.print(f"MISP last: {result.misp_last_seen}")
+
+    if result.opencti_known:
+        score_str = f"score {result.opencti_score}" if result.opencti_score is not None else "score —"
+        tlp_str = f" · TLP:{result.opencti_tlp}" if result.opencti_tlp else ""
+        labels_shown = result.opencti_labels[:5]
+        labels_str = f" · labels: {', '.join(labels_shown)}" if labels_shown else ""
+        console.print(f"OpenCTI  : known — {score_str}{tlp_str}{labels_str}")
 
     if result.passive_dns:
         console.print("\nPassive DNS:")

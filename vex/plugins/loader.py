@@ -16,6 +16,7 @@ import logging
 
 from .abuseipdb import AbuseIPDBPlugin
 from .misp import MISPEnricher
+from .opencti import OpenCTIEnricher
 from .registry import PluginRegistry
 from .shodan import ShodanPlugin
 from .virustotal import VirusTotalPlugin
@@ -54,6 +55,9 @@ def load_plugins() -> PluginRegistry:
 
     # Built-in secondary: MISP (always present, no-op without url+key)
     registry.register_secondary(MISPEnricher())
+
+    # Built-in secondary: OpenCTI (always present, no-op without url+token)
+    registry.register_secondary(OpenCTIEnricher())
 
     # Third-party secondary plugins via entry_points
     try:
