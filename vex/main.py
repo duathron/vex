@@ -1415,10 +1415,13 @@ vex reads configuration from multiple sources (priority order):
 """,
 
     "pipeline": r"""\
-[bold cyan]barb → vex PIPELINE[/bold cyan]
+[bold cyan]vex PIPELINE — barb → vex → sift[/bold cyan]
 
-vex integrates with [bold]barb[/bold] (heuristic phishing URL analyzer) to combine
-offline pre-screening with VirusTotal enrichment in a single workflow.
+vex is the enrichment hub. Upstream, [bold]barb[/bold] (heuristic phishing URL
+analyzer) feeds URLs in; downstream, [bold]sift[/bold] (alert triage summarizer)
+consumes vex output AND feeds the IOCs it found back for enrichment — the
+[bold]sift ↔ vex loop[/bold]. Each direction has a bridge flag ([cyan]--from-barb[/cyan] /
+[cyan]--from-sift[/cyan], mutually exclusive). Both read JSON from stdin.
 
 [bold]WHAT IS barb?[/bold]
   barb is a CLI tool for offline heuristic phishing URL analysis.
@@ -1454,10 +1457,30 @@ offline pre-screening with VirusTotal enrichment in a single workflow.
   [dark_orange]HIGH_RISK[/dark_orange]     Strong phishing indicators
   [red]PHISHING[/red]      Confirmed phishing pattern
 
+[bold cyan]sift → vex  (--from-sift)[/bold cyan]
+[bold]WHAT IS sift?[/bold]
+  sift is a SOC alert-triage summarizer: it ingests SIEM alerts, clusters
+  and prioritizes them, and extracts the IOCs they contain.
+  Install: [green]pip install sift-triage[/green]   |   GitHub: https://github.com/duathron/sift
+
+[bold]HOW IT WORKS:[/bold]
+  1. sift triages alerts and emits a JSON TriageReport (clusters + IOCs)
+  2. [cyan]--from-sift[/cyan] reads that report from stdin and pulls every IOC it found
+     (cluster IOCs, alert IOCs, source/dest IPs) — deduplicated
+  3. vex enriches each IOC; pipe the result (e.g. NDJSON) back into your
+     workflow — closing the sift <-> vex loop
+
+[bold]USAGE:[/bold]
+  [green]sift triage alerts.json -o json | vex triage --from-sift[/green]
+  [green]sift triage alerts.json -o json | vex triage --from-sift -o ndjson[/green]   # stream enriched IOCs onward
+  [green]sift triage alerts.json -o json | vex investigate --from-sift -o rich[/green]
+
 [bold]WHY USE BOTH TOOLS?[/bold]
   barb is instant and offline — no API calls, no rate limits.
   Use it to pre-screen large batches before spending VT API quota.
   vex then provides ground truth with live VT detection data.
+  sift turns a flood of alerts into prioritized clusters, and --from-sift
+  enriches the IOCs inside them in one pass.
 """,
 
     "addons": r"""\
