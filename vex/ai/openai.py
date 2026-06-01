@@ -29,17 +29,32 @@ class OpenAIProvider:
         self,
         prompt: str,
         *,
+        system: Optional[str] = None,
         max_tokens: int = 500,
         temperature: float = 0.3,
     ) -> str:
-        """Send prompt to OpenAI and return explanation."""
+        """Send prompt to OpenAI and return explanation.
+
+        When *system* is provided a ``{"role": "system", "content": system}``
+        message is prepended before the user message.
+        """
+        messages: list[dict] = []
+        if system is not None:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
         resp = self._client.chat.completions.create(
             model=self._model,
             max_tokens=max_tokens,
             temperature=temperature,
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
         )
-        return resp.choices[0].message.content
+
+        # Defensive extraction
+        try:
+            return resp.choices[0].message.content or ""
+        except (AttributeError, IndexError):
+            return ""
 
     def is_available(self) -> bool:
         """Check if openai SDK is installed."""

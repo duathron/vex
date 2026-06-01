@@ -34,6 +34,8 @@ class FakeProvider:
     def explain(
         self,
         prompt: str,
+        *,
+        system: Optional[str] = None,
         max_tokens: int = 512,
         temperature: float = 0.2,
     ) -> str:
@@ -50,7 +52,7 @@ class ErrorProvider:
 
     name = "error_provider"
 
-    def explain(self, prompt, max_tokens=512, temperature=0.2):
+    def explain(self, prompt, *, system=None, max_tokens=512, temperature=0.2):
         raise RuntimeError("Simulated LLM API failure")
 
 
@@ -60,7 +62,7 @@ class CountingProvider:
     name = "counting"
     call_count: int = 0
 
-    def explain(self, prompt, max_tokens=512, temperature=0.2):
+    def explain(self, prompt, *, system=None, max_tokens=512, temperature=0.2):
         CountingProvider.call_count += 1
         return "Live narrative"
 

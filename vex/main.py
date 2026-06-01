@@ -322,7 +322,7 @@ def _run_explain(
     """Generate and display AI explanations for results."""
     from .ai import get_provider
     from .ai.cache import AICache
-    from .ai.prompt import build_explain_prompt
+    from .ai.prompt import build_explain_prompt, get_system_prompt
     from .ai.template import template_explain
 
     if model_override:
@@ -351,6 +351,7 @@ def _run_explain(
                         err_console.print(f"[dim]→ Generating AI explanation ({provider.name})...[/dim]")
                         explanation = provider.explain(
                             prompt,
+                            system=get_system_prompt("explain"),
                             max_tokens=config.ai.max_tokens,
                             temperature=config.ai.temperature,
                         )
@@ -386,7 +387,7 @@ def _run_correlation_explain(
     """
     from .ai import get_provider
     from .ai.cache import AICache
-    from .ai.prompt import build_correlation_prompt
+    from .ai.prompt import build_correlation_prompt, get_system_prompt
     from .ai.template import template_correlation
 
     if model_override:
@@ -419,6 +420,7 @@ def _run_correlation_explain(
                         )
                         narrative = provider.explain(
                             prompt,
+                            system=get_system_prompt("correlation"),
                             max_tokens=config.ai.max_tokens,
                             temperature=config.ai.temperature,
                         )

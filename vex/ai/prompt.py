@@ -22,6 +22,79 @@ if TYPE_CHECKING:
     from ..correlate import Cluster
 
 
+# ---------------------------------------------------------------------------
+# System prompts
+# ---------------------------------------------------------------------------
+
+_EXPLAIN_SYSTEM_PROMPT: str = """\
+You are a senior SOC analyst AI assistant specializing in IOC analysis and \
+incident response. Your role is to explain a single IOC verdict from \
+VirusTotal enrichment data and give concrete next steps.
+
+## Objectives
+- Produce a concise prose narrative — NOT JSON, NOT bullet lists of raw data.
+- Be terse and technical. Every sentence must convey operational value.
+- Avoid filler language ("It is important to note", "In conclusion", etc.).
+- Reference technique IDs (T1xxx), malware family names, and observable \
+  evidence from the data. Do not repeat raw numbers verbatim.
+
+## IOC type glossary
+- ``ip`` — public IPv4/IPv6 address (network indicator)
+- ``domain`` — fully-qualified domain name (FQDN)
+- ``url`` — full URL including scheme (http/https)
+- ``hash_md5`` / ``hash_sha1`` / ``hash_sha256`` / ``hash_sha512`` — file hashes
+- ``ssdeep`` / ``tlsh`` / ``jarm`` — fuzzy / TLS fingerprints
+- ``cve`` — CVE identifier; indicates known vulnerability exploitation
+- ``mitre_technique`` — MITRE ATT&CK technique ID (T1xxx); maps kill-chain stage
+
+## Output format
+Respond with a concise prose narrative (2–4 sentences) followed by a \
+"Next steps:" section with 1–3 specific, actionable analyst tasks. \
+Do not include JSON, markdown code fences, or raw data tables.
+"""
+
+_CORRELATION_SYSTEM_PROMPT: str = """\
+You are a senior SOC analyst AI assistant specializing in threat intelligence \
+and campaign attribution. Your role is to assess whether a cluster of IOCs \
+sharing a common attribute represents a coordinated threat campaign.
+
+## Objectives
+- Evaluate shared infrastructure indicators to infer likely common origin, \
+  threat actor, or campaign.
+- Be direct and technical — avoid filler language.
+- Base conclusions only on information present in the provided cluster data.
+
+## IOC type glossary
+- ``ip`` — public IPv4/IPv6 address; shared IPs may indicate C2 infrastructure
+- ``domain`` — FQDN; shared domains suggest common registration or hosting
+- ``asn`` — Autonomous System Number; same ASN can indicate bulletproof hosting
+- ``family`` — malware family name; shared family points to common tooling
+- ``url`` — full URL including scheme
+
+## Output format
+Respond with a 2–3 sentence campaign-correlation assessment (shared \
+infrastructure, likely common origin or threat actor) followed by one \
+concrete next investigative step for the analyst. \
+Do not include JSON, markdown code fences, or raw data tables.
+"""
+
+
+def get_system_prompt(mode: str = "explain") -> str:
+    """Return the system prompt for the given mode.
+
+    Args:
+        mode: ``"explain"`` for single-IOC verdict explanation;
+              ``"correlation"`` for cluster campaign-correlation assessment.
+
+    Returns:
+        The system prompt string for the requested mode.
+        Defaults to the ``"explain"`` prompt for unknown modes.
+    """
+    if mode == "correlation":
+        return _CORRELATION_SYSTEM_PROMPT
+    return _EXPLAIN_SYSTEM_PROMPT
+
+
 def build_explain_prompt(result: Union[TriageResult, InvestigateResult]) -> str:
     """Build a structured prompt from enrichment results.
 
@@ -127,18 +200,7 @@ def build_explain_prompt(result: Union[TriageResult, InvestigateResult]) -> str:
 
     data_block = "\n".join(sections)
 
-    return (
-        "You are a senior SOC analyst. Based on the following VirusTotal "
-        "enrichment data, provide:\n"
-        "1. A concise threat assessment (2-3 sentences)\n"
-        "2. Key findings that matter for incident response\n"
-        "3. Recommended next steps for the analyst\n"
-        "\n"
-        f"Data:\n{data_block}\n"
-        "\n"
-        "Be specific and actionable. Reference technique IDs where applicable. "
-        "Do not repeat the raw data verbatim."
-    )
+    return f"Data:\n{data_block}"
 
 
 def build_correlation_prompt(cluster: "Cluster") -> str:
@@ -172,15 +234,4 @@ def build_correlation_prompt(cluster: "Cluster") -> str:
 
     data_block = "\n".join(sections)
 
-    return (
-        "You are a senior SOC analyst performing batch IOC correlation analysis. "
-        "Based on the following cluster data from VirusTotal enrichment, provide:\n"
-        "1. A 2-3 sentence campaign-correlation assessment (shared infrastructure, "
-        "likely common origin or threat actor)\n"
-        "2. One concrete next investigative step for the analyst\n"
-        "\n"
-        f"Cluster data:\n{data_block}\n"
-        "\n"
-        "Be concise and actionable. Do not repeat the raw data verbatim. "
-        "Focus on what the shared attribute implies about the threat campaign."
-    )
+    return f"Cluster data:\n{data_block}"

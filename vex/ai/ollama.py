@@ -34,25 +34,39 @@ class OllamaProvider:
         self,
         prompt: str,
         *,
+        system: Optional[str] = None,
         max_tokens: int = 500,
         temperature: float = 0.3,
     ) -> str:
-        """Send prompt to local Ollama and return explanation."""
+        """Send prompt to local Ollama and return explanation.
+
+        When *system* is provided it is forwarded to Ollama via the top-level
+        ``system`` field of the ``/api/generate`` request body.
+        """
+        payload: dict = {
+            "model": self._model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "num_predict": max_tokens,
+                "temperature": temperature,
+            },
+        }
+        if system is not None:
+            payload["system"] = system
+
         resp = httpx.post(
             f"{self._base_url}/api/generate",
-            json={
-                "model": self._model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "num_predict": max_tokens,
-                    "temperature": temperature,
-                },
-            },
+            json=payload,
             timeout=120.0,
         )
         resp.raise_for_status()
-        return resp.json()["response"]
+
+        # Defensive parse
+        try:
+            return resp.json().get("response", "")
+        except Exception:
+            return ""
 
     def is_available(self) -> bool:
         """Check if Ollama is running and reachable."""
