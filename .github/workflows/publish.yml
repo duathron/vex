@@ -13,6 +13,7 @@ jobs:
 
     permissions:
       id-token: write   # required for OIDC trusted publisher
+      contents: write   # required to create the GitHub Release
 
     steps:
       - name: Checkout source
@@ -31,3 +32,18 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Extract this version's section from CHANGELOG.md (between its header and the next "## [")
+          awk -v ver="$VERSION" '$0 ~ "^## \\["ver"\\]" {p=1; print; next} /^## \[/ {if (p) exit} p' CHANGELOG.md > release_notes.md
+          [ -s release_notes.md ] || echo "Release ${GITHUB_REF_NAME}" > release_notes.md
+          # Idempotent: skip if the release already exists (e.g. created manually)
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} already exists — skipping."
+          else
+            gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file release_notes.md --verify-tag
+          fi
