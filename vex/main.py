@@ -1053,6 +1053,76 @@ def cmd_addons() -> None:
     console.print("[dim]barb pipeline (--from-barb): requires 'pip install barb-phish'.[/dim]")
 
 
+@app.command(
+    name="doctor",
+    help=(
+        "[bold green]Diagnose enricher/service config + connectivity[/bold green] — "
+        "surfaces silently-failing enrichers. Config-only by default; "
+        "use --probe to test live connectivity."
+    ),
+)
+def cmd_doctor(
+    config_path: _ConfigOpt = None,
+    probe: Annotated[
+        bool,
+        typer.Option(
+            "--probe",
+            help="Test live connectivity (network). Default off: config-only, no network.",
+        ),
+    ] = False,
+    output: Annotated[
+        str,
+        typer.Option("--output", "-o", help="Output format: rich (default) | json"),
+    ] = "rich",
+) -> None:
+    """Report whether each external service is configured and (optionally) reachable."""
+    import json as _json
+
+    from rich import box
+    from rich.table import Table
+
+    from .doctor import run_doctor
+
+    config = load_config(config_path)
+    statuses = run_doctor(config, probe=probe)
+
+    if output.lower() == "json":
+        console.print(
+            _json.dumps([s.model_dump() for s in statuses], indent=2)
+        )
+        return
+
+    def _bool_mark(value: Optional[bool]) -> str:
+        if value is None:
+            return "[dim]—[/dim]"
+        return "[green]✓[/green]" if value else "[red]✗[/red]"
+
+    t = Table(
+        title="vex doctor" + (" (--probe)" if probe else " (config-only)"),
+        box=box.ROUNDED,
+    )
+    t.add_column("Service", style="cyan", no_wrap=True)
+    t.add_column("Configured", justify="center", no_wrap=True)
+    t.add_column("Reachable", justify="center", no_wrap=True)
+    t.add_column("Detail")
+
+    for s in statuses:
+        t.add_row(
+            s.name,
+            _bool_mark(s.configured),
+            _bool_mark(s.reachable),
+            s.detail,
+        )
+
+    console.print(t)
+    console.print()
+    if not probe:
+        console.print(
+            "[dim]Config-only check (no network). "
+            "Run 'vex doctor --probe' to test live connectivity.[/dim]"
+        )
+
+
 @app.command(name="config", help="[bold blue]Manage configuration[/bold blue] - save API key, AI provider, show settings.")
 def cmd_config(
     set_api_key: Annotated[
