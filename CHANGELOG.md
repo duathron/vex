@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-06-01
+
+**TI Platform Integration** — vex becomes a multi-source enrichment hub. MISP + OpenCTI lookup, OpenCTI-ready STIX with TLP markings, plus pre-release hardening (parallel enrichers, `vex doctor`, AI prompt-injection defense). MISP (2.5.38) and OpenCTI (demo 7.26) enrichers live-verified end-to-end; Anthropic + Ollama AI live-verified.
+
 ### Security
 - Prompt-injection defense for the AI layer (adapted from sift): attacker-influenced fields fed to the LLM by `--explain`/`--correlate --explain` (malware-family labels, file names, sandbox process/DNS/mutex/registry strings, tags, categories, WHOIS org) are now scanned and CRITICAL injection attempts (instruction-override, output-manipulation, shell-command) are redacted before prompt submission. NFKC normalization defeats unicode/zero-width bypasses; IOC/hash fields skip the encoded-payload check to avoid false positives. `vex/ai/injection_detector.py`.
 
@@ -97,7 +101,8 @@ This release bundles the **"Batch Intelligence"** (v1.3.0, never separately publ
 - Rich CLI output for `triage` and `investigate`
 - API key configuration via terminal
 
-[Unreleased]: https://github.com/duathron/vex/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/duathron/vex/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/duathron/vex/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/duathron/vex/compare/v1.2.1...v1.4.0
 [1.2.1]: https://github.com/duathron/vex/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/duathron/vex/compare/v1.1.1...v1.2.0
