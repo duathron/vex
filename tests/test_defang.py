@@ -136,3 +136,132 @@ class TestIsDefanged:
         # so both [DOT] and [dot] are detected.
         assert is_defanged("evil[DOT]com") is True
         assert is_defanged("evil[dot]com") is True
+
+
+# ---------------------------------------------------------------------------
+# Portfolio parity — new forms added for vex/sift/barb alignment
+# ---------------------------------------------------------------------------
+
+class TestRefangParity:
+    """New defang forms: paren/brace dots, word-forms, fullwidth, zero-width."""
+
+    # --- (.) and {.} dot variants ---
+    def test_paren_dot(self) -> None:
+        assert refang("evil(.)com") == "evil.com"
+
+    def test_brace_dot(self) -> None:
+        assert refang("evil{.}com") == "evil.com"
+
+    # --- (dot) and {dot} word forms ---
+    def test_paren_dot_word(self) -> None:
+        assert refang("evil(dot)com") == "evil.com"
+
+    def test_brace_dot_word(self) -> None:
+        assert refang("evil{dot}com") == "evil.com"
+
+    def test_paren_dot_word_case_insensitive(self) -> None:
+        assert refang("evil(DOT)com") == "evil.com"
+
+    def test_brace_dot_word_case_insensitive(self) -> None:
+        assert refang("evil{DOT}com") == "evil.com"
+
+    # --- [/] slash variant ---
+    def test_bracket_slash(self) -> None:
+        assert refang("hxxps://evil.com[/]path") == "https://evil.com/path"
+
+    # --- (at) and {at} with domain-lookahead ---
+    def test_paren_at_with_domain(self) -> None:
+        assert refang("evil(at)mail(.)com") == "evil@mail.com"
+
+    def test_brace_at_with_domain(self) -> None:
+        assert refang("evil{at}mail[.]com") == "evil@mail.com"
+
+    def test_paren_at_case_insensitive(self) -> None:
+        assert refang("user(AT)example[.]com") == "user@example.com"
+
+    def test_paren_at_no_domain_preserved(self) -> None:
+        # ``state(at)rest`` has no domain-shape after it — must NOT be refanged.
+        assert refang("state(at)rest") == "state(at)rest"
+
+    def test_brace_at_no_domain_preserved(self) -> None:
+        assert refang("array{at}index") == "array{at}index"
+
+    # --- Fullwidth Unicode lookalikes ---
+    def test_fullwidth_dot(self) -> None:
+        assert refang("evil．com") == "evil.com"
+
+    def test_fullwidth_at(self) -> None:
+        assert refang("user＠evil．com") == "user@evil.com"
+
+    def test_fullwidth_colon(self) -> None:
+        assert refang("evil.com：8080") == "evil.com:8080"
+
+    def test_fullwidth_slash(self) -> None:
+        assert refang("https://evil.com／path") == "https://evil.com/path"
+
+    # --- Zero-width character stripping ---
+    def test_zero_width_space_stripped(self) -> None:
+        # Insert U+200B between characters — must be stripped before matching.
+        assert refang("e​vil[.]com") == "evil.com"
+
+    def test_zero_width_joiner_stripped(self) -> None:
+        assert refang("evil[.‍]com") == "evil.com"
+
+    def test_bom_stripped(self) -> None:
+        assert refang("﻿e​vil[.]com") == "evil.com"
+
+    # --- Idempotency ---
+    def test_idempotent_live_url(self) -> None:
+        assert refang("https://google.com") == "https://google.com"
+
+    def test_idempotent_double_refang(self) -> None:
+        defanged = "hxxps[://]evil[.]com"
+        assert refang(refang(defanged)) == refang(defanged)
+
+    def test_idempotent_paren_dot(self) -> None:
+        assert refang(refang("evil(.)com")) == refang("evil(.)com")
+
+    def test_idempotent_fullwidth(self) -> None:
+        assert refang(refang("evil．com")) == refang("evil．com")
+
+    # --- IPv6 preservation ---
+    def test_ipv6_url_unchanged(self) -> None:
+        # [::1] must not be altered — ``[://]`` only matches literal ``[://]``
+        assert refang("http://[::1]/x") == "http://[::1]/x"
+
+    def test_ipv6_full_address_unchanged(self) -> None:
+        assert refang("http://[2001:db8::1]:8080/path") == "http://[2001:db8::1]:8080/path"
+
+    # --- Pre-existing forms still work ---
+    def test_pre_existing_bracket_dot(self) -> None:
+        assert refang("hxxps[://]evil[.]com") == "https://evil.com"
+
+    def test_pre_existing_bracket_at_word(self) -> None:
+        assert refang("evil[at]mail[.]com") == "evil@mail.com"
+
+    def test_pre_existing_bracket_at_symbol(self) -> None:
+        assert refang("user[@]evil.com") == "user@evil.com"
+
+
+class TestIsDefangedParity:
+    """New indicators added to is_defanged for parity."""
+
+    @pytest.mark.parametrize("ioc", [
+        "evil(.)com",
+        "evil{.}com",
+        "evil(dot)com",
+        "evil{dot}com",
+        "evil．com",
+        "user＠evil.com",
+    ])
+    def test_new_forms_detected(self, ioc: str) -> None:
+        assert is_defanged(ioc) is True
+
+    @pytest.mark.parametrize("ioc", [
+        "https://evil.com",
+        "evil.com",
+        "user@evil.com",
+        "8.8.8.8",
+    ])
+    def test_live_forms_still_not_defanged(self, ioc: str) -> None:
+        assert is_defanged(ioc) is False

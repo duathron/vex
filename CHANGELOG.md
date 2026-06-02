@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `investigate` on a PE-file hash no longer crashes with a Pydantic `ValidationError`. VirusTotal returns `pe_info.machine_type` as an int (e.g. `332` = `0x14C` i386), but `PEInfo.target_machine` is a string field — the value is now coerced. (Affected any PE sample with an integer `machine_type`.)
+- Refang now covers the full defang spectrum (parity with barb/sift): `(.)`, `{.}`, `(dot)`/`{dot}`, `(at)`/`{at}` (domain-guarded), `[/]`, fullwidth `．＠：／`, and zero-width/BOM stripping — in addition to the existing `hxxp(s)`/`fxp`, `[://]`, `[.]`, `[:]`, `[@]`, `[dot]`, `[at]`. Idempotent; IPv6 `[::1]` preserved. `is_defanged()` detection extended to match. Public API unchanged.
 
 ## [1.5.0] - 2026-06-01
 
