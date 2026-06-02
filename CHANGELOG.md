@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-06-02
+
+Patch release: two real failures on core paths in 1.5.0 (`triage <filename>`, `investigate <PE hash>`) plus full refang parity.
+
 ### Fixed
 - IOC detection no longer misreads executable/script filenames as domains. `wcdbcrk.dll`, `payload.exe`, etc. matched the domain regex (their extension looked like a TLD) and triggered a bogus VirusTotal domain lookup → HTTP 400 / `HTTPStatusError`. Non-TLD file extensions (`exe`/`dll`/`sys`/`scr`/`bat`/`ps1`/`vbs`/…) now detect as `UNKNOWN` and are skipped cleanly. Real TLDs (`.com`, `.app`, `.dev`, `.zip`, `.mov`, `.sh`) are unaffected.
 - `investigate` on a PE-file hash no longer crashes with a Pydantic `ValidationError`. VirusTotal returns `pe_info.machine_type` as an int (e.g. `332` = `0x14C` i386), but `PEInfo.target_machine` is a string field — the value is now coerced. (Affected any PE sample with an integer `machine_type`.)
@@ -106,7 +110,8 @@ This release bundles the **"Batch Intelligence"** (v1.3.0, never separately publ
 - Rich CLI output for `triage` and `investigate`
 - API key configuration via terminal
 
-[Unreleased]: https://github.com/duathron/vex/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/duathron/vex/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/duathron/vex/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/duathron/vex/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/duathron/vex/compare/v1.2.1...v1.4.0
 [1.2.1]: https://github.com/duathron/vex/compare/v1.2.0...v1.2.1
