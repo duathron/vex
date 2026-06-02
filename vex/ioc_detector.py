@@ -31,6 +31,15 @@ _DOMAIN_RE = re.compile(
 )
 _URL_RE = re.compile(r"^https?://", re.IGNORECASE)
 
+# Executable / script / system file extensions that the domain regex would
+# otherwise misread as a TLD (e.g. "wcdbcrk.dll"). None of these are real TLDs,
+# so a candidate ending in one is a filename, not a domain. Deliberately
+# conservative — real TLDs like .com, .app, .dev, .zip, .mov are NOT listed.
+_FILE_EXTENSIONS = frozenset({
+    "exe", "dll", "sys", "scr", "bat", "cmd", "ps1", "psm1", "vbs", "vbe",
+    "jse", "wsf", "hta", "msi", "lnk", "ocx", "cpl", "drv", "pif", "scf", "dmp",
+})
+
 
 def detect(ioc: str) -> tuple[IOCType, str]:
     """Detect the type of an IOC string and return the normalised value.
@@ -62,7 +71,7 @@ def detect(ioc: str) -> tuple[IOCType, str]:
         pass
     if _URL_RE.match(value):
         return IOCType.URL, value
-    if _DOMAIN_RE.match(value):
+    if _DOMAIN_RE.match(value) and value.rsplit(".", 1)[-1].lower() not in _FILE_EXTENSIONS:
         return IOCType.DOMAIN, value
     return IOCType.UNKNOWN, value
 

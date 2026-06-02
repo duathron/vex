@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- IOC detection no longer misreads executable/script filenames as domains. `wcdbcrk.dll`, `payload.exe`, etc. matched the domain regex (their extension looked like a TLD) and triggered a bogus VirusTotal domain lookup → HTTP 400 / `HTTPStatusError`. Non-TLD file extensions (`exe`/`dll`/`sys`/`scr`/`bat`/`ps1`/`vbs`/…) now detect as `UNKNOWN` and are skipped cleanly. Real TLDs (`.com`, `.app`, `.dev`, `.zip`, `.mov`, `.sh`) are unaffected.
 - `investigate` on a PE-file hash no longer crashes with a Pydantic `ValidationError`. VirusTotal returns `pe_info.machine_type` as an int (e.g. `332` = `0x14C` i386), but `PEInfo.target_machine` is a string field — the value is now coerced. (Affected any PE sample with an integer `machine_type`.)
 - Refang now covers the full defang spectrum (parity with barb/sift): `(.)`, `{.}`, `(dot)`/`{dot}`, `(at)`/`{at}` (domain-guarded), `[/]`, fullwidth `．＠：／`, and zero-width/BOM stripping — in addition to the existing `hxxp(s)`/`fxp`, `[://]`, `[.]`, `[:]`, `[@]`, `[dot]`, `[at]`. Idempotent; IPv6 `[::1]` preserved. `is_defanged()` detection extended to match. Public API unchanged.
 
