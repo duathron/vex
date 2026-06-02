@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `investigate` on a PE-file hash no longer crashes with a Pydantic `ValidationError`. VirusTotal returns `pe_info.machine_type` as an int (e.g. `332` = `0x14C` i386), but `PEInfo.target_machine` is a string field — the value is now coerced. (Affected any PE sample with an integer `machine_type`.)
+
 ## [1.5.0] - 2026-06-01
 
 **TI Platform Integration** — vex becomes a multi-source enrichment hub. MISP + OpenCTI lookup, OpenCTI-ready STIX with TLP markings, plus pre-release hardening (parallel enrichers, `vex doctor`, AI prompt-injection defense). MISP (2.5.38) and OpenCTI (demo 7.26) enrichers live-verified end-to-end; Anthropic + Ollama AI live-verified.

@@ -52,10 +52,12 @@ def _parse_pe_info(attrs: dict[str, Any]) -> PEInfo | None:
         for fn in lib.get("imported_functions", [])[:5]:  # cap per lib
             imports.append(f"{lib_name}::{fn}")
 
+    # VT returns machine_type as an int (e.g. 332 = 0x14C i386); PEInfo wants a str.
+    machine_type = pe.get("machine_type")
     return PEInfo(
         compilation_timestamp=compilation_ts,
         entry_point=pe.get("entry_point"),
-        target_machine=pe.get("machine_type"),
+        target_machine=str(machine_type) if machine_type is not None else None,
         sections=sections,
         imports=imports,
         exports=pe.get("exports_list", [])[:20],
