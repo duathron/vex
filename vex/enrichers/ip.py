@@ -19,6 +19,7 @@ from .base import (
     extract_malware_families,
     parse_related_files,
     parse_stats,
+    safe_int,
 )
 
 
@@ -90,7 +91,7 @@ def investigate(ioc: str, ioc_type: str, client: VTClient, config: Config, from_
 
     return InvestigateResult(
         triage=triage_result,
-        asn=attrs.get("asn"),
+        asn=safe_int(attrs.get("asn")),
         asn_owner=attrs.get("as_owner"),
         country=attrs.get("country"),
         continent=attrs.get("continent"),

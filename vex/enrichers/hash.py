@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 from ..client import VTClient
@@ -21,6 +20,7 @@ from .base import (
     extract_malware_families,
     parse_related_files,
     parse_stats,
+    safe_timestamp,
 )
 
 
@@ -29,12 +29,7 @@ def _parse_pe_info(attrs: dict[str, Any]) -> PEInfo | None:
     if not pe:
         return None
     ts_raw = pe.get("timestamp")
-    compilation_ts = None
-    if ts_raw:
-        try:
-            compilation_ts = datetime.fromtimestamp(ts_raw, tz=timezone.utc)
-        except (ValueError, OSError):
-            pass
+    compilation_ts = safe_timestamp(ts_raw) if ts_raw else None
 
     sections = [
         {
@@ -54,13 +49,15 @@ def _parse_pe_info(attrs: dict[str, Any]) -> PEInfo | None:
 
     # VT returns machine_type as an int (e.g. 332 = 0x14C i386); PEInfo wants a str.
     machine_type = pe.get("machine_type")
+    exp = pe.get("exports_list")
+    exports = exp[:20] if isinstance(exp, list) else []
     return PEInfo(
         compilation_timestamp=compilation_ts,
         entry_point=pe.get("entry_point"),
         target_machine=str(machine_type) if machine_type is not None else None,
         sections=sections,
         imports=imports,
-        exports=pe.get("exports_list", [])[:20],
+        exports=exports,
     )
 
 

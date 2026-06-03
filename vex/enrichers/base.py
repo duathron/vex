@@ -14,22 +14,42 @@ from ..models import (
 from ..config import Config
 
 
-def _ts(unix: Optional[int]) -> Optional[datetime]:
-    if unix is None:
+def safe_timestamp(value: object) -> Optional[datetime]:
+    """Return a UTC datetime from a unix timestamp, or None if value isn't a sane number."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return datetime.fromtimestamp(unix, tz=timezone.utc)
+    try:
+        return datetime.fromtimestamp(value, tz=timezone.utc)
+    except (ValueError, OSError, OverflowError):
+        return None
+
+
+def safe_int(value: object) -> Optional[int]:
+    """Return int from value, or None if it cannot be coerced (never raises)."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _ts(unix: object) -> Optional[datetime]:
+    return safe_timestamp(unix)
 
 
 def parse_stats(raw: dict[str, Any]) -> DetectionStats:
     return DetectionStats(
-        malicious=raw.get("malicious", 0),
-        suspicious=raw.get("suspicious", 0),
-        undetected=raw.get("undetected", 0),
-        harmless=raw.get("harmless", 0),
-        timeout=raw.get("timeout", 0),
-        type_unsupported=raw.get("type-unsupported", 0),
-        confirmed_timeout=raw.get("confirmed-timeout", 0),
-        failure=raw.get("failure", 0),
+        malicious=safe_int(raw.get("malicious")) or 0,
+        suspicious=safe_int(raw.get("suspicious")) or 0,
+        undetected=safe_int(raw.get("undetected")) or 0,
+        harmless=safe_int(raw.get("harmless")) or 0,
+        timeout=safe_int(raw.get("timeout")) or 0,
+        type_unsupported=safe_int(raw.get("type-unsupported")) or 0,
+        confirmed_timeout=safe_int(raw.get("confirmed-timeout")) or 0,
+        failure=safe_int(raw.get("failure")) or 0,
     )
 
 

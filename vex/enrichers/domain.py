@@ -95,11 +95,14 @@ def investigate(ioc: str, ioc_type: str, client: VTClient, config: Config, from_
     whois = None
     if whois_raw:
         latest = whois_raw[0].get("attributes", {}) if isinstance(whois_raw, list) else {}
+        _cd = latest.get("creation_date")
+        _ed = latest.get("expiration_date")
+        _ud = latest.get("updated_date")
         whois = WHOISInfo(
             registrar=latest.get("registrar"),
-            creation_date=str(latest.get("creation_date", "")),
-            expiration_date=str(latest.get("expiration_date", "")),
-            updated_date=str(latest.get("updated_date", "")),
+            creation_date=_cd if isinstance(_cd, str) and _cd else None,
+            expiration_date=_ed if isinstance(_ed, str) and _ed else None,
+            updated_date=_ud if isinstance(_ud, str) and _ud else None,
             name_servers=latest.get("name_servers", []),
             registrant_org=latest.get("registrant_organization"),
             registrant_country=latest.get("registrant_country"),
