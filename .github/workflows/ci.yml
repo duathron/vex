@@ -1,0 +1,10 @@
+name: CI
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    uses: duathron/shipwright/.github/workflows/python-ci.yml@main
+    with:
+      python-version: "3.13"
