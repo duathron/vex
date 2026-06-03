@@ -15,9 +15,7 @@ from typing import Iterable, Optional
 
 # Regex accepts the prefix ``tlp:`` or ``tlp`` (colon optional), optional
 # surrounding whitespace, and the known level names.
-_TLP_RE = re.compile(
-    r"(?i)^tlp:?\s*(red|amber\+strict|amber|green|clear|white)\s*$"
-)
+_TLP_RE = re.compile(r"(?i)^tlp:?\s*(red|amber\+strict|amber|green|clear|white)\s*$")
 
 # Precedence order — lower index means more restrictive.
 # amber+strict normalises to amber for precedence; the caller is responsible

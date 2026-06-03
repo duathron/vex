@@ -12,8 +12,18 @@ from vex.ioc_detector import IOCType, detect
 
 @pytest.mark.parametrize(
     "name",
-    ["wcdbcrk.dll", "payload.exe", "evil.sys", "dropper.scr", "run.bat",
-     "stage.ps1", "macro.vbs", "installer.msi", "shortcut.lnk", "x.cpl"],
+    [
+        "wcdbcrk.dll",
+        "payload.exe",
+        "evil.sys",
+        "dropper.scr",
+        "run.bat",
+        "stage.ps1",
+        "macro.vbs",
+        "installer.msi",
+        "shortcut.lnk",
+        "x.cpl",
+    ],
 )
 def test_executable_filenames_are_not_domains(name: str) -> None:
     assert detect(name)[0] == IOCType.UNKNOWN
@@ -21,8 +31,7 @@ def test_executable_filenames_are_not_domains(name: str) -> None:
 
 @pytest.mark.parametrize(
     "domain",
-    ["evil.com", "sub.example.co.uk", "files.zip", "my.app", "a.dev",
-     "trailer.mov", "host.io", "x.sh"],
+    ["evil.com", "sub.example.co.uk", "files.zip", "my.app", "a.dev", "trailer.mov", "host.io", "x.sh"],
 )
 def test_real_tlds_still_detect_as_domain(domain: str) -> None:
     # .zip/.app/.dev/.mov/.sh are real TLDs — must NOT be excluded as file extensions

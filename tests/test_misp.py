@@ -12,14 +12,14 @@ import httpx
 
 from vex.config import Config, EnrichmentConfig
 from vex.enrichers.protocol import SecondaryEnricherProtocol
-from vex.models import InvestigateResult, TriageResult, Verdict, DetectionStats
+from vex.models import DetectionStats, InvestigateResult, TriageResult, Verdict
 from vex.plugins.loader import load_plugins
 from vex.plugins.misp import MISPEnricher
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_result(ioc: str = "1.2.3.4", ioc_type: str = "ipv4") -> InvestigateResult:
     """Build a minimal InvestigateResult with required nested TriageResult."""
@@ -97,6 +97,7 @@ _EMPTY_RESPONSE = {"response": {"Attribute": []}}
 # Protocol compliance
 # ---------------------------------------------------------------------------
 
+
 class TestMISPProtocol:
     def test_implements_secondary_enricher_protocol(self):
         assert isinstance(MISPEnricher(), SecondaryEnricherProtocol)
@@ -116,6 +117,7 @@ class TestMISPProtocol:
 # ---------------------------------------------------------------------------
 # No-config path: no network calls, no-op
 # ---------------------------------------------------------------------------
+
 
 class TestNoConfigPath:
     def test_no_url_returns_immediately_no_network(self, monkeypatch):
@@ -178,6 +180,7 @@ class TestNoConfigPath:
 # ---------------------------------------------------------------------------
 # Happy path: 200 with attributes → all fields populated
 # ---------------------------------------------------------------------------
+
 
 class TestHappyPath:
     def test_200_sets_misp_known_true(self, monkeypatch):
@@ -294,6 +297,7 @@ class TestHappyPath:
 # Not found: empty Attribute list → misp_known stays False
 # ---------------------------------------------------------------------------
 
+
 class TestNotFound:
     def test_empty_attribute_list_known_stays_false(self, monkeypatch):
         enricher = MISPEnricher()
@@ -332,6 +336,7 @@ class TestNotFound:
 # Fail-open: errors, non-200, bad JSON
 # ---------------------------------------------------------------------------
 
+
 class TestFailOpen:
     def test_connect_error_does_not_raise(self, monkeypatch):
         enricher = MISPEnricher()
@@ -339,7 +344,8 @@ class TestFailOpen:
         config = _config_with_creds()
 
         monkeypatch.setattr(
-            httpx, "post",
+            httpx,
+            "post",
             lambda *a, **kw: (_ for _ in ()).throw(httpx.ConnectError("refused")),
         )
 
@@ -405,6 +411,7 @@ class TestFailOpen:
 # ---------------------------------------------------------------------------
 # TLP precedence
 # ---------------------------------------------------------------------------
+
 
 class TestTLPPrecedence:
     def _response_with_tlps(self, *tlp_names: str) -> dict:
@@ -515,6 +522,7 @@ class TestTLPPrecedence:
 # verify flag
 # ---------------------------------------------------------------------------
 
+
 class TestVerifyFlag:
     def test_verify_true_passed_to_httpx(self, monkeypatch):
         enricher = MISPEnricher()
@@ -559,6 +567,7 @@ class TestVerifyFlag:
 # Registry integration
 # ---------------------------------------------------------------------------
 
+
 class TestRegistryIntegration:
     def test_get_secondary_ipv4_includes_misp(self):
         registry = load_plugins()
@@ -599,6 +608,7 @@ class TestRegistryIntegration:
 # ---------------------------------------------------------------------------
 # Config env-var override
 # ---------------------------------------------------------------------------
+
 
 class TestConfigEnvOverride:
     def test_misp_url_env_beats_config(self, monkeypatch):

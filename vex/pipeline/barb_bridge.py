@@ -34,7 +34,7 @@ class BarbContext(BaseModel):
     """Lightweight barb result passed through to the formatter."""
 
     url: str
-    verdict: str        # barb RiskVerdict: SAFE / LOW_RISK / SUSPICIOUS / HIGH_RISK / PHISHING
+    verdict: str  # barb RiskVerdict: SAFE / LOW_RISK / SUSPICIOUS / HIGH_RISK / PHISHING
     risk_score: float
     signals: list[BarbSignal] = []
     defanged_url: Optional[str] = None
@@ -78,24 +78,28 @@ def parse_barb_json(raw: str) -> list[BarbContext]:
             signals = []
             for s in raw_signals:
                 try:
-                    signals.append(BarbSignal(
-                        analyzer=s.get("analyzer", ""),
-                        severity=s.get("severity", "INFO"),
-                        label=s.get("label", ""),
-                        detail=s.get("detail", ""),
-                        weight=float(s.get("weight", 1.0)),
-                    ))
+                    signals.append(
+                        BarbSignal(
+                            analyzer=s.get("analyzer", ""),
+                            severity=s.get("severity", "INFO"),
+                            label=s.get("label", ""),
+                            detail=s.get("detail", ""),
+                            weight=float(s.get("weight", 1.0)),
+                        )
+                    )
                 except Exception as se:
                     logger.debug("Skipping barb signal: %s", se)
 
-            results.append(BarbContext(
-                url=item["url"],
-                verdict=str(item.get("verdict", "UNKNOWN")),
-                risk_score=float(item.get("risk_score", 0.0)),
-                signals=signals,
-                defanged_url=item.get("defanged_url"),
-                explanation=item.get("explanation"),
-            ))
+            results.append(
+                BarbContext(
+                    url=item["url"],
+                    verdict=str(item.get("verdict", "UNKNOWN")),
+                    risk_score=float(item.get("risk_score", 0.0)),
+                    signals=signals,
+                    defanged_url=item.get("defanged_url"),
+                    explanation=item.get("explanation"),
+                )
+            )
         except (KeyError, ValueError) as e:
             logger.warning("Skipping invalid barb entry: %s", e)
 

@@ -51,10 +51,7 @@ def template_explain(result: Union[TriageResult, InvestigateResult]) -> str:
     if isinstance(result, InvestigateResult):
         if result.attack_mappings:
             tactics = sorted(set(m.tactic for m in result.attack_mappings))
-            techniques = [
-                f"{m.technique_id} ({m.technique_name})"
-                for m in result.attack_mappings[:5]
-            ]
+            techniques = [f"{m.technique_id} ({m.technique_name})" for m in result.attack_mappings[:5]]
             lines.append(
                 f"KEY FINDING: MITRE ATT&CK coverage across "
                 f"{len(tactics)} tactic(s): {', '.join(tactics)}. "
@@ -64,15 +61,9 @@ def template_explain(result: Union[TriageResult, InvestigateResult]) -> str:
         if result.sandbox_behaviors:
             sb = result.sandbox_behaviors[0]
             if sb.processes_created:
-                lines.append(
-                    f"KEY FINDING: Sandbox observed process creation: "
-                    f"{', '.join(sb.processes_created[:3])}."
-                )
+                lines.append(f"KEY FINDING: Sandbox observed process creation: {', '.join(sb.processes_created[:3])}.")
             if sb.dns_lookups:
-                lines.append(
-                    f"KEY FINDING: DNS lookups to: "
-                    f"{', '.join(sb.dns_lookups[:3])}."
-                )
+                lines.append(f"KEY FINDING: DNS lookups to: {', '.join(sb.dns_lookups[:3])}.")
 
         if result.contacted_ips:
             lines.append(
@@ -105,9 +96,7 @@ def template_explain(result: Union[TriageResult, InvestigateResult]) -> str:
             "engines may have analyzed it. Search for related intelligence."
         )
     else:
-        lines.append(
-            "NEXT STEPS: No immediate action required. Continue monitoring."
-        )
+        lines.append("NEXT STEPS: No immediate action required. Continue monitoring.")
 
     return "\n".join(lines)
 
@@ -124,10 +113,7 @@ def template_correlation(cluster: "Cluster") -> str:
     verdict = cluster.max_verdict.value
 
     # First sentence: state the observation
-    line1 = (
-        f"{n} IOC{'s' if n != 1 else ''} share {attr_type} attribute '{attr}' "
-        f"with a highest verdict of {verdict}."
-    )
+    line1 = f"{n} IOC{'s' if n != 1 else ''} share {attr_type} attribute '{attr}' with a highest verdict of {verdict}."
 
     # Second sentence: interpretation based on attribute type
     _attr_interpretation: dict[str, str] = {

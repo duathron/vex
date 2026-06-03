@@ -17,10 +17,10 @@ from vex.models import (
     Verdict,
 )
 
-
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_config(
     malicious_min: int = 3,
@@ -64,7 +64,7 @@ def _engine_results(
 ) -> dict[str, Any]:
     """Build last_analysis_results with the given malicious engines."""
     out: dict[str, Any] = {}
-    for engine in (malicious_engines or []):
+    for engine in malicious_engines or []:
         out[engine] = {"category": "malicious", "result": family}
     return out
 
@@ -163,9 +163,7 @@ def _vt_domain_response(
                 "tags": ["phishing"],
                 "creation_date": 1_600_000_000,
                 "categories": categories or {"Webroot": "phishing"},
-                "last_dns_records": last_dns_records or [
-                    {"type": "A", "value": "1.2.3.4", "ttl": 300}
-                ],
+                "last_dns_records": last_dns_records or [{"type": "A", "value": "1.2.3.4", "ttl": 300}],
                 "subdomains": subdomains or ["mail.evil.com"],
             },
         }
@@ -202,9 +200,11 @@ def _vt_url_response(
 # Hash / file enricher tests
 # ---------------------------------------------------------------------------
 
+
 class TestHashEnricher:
     def test_triage_malicious_verdict(self) -> None:
         from vex.enrichers import hash as hash_enricher
+
         cfg = _make_config(malicious_min=3)
         resp = _vt_file_response(malicious=5)
         client = _fake_client(get_file=resp)
@@ -216,6 +216,7 @@ class TestHashEnricher:
 
     def test_triage_clean_verdict(self) -> None:
         from vex.enrichers import hash as hash_enricher
+
         cfg = _make_config(malicious_min=3, min_engines=10)
         resp = _vt_file_response(malicious=0, undetected=70)
         # Remove malicious engines
@@ -226,6 +227,7 @@ class TestHashEnricher:
 
     def test_triage_not_found_returns_unknown(self) -> None:
         from vex.enrichers import hash as hash_enricher
+
         cfg = _make_config()
         client = _fake_client(get_file={})
         result = hash_enricher.triage("abc123", "sha256", client, cfg)
@@ -235,6 +237,7 @@ class TestHashEnricher:
 
     def test_triage_detection_stats_populated(self) -> None:
         from vex.enrichers import hash as hash_enricher
+
         cfg = _make_config()
         resp = _vt_file_response(malicious=5, undetected=65)
         client = _fake_client(get_file=resp)
@@ -244,6 +247,7 @@ class TestHashEnricher:
 
     def test_triage_categories_extracted(self) -> None:
         from vex.enrichers import hash as hash_enricher
+
         cfg = _make_config()
         resp = _vt_file_response()
         client = _fake_client(get_file=resp)
@@ -252,6 +256,7 @@ class TestHashEnricher:
 
     def test_triage_from_cache_flag(self) -> None:
         from vex.enrichers import hash as hash_enricher
+
         cfg = _make_config()
         resp = _vt_file_response()
         client = _fake_client(get_file=resp)
@@ -260,6 +265,7 @@ class TestHashEnricher:
 
     def test_investigate_not_found_returns_invest_result(self) -> None:
         from vex.enrichers import hash as hash_enricher
+
         cfg = _make_config()
         client = _fake_client(get_file={})
         result = hash_enricher.investigate("abc123", "sha256", client, cfg)
@@ -268,6 +274,7 @@ class TestHashEnricher:
 
     def test_investigate_populates_file_fields(self) -> None:
         from vex.enrichers import hash as hash_enricher
+
         cfg = _make_config()
         resp = _vt_file_response()
         client = _fake_client(
@@ -289,22 +296,25 @@ class TestHashEnricher:
 
     def test_investigate_premium_fetches_sandbox(self) -> None:
         from vex.enrichers import hash as hash_enricher
+
         cfg = _make_config(premium=True)
         resp = _vt_file_response()
         sandbox_raw = {
-            "data": [{
-                "attributes": {
-                    "sandbox_name": "Cuckoo",
-                    "verdict": "malicious",
-                    "processes_created": [{"process_name": "cmd.exe"}],
-                    "files_written": [{"path": "C:\\evil.txt"}],
-                    "files_deleted": [],
-                    "registry_keys_set": [],
-                    "network_connections": [{"destination_ip": "1.2.3.4", "destination_port": 443}],
-                    "dns_lookups": [{"hostname": "evil.com"}],
-                    "mutexes_created": ["EvilMutex"],
+            "data": [
+                {
+                    "attributes": {
+                        "sandbox_name": "Cuckoo",
+                        "verdict": "malicious",
+                        "processes_created": [{"process_name": "cmd.exe"}],
+                        "files_written": [{"path": "C:\\evil.txt"}],
+                        "files_deleted": [],
+                        "registry_keys_set": [],
+                        "network_connections": [{"destination_ip": "1.2.3.4", "destination_port": 443}],
+                        "dns_lookups": [{"hostname": "evil.com"}],
+                        "mutexes_created": ["EvilMutex"],
+                    }
                 }
-            }]
+            ]
         }
         client = _fake_client(
             get_file=resp,
@@ -326,6 +336,7 @@ class TestHashEnricher:
 
     def test_investigate_free_tier_skips_sandbox(self) -> None:
         from vex.enrichers import hash as hash_enricher
+
         cfg = _make_config(premium=False)
         resp = _vt_file_response()
         client = _fake_client(
@@ -340,6 +351,7 @@ class TestHashEnricher:
 
     def test_triage_prefetched_skips_client_call(self) -> None:
         from vex.enrichers import hash as hash_enricher
+
         cfg = _make_config()
         resp = _vt_file_response()
         attrs = resp["data"]["attributes"]
@@ -347,7 +359,10 @@ class TestHashEnricher:
         # Use _prefetched to bypass client.get_file
         client_not_called = _fake_client()
         result = hash_enricher.triage(
-            "abc123", "sha256", client_not_called, cfg,
+            "abc123",
+            "sha256",
+            client_not_called,
+            cfg,
             _prefetched=(resp, attrs, analysis_results),
         )
         client_not_called.get_file.assert_not_called()
@@ -358,9 +373,11 @@ class TestHashEnricher:
 # IP enricher tests
 # ---------------------------------------------------------------------------
 
+
 class TestIPEnricher:
     def test_triage_malicious_verdict(self) -> None:
         from vex.enrichers import ip as ip_enricher
+
         cfg = _make_config(malicious_min=3)
         resp = _vt_ip_response(malicious=5)
         client = _fake_client(get_ip=resp)
@@ -370,6 +387,7 @@ class TestIPEnricher:
 
     def test_triage_not_found_returns_unknown(self) -> None:
         from vex.enrichers import ip as ip_enricher
+
         cfg = _make_config()
         client = _fake_client(get_ip={})
         result = ip_enricher.triage("1.2.3.4", "ipv4", client, cfg)
@@ -378,6 +396,7 @@ class TestIPEnricher:
 
     def test_triage_reputation_populated(self) -> None:
         from vex.enrichers import ip as ip_enricher
+
         cfg = _make_config()
         resp = _vt_ip_response(reputation=-80)
         client = _fake_client(get_ip=resp)
@@ -386,6 +405,7 @@ class TestIPEnricher:
 
     def test_triage_categories_collected(self) -> None:
         from vex.enrichers import ip as ip_enricher
+
         cfg = _make_config()
         resp = _vt_ip_response(categories={"Webroot": "malicious", "FortiGuard": "botnet"})
         client = _fake_client(get_ip=resp)
@@ -394,6 +414,7 @@ class TestIPEnricher:
 
     def test_investigate_not_found(self) -> None:
         from vex.enrichers import ip as ip_enricher
+
         cfg = _make_config()
         client = _fake_client(get_ip={})
         result = ip_enricher.investigate("1.2.3.4", "ipv4", client, cfg)
@@ -402,6 +423,7 @@ class TestIPEnricher:
 
     def test_investigate_asn_country(self) -> None:
         from vex.enrichers import ip as ip_enricher
+
         cfg = _make_config()
         resp = _vt_ip_response(asn=12345, as_owner="Evil ISP", country="RU", continent="EU")
         client = _fake_client(
@@ -418,16 +440,19 @@ class TestIPEnricher:
 
     def test_investigate_passive_dns_parsed(self) -> None:
         from vex.enrichers import ip as ip_enricher
+
         cfg = _make_config()
         resp = _vt_ip_response()
         resolutions_raw = {
-            "data": [{
-                "attributes": {
-                    "host_name": "evil.com",
-                    "resolver": "8.8.8.8",
-                    "date": 1_710_000_000,
+            "data": [
+                {
+                    "attributes": {
+                        "host_name": "evil.com",
+                        "resolver": "8.8.8.8",
+                        "date": 1_710_000_000,
+                    }
                 }
-            }]
+            ]
         }
         client = _fake_client(
             get_ip=resp,
@@ -446,16 +471,19 @@ class TestIPEnricher:
 
     def test_investigate_premium_fetches_comm_files(self) -> None:
         from vex.enrichers import ip as ip_enricher
+
         cfg = _make_config(premium=True)
         resp = _vt_ip_response()
         comm_file = {
-            "data": [{
-                "attributes": {
-                    "sha256": "dead" * 16,
-                    "names": ["payload.exe"],
-                    "last_analysis_stats": {"malicious": 3, "undetected": 50},
+            "data": [
+                {
+                    "attributes": {
+                        "sha256": "dead" * 16,
+                        "names": ["payload.exe"],
+                        "last_analysis_stats": {"malicious": 3, "undetected": 50},
+                    }
                 }
-            }]
+            ]
         }
         client = _fake_client(
             get_ip=resp,
@@ -469,6 +497,7 @@ class TestIPEnricher:
 
     def test_investigate_free_skips_comm_files(self) -> None:
         from vex.enrichers import ip as ip_enricher
+
         cfg = _make_config(premium=False)
         resp = _vt_ip_response()
         client = _fake_client(
@@ -484,9 +513,11 @@ class TestIPEnricher:
 # Domain enricher tests
 # ---------------------------------------------------------------------------
 
+
 class TestDomainEnricher:
     def test_triage_malicious_verdict(self) -> None:
         from vex.enrichers import domain as domain_enricher
+
         cfg = _make_config(malicious_min=3)
         resp = _vt_domain_response(malicious=4)
         client = _fake_client(get_domain=resp)
@@ -496,6 +527,7 @@ class TestDomainEnricher:
 
     def test_triage_not_found_returns_unknown(self) -> None:
         from vex.enrichers import domain as domain_enricher
+
         cfg = _make_config()
         client = _fake_client(get_domain={})
         result = domain_enricher.triage("evil.com", "domain", client, cfg)
@@ -504,6 +536,7 @@ class TestDomainEnricher:
 
     def test_triage_categories_collected(self) -> None:
         from vex.enrichers import domain as domain_enricher
+
         cfg = _make_config()
         resp = _vt_domain_response(categories={"Webroot": "phishing"})
         client = _fake_client(get_domain=resp)
@@ -512,6 +545,7 @@ class TestDomainEnricher:
 
     def test_triage_first_seen_parsed(self) -> None:
         from vex.enrichers import domain as domain_enricher
+
         cfg = _make_config()
         resp = _vt_domain_response()
         client = _fake_client(get_domain=resp)
@@ -521,6 +555,7 @@ class TestDomainEnricher:
 
     def test_investigate_not_found(self) -> None:
         from vex.enrichers import domain as domain_enricher
+
         cfg = _make_config()
         client = _fake_client(get_domain={})
         result = domain_enricher.investigate("evil.com", "domain", client, cfg)
@@ -529,16 +564,19 @@ class TestDomainEnricher:
 
     def test_investigate_passive_dns_parsed(self) -> None:
         from vex.enrichers import domain as domain_enricher
+
         cfg = _make_config()
         resp = _vt_domain_response()
         resolutions_raw = {
-            "data": [{
-                "attributes": {
-                    "ip_address": "1.2.3.4",
-                    "resolver": "8.8.8.8",
-                    "date": 1_710_000_000,
+            "data": [
+                {
+                    "attributes": {
+                        "ip_address": "1.2.3.4",
+                        "resolver": "8.8.8.8",
+                        "date": 1_710_000_000,
+                    }
                 }
-            }]
+            ]
         }
         client = _fake_client(
             get_domain=resp,
@@ -554,11 +592,14 @@ class TestDomainEnricher:
 
     def test_investigate_dns_records_parsed(self) -> None:
         from vex.enrichers import domain as domain_enricher
+
         cfg = _make_config()
-        resp = _vt_domain_response(last_dns_records=[
-            {"type": "A", "value": "1.2.3.4", "ttl": 300},
-            {"type": "MX", "value": "mail.evil.com", "ttl": 3600},
-        ])
+        resp = _vt_domain_response(
+            last_dns_records=[
+                {"type": "A", "value": "1.2.3.4", "ttl": 300},
+                {"type": "MX", "value": "mail.evil.com", "ttl": 3600},
+            ]
+        )
         client = _fake_client(
             get_domain=resp,
             get_domain_resolutions={"data": []},
@@ -572,6 +613,7 @@ class TestDomainEnricher:
 
     def test_investigate_subdomains_populated(self) -> None:
         from vex.enrichers import domain as domain_enricher
+
         cfg = _make_config()
         resp = _vt_domain_response(subdomains=["mail.evil.com", "api.evil.com"])
         client = _fake_client(
@@ -585,20 +627,23 @@ class TestDomainEnricher:
 
     def test_investigate_premium_whois_parsed(self) -> None:
         from vex.enrichers import domain as domain_enricher
+
         cfg = _make_config(premium=True)
         resp = _vt_domain_response()
         whois_raw = {
-            "data": [{
-                "attributes": {
-                    "registrar": "Evil Registrar LLC",
-                    "creation_date": "2020-01-01",
-                    "expiration_date": "2030-01-01",
-                    "updated_date": "2023-06-01",
-                    "name_servers": ["ns1.evil.com"],
-                    "registrant_organization": "Evil Corp",
-                    "registrant_country": "RU",
+            "data": [
+                {
+                    "attributes": {
+                        "registrar": "Evil Registrar LLC",
+                        "creation_date": "2020-01-01",
+                        "expiration_date": "2030-01-01",
+                        "updated_date": "2023-06-01",
+                        "name_servers": ["ns1.evil.com"],
+                        "registrant_organization": "Evil Corp",
+                        "registrant_country": "RU",
+                    }
                 }
-            }]
+            ]
         }
         client = _fake_client(
             get_domain=resp,
@@ -614,6 +659,7 @@ class TestDomainEnricher:
 
     def test_investigate_free_skips_whois_and_comm_files(self) -> None:
         from vex.enrichers import domain as domain_enricher
+
         cfg = _make_config(premium=False, whois_enabled=False)
         resp = _vt_domain_response()
         client = _fake_client(
@@ -630,9 +676,11 @@ class TestDomainEnricher:
 # URL enricher tests
 # ---------------------------------------------------------------------------
 
+
 class TestURLEnricher:
     def test_triage_malicious_verdict_url_shape(self) -> None:
         from vex.enrichers import url as url_enricher
+
         cfg = _make_config(malicious_min=3)
         resp = _vt_url_response(malicious=3)
         client = _fake_client(get_url=resp)
@@ -642,6 +690,7 @@ class TestURLEnricher:
 
     def test_triage_not_found_returns_unknown(self) -> None:
         from vex.enrichers import url as url_enricher
+
         cfg = _make_config()
         client = _fake_client(get_url={})
         result = url_enricher.triage("http://evil.com/malware", "url", client, cfg)
@@ -651,6 +700,7 @@ class TestURLEnricher:
     def test_triage_analysis_shape_parsed(self) -> None:
         """Handles the /analyses/{id} response shape (type == 'analysis')."""
         from vex.enrichers import url as url_enricher
+
         cfg = _make_config(malicious_min=2)
         analysis_resp = {
             "data": {
@@ -669,6 +719,7 @@ class TestURLEnricher:
 
     def test_triage_categories_collected(self) -> None:
         from vex.enrichers import url as url_enricher
+
         cfg = _make_config()
         resp = _vt_url_response(categories={"Webroot": "malware"})
         client = _fake_client(get_url=resp)
@@ -677,6 +728,7 @@ class TestURLEnricher:
 
     def test_investigate_not_found(self) -> None:
         from vex.enrichers import url as url_enricher
+
         cfg = _make_config()
         client = _fake_client(get_url={})
         result = url_enricher.investigate("http://evil.com/", "url", client, cfg)
@@ -685,6 +737,7 @@ class TestURLEnricher:
 
     def test_investigate_final_url_and_title(self) -> None:
         from vex.enrichers import url as url_enricher
+
         cfg = _make_config()
         resp = _vt_url_response(title="Evil Page", final_url="http://evil.com/landing")
         client = _fake_client(
@@ -697,16 +750,19 @@ class TestURLEnricher:
 
     def test_investigate_premium_fetches_related_files(self) -> None:
         from vex.enrichers import url as url_enricher
+
         cfg = _make_config(premium=True)
         resp = _vt_url_response()
         related_files_raw = {
-            "data": [{
-                "attributes": {
-                    "sha256": "beef" * 16,
-                    "names": ["dropper.exe"],
-                    "last_analysis_stats": {"malicious": 5, "undetected": 60},
+            "data": [
+                {
+                    "attributes": {
+                        "sha256": "beef" * 16,
+                        "names": ["dropper.exe"],
+                        "last_analysis_stats": {"malicious": 5, "undetected": 60},
+                    }
                 }
-            }]
+            ]
         }
         client = _fake_client(
             get_url=resp,
@@ -718,6 +774,7 @@ class TestURLEnricher:
 
     def test_investigate_free_skips_related_files(self) -> None:
         from vex.enrichers import url as url_enricher
+
         cfg = _make_config(premium=False)
         resp = _vt_url_response()
         client = _fake_client(get_url=resp)
@@ -727,11 +784,15 @@ class TestURLEnricher:
 
     def test_triage_prefetched_dict_skips_client(self) -> None:
         from vex.enrichers import url as url_enricher
+
         cfg = _make_config()
         resp = _vt_url_response()
         client = _fake_client()  # should not be called
         result = url_enricher.triage(
-            "http://evil.com/", "url", client, cfg,
+            "http://evil.com/",
+            "url",
+            client,
+            cfg,
             _prefetched=resp,
         )
         client.get_url.assert_not_called()

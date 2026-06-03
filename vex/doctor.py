@@ -112,18 +112,12 @@ def _check_ai(config: Config, probe: bool) -> ServiceStatus:
         try:
             from .ai.ollama import OllamaProvider
 
-            available = OllamaProvider(
-                model=config.ai.model, base_url=config.ai.base_url
-            ).is_available()
+            available = OllamaProvider(model=config.ai.model, base_url=config.ai.base_url).is_available()
             return ServiceStatus(
                 name="AI provider",
                 configured=True,
                 reachable=bool(available),
-                detail=(
-                    f"{base_detail} — Ollama reachable"
-                    if available
-                    else f"{base_detail} — Ollama not reachable"
-                ),
+                detail=(f"{base_detail} — Ollama reachable" if available else f"{base_detail} — Ollama not reachable"),
             )
         except Exception as exc:  # noqa: BLE001
             return ServiceStatus(
@@ -152,14 +146,8 @@ def _check_abuseipdb(config: Config, probe: bool) -> ServiceStatus:
             reachable=None,
             detail="no API key (set VEX_ABUSEIPDB_API_KEY)",
         )
-    detail = (
-        "key present, not probed (preserves quota)"
-        if probe
-        else "key present (not probed — config-only)"
-    )
-    return ServiceStatus(
-        name="AbuseIPDB", configured=True, reachable=None, detail=detail
-    )
+    detail = "key present, not probed (preserves quota)" if probe else "key present (not probed — config-only)"
+    return ServiceStatus(name="AbuseIPDB", configured=True, reachable=None, detail=detail)
 
 
 def _check_shodan(config: Config, probe: bool) -> ServiceStatus:
@@ -172,14 +160,8 @@ def _check_shodan(config: Config, probe: bool) -> ServiceStatus:
             reachable=None,
             detail="no API key (set VEX_SHODAN_API_KEY)",
         )
-    detail = (
-        "key present, not probed (preserves quota)"
-        if probe
-        else "key present (not probed — config-only)"
-    )
-    return ServiceStatus(
-        name="Shodan", configured=True, reachable=None, detail=detail
-    )
+    detail = "key present, not probed (preserves quota)" if probe else "key present (not probed — config-only)"
+    return ServiceStatus(name="Shodan", configured=True, reachable=None, detail=detail)
 
 
 def _check_misp(config: Config, probe: bool) -> ServiceStatus:
@@ -231,9 +213,7 @@ def _check_misp(config: Config, probe: bool) -> ServiceStatus:
             except Exception:  # noqa: BLE001
                 version = ""
             detail = f"reachable — version {version}" if version else "reachable (200)"
-            return ServiceStatus(
-                name="MISP", configured=True, reachable=True, detail=detail
-            )
+            return ServiceStatus(name="MISP", configured=True, reachable=True, detail=detail)
         return ServiceStatus(
             name="MISP",
             configured=True,
@@ -295,9 +275,7 @@ def _check_opencti(config: Config, probe: bool) -> ServiceStatus:
         if resp.status_code == 200:
             version = ""
             try:
-                version = str(
-                    resp.json().get("data", {}).get("about", {}).get("version", "")
-                ).strip()
+                version = str(resp.json().get("data", {}).get("about", {}).get("version", "")).strip()
             except Exception:  # noqa: BLE001
                 version = ""
             if version:

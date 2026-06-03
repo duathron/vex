@@ -46,6 +46,7 @@ _STATS = DetectionStats(malicious=10, suspicious=2, undetected=60)
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _triage(
     ioc: str = "evil.com",
     ioc_type: str = "domain",
@@ -101,6 +102,7 @@ def _obj_by_id(bundle: dict, obj_id: str) -> dict | None:
 # Bundle shape
 # ---------------------------------------------------------------------------
 
+
 class TestBundleShape:
     def test_type_is_bundle(self) -> None:
         b = _bundle([_triage()])
@@ -124,9 +126,15 @@ class TestBundleShape:
         assert all(o["spec_version"] == "2.1" for o in indicators)
 
     def test_all_sdos_have_spec_version(self) -> None:
-        b = _bundle([_investigate(attack_mappings=[
-            ATTACKMapping(technique_id="T1566", technique_name="Phishing", tactic="initial-access")
-        ])])
+        b = _bundle(
+            [
+                _investigate(
+                    attack_mappings=[
+                        ATTACKMapping(technique_id="T1566", technique_name="Phishing", tactic="initial-access")
+                    ]
+                )
+            ]
+        )
         for obj in b["objects"]:
             if obj["type"] not in ("bundle",):
                 assert obj.get("spec_version") == "2.1", f"Missing spec_version on {obj['type']}"
@@ -135,6 +143,7 @@ class TestBundleShape:
 # ---------------------------------------------------------------------------
 # Identity SDO
 # ---------------------------------------------------------------------------
+
 
 class TestIdentitySDO:
     def test_identity_present_in_bundle(self) -> None:
@@ -175,6 +184,7 @@ class TestIdentitySDO:
 # created_by_ref on SDOs
 # ---------------------------------------------------------------------------
 
+
 class TestCreatedByRef:
     def test_indicator_has_created_by_ref(self) -> None:
         b = _bundle([_triage()])
@@ -187,9 +197,17 @@ class TestCreatedByRef:
         assert malware.get("created_by_ref") == _VEX_IDENTITY_ID
 
     def test_attack_pattern_has_created_by_ref(self) -> None:
-        b = _bundle([_investigate(attack_mappings=[
-            ATTACKMapping(technique_id="T1059", technique_name="Command and Scripting Interpreter", tactic="execution")
-        ])])
+        b = _bundle(
+            [
+                _investigate(
+                    attack_mappings=[
+                        ATTACKMapping(
+                            technique_id="T1059", technique_name="Command and Scripting Interpreter", tactic="execution"
+                        )
+                    ]
+                )
+            ]
+        )
         ap = _objects_by_type(b, "attack-pattern")[0]
         assert ap.get("created_by_ref") == _VEX_IDENTITY_ID
 
@@ -202,6 +220,7 @@ class TestCreatedByRef:
 # ---------------------------------------------------------------------------
 # TLP marking-definitions
 # ---------------------------------------------------------------------------
+
 
 class TestTLPMarkings:
     @pytest.mark.parametrize("tlp_level,expected_id", list(_CANONICAL_TLP.items()))
@@ -271,6 +290,7 @@ class TestTLPMarkings:
 # ---------------------------------------------------------------------------
 # SCO observables + based-on relationships
 # ---------------------------------------------------------------------------
+
 
 class TestSCOAndBasedOn:
     def test_domain_sco_present(self) -> None:
@@ -360,54 +380,95 @@ class TestSCOAndBasedOn:
 # ATT&CK external_references on attack-pattern SDOs
 # ---------------------------------------------------------------------------
 
+
 class TestATTACKExternalReferences:
     def test_attack_pattern_has_external_references(self) -> None:
-        b = _bundle([_investigate(attack_mappings=[
-            ATTACKMapping(technique_id="T1566", technique_name="Phishing", tactic="initial-access")
-        ])])
+        b = _bundle(
+            [
+                _investigate(
+                    attack_mappings=[
+                        ATTACKMapping(technique_id="T1566", technique_name="Phishing", tactic="initial-access")
+                    ]
+                )
+            ]
+        )
         ap = _objects_by_type(b, "attack-pattern")[0]
         assert "external_references" in ap
         assert len(ap["external_references"]) >= 1
 
     def test_external_reference_source_name_mitre_attack(self) -> None:
-        b = _bundle([_investigate(attack_mappings=[
-            ATTACKMapping(technique_id="T1566", technique_name="Phishing", tactic="initial-access")
-        ])])
+        b = _bundle(
+            [
+                _investigate(
+                    attack_mappings=[
+                        ATTACKMapping(technique_id="T1566", technique_name="Phishing", tactic="initial-access")
+                    ]
+                )
+            ]
+        )
         ap = _objects_by_type(b, "attack-pattern")[0]
         ext_refs = ap["external_references"]
         mitre_refs = [r for r in ext_refs if r.get("source_name") == "mitre-attack"]
         assert len(mitre_refs) == 1
 
     def test_external_reference_has_correct_external_id(self) -> None:
-        b = _bundle([_investigate(attack_mappings=[
-            ATTACKMapping(technique_id="T1566", technique_name="Phishing", tactic="initial-access")
-        ])])
+        b = _bundle(
+            [
+                _investigate(
+                    attack_mappings=[
+                        ATTACKMapping(technique_id="T1566", technique_name="Phishing", tactic="initial-access")
+                    ]
+                )
+            ]
+        )
         ap = _objects_by_type(b, "attack-pattern")[0]
         mitre_ref = next(r for r in ap["external_references"] if r["source_name"] == "mitre-attack")
         assert mitre_ref["external_id"] == "T1566"
 
     def test_external_reference_url(self) -> None:
-        b = _bundle([_investigate(attack_mappings=[
-            ATTACKMapping(technique_id="T1566", technique_name="Phishing", tactic="initial-access")
-        ])])
+        b = _bundle(
+            [
+                _investigate(
+                    attack_mappings=[
+                        ATTACKMapping(technique_id="T1566", technique_name="Phishing", tactic="initial-access")
+                    ]
+                )
+            ]
+        )
         ap = _objects_by_type(b, "attack-pattern")[0]
         mitre_ref = next(r for r in ap["external_references"] if r["source_name"] == "mitre-attack")
         assert "attack.mitre.org" in mitre_ref["url"]
         assert "T1566" in mitre_ref["url"]
 
     def test_subtechnique_url_uses_slash(self) -> None:
-        b = _bundle([_investigate(attack_mappings=[
-            ATTACKMapping(technique_id="T1566.001", technique_name="Spearphishing Attachment", tactic="initial-access")
-        ])])
+        b = _bundle(
+            [
+                _investigate(
+                    attack_mappings=[
+                        ATTACKMapping(
+                            technique_id="T1566.001", technique_name="Spearphishing Attachment", tactic="initial-access"
+                        )
+                    ]
+                )
+            ]
+        )
         ap = _objects_by_type(b, "attack-pattern")[0]
         mitre_ref = next(r for r in ap["external_references"] if r["source_name"] == "mitre-attack")
         assert "T1566/001" in mitre_ref["url"]
 
     def test_multiple_attack_patterns_all_have_refs(self) -> None:
-        b = _bundle([_investigate(attack_mappings=[
-            ATTACKMapping(technique_id="T1059", technique_name="Command Interpreter", tactic="execution"),
-            ATTACKMapping(technique_id="T1055", technique_name="Process Injection", tactic="defense-evasion"),
-        ])])
+        b = _bundle(
+            [
+                _investigate(
+                    attack_mappings=[
+                        ATTACKMapping(technique_id="T1059", technique_name="Command Interpreter", tactic="execution"),
+                        ATTACKMapping(
+                            technique_id="T1055", technique_name="Process Injection", tactic="defense-evasion"
+                        ),
+                    ]
+                )
+            ]
+        )
         aps = _objects_by_type(b, "attack-pattern")
         assert len(aps) == 2
         for ap in aps:
@@ -419,6 +480,7 @@ class TestATTACKExternalReferences:
 # ---------------------------------------------------------------------------
 # Deterministic IDs (idempotent export)
 # ---------------------------------------------------------------------------
+
 
 class TestDeterministicIDs:
     def test_indicator_id_stable_across_runs(self) -> None:
@@ -475,6 +537,7 @@ class TestDeterministicIDs:
 # Existing behavior preserved (regression)
 # ---------------------------------------------------------------------------
 
+
 class TestExistingBehaviorPreserved:
     def test_indicator_pattern_domain(self) -> None:
         b = _bundle([_triage(ioc="evil.com", ioc_type="domain")])
@@ -511,9 +574,15 @@ class TestExistingBehaviorPreserved:
         assert "indicates" in types
 
     def test_uses_relationship_present_for_attack_pattern(self) -> None:
-        b = _bundle([_investigate(attack_mappings=[
-            ATTACKMapping(technique_id="T1059", technique_name="Command Interpreter", tactic="execution")
-        ])])
+        b = _bundle(
+            [
+                _investigate(
+                    attack_mappings=[
+                        ATTACKMapping(technique_id="T1059", technique_name="Command Interpreter", tactic="execution")
+                    ]
+                )
+            ]
+        )
         rels = _objects_by_type(b, "relationship")
         types = {r["relationship_type"] for r in rels}
         assert "uses" in types
@@ -542,6 +611,7 @@ class TestExistingBehaviorPreserved:
 # ---------------------------------------------------------------------------
 # Helpers for TLP 2.0 tests
 # ---------------------------------------------------------------------------
+
 
 def _config_v2() -> Config:
     cfg = Config()
@@ -629,6 +699,7 @@ class TestStixTlpVersion2:
 # ---------------------------------------------------------------------------
 # Default (no config / config v1.0) — 1.0 ids unchanged (regression)
 # ---------------------------------------------------------------------------
+
 
 class TestStixTlpVersionDefault:
     def test_no_config_uses_tlp1_amber_id(self) -> None:

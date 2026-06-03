@@ -14,7 +14,6 @@ from vex.batch import run_secondary_enrichers
 from vex.config import Config
 from vex.models import DetectionStats, InvestigateResult, TriageResult, Verdict
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -66,6 +65,7 @@ def _make_raising_secondary(marker_field: str) -> MagicMock:
 # Edge cases: 0 and 1 secondary (no thread pool)
 # ---------------------------------------------------------------------------
 
+
 class TestRunSecondaryEnrichersEdgeCases:
     def test_zero_secondaries_is_noop(self) -> None:
         result = _make_result()
@@ -104,6 +104,7 @@ class TestRunSecondaryEnrichersEdgeCases:
 # Parallel execution: N secondaries, wall-time ≈ 1 delay (not N×delay)
 # ---------------------------------------------------------------------------
 
+
 class TestRunSecondaryEnrichersParallel:
     def test_all_markers_set_when_parallel(self) -> None:
         """All N enrichers must run and write their markers."""
@@ -114,10 +115,10 @@ class TestRunSecondaryEnrichersParallel:
         # (Pydantic v2 models allow extra attribute writes on the object).
         # We use the four real secondary-enricher marker fields from InvestigateResult.
         secondaries = [
-            _make_sleeping_secondary("abuse_confidence"),   # abuse_*
-            _make_sleeping_secondary("shodan_org"),         # shodan_*
-            _make_sleeping_secondary("misp_known"),         # misp_*
-            _make_sleeping_secondary("opencti_known"),      # opencti_*
+            _make_sleeping_secondary("abuse_confidence"),  # abuse_*
+            _make_sleeping_secondary("shodan_org"),  # shodan_*
+            _make_sleeping_secondary("misp_known"),  # misp_*
+            _make_sleeping_secondary("opencti_known"),  # opencti_*
         ]
 
         run_secondary_enrichers(result, "1.2.3.4", "ipv4", cfg, secondaries)
@@ -166,7 +167,7 @@ class TestRunSecondaryEnrichersParallel:
 
         secondaries = [
             _make_sleeping_secondary("abuse_confidence"),
-            _make_raising_secondary("shodan_org"),      # raises — should be swallowed
+            _make_raising_secondary("shodan_org"),  # raises — should be swallowed
             _make_sleeping_secondary("misp_known"),
             _make_sleeping_secondary("opencti_known"),
         ]

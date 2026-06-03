@@ -23,7 +23,6 @@ BEHAVIOR_MAP: dict[str, tuple[str, str, str]] = {
     "at.exe": ("T1053.002", "At", "Execution"),
     "wmic": ("T1047", "Windows Management Instrumentation", "Execution"),
     "certutil": ("T1140", "Deobfuscate/Decode Files", "Defense Evasion"),
-
     # --- Persistence ---
     "\\currentversion\\run": ("T1547.001", "Registry Run Keys", "Persistence"),
     "\\run\\": ("T1547.001", "Registry Run Keys", "Persistence"),
@@ -32,11 +31,9 @@ BEHAVIOR_MAP: dict[str, tuple[str, str, str]] = {
     "task scheduler": ("T1053.005", "Scheduled Task", "Persistence"),
     "\\services\\": ("T1543.003", "Windows Service", "Persistence"),
     "sc.exe": ("T1543.003", "Windows Service", "Persistence"),
-
     # --- Privilege Escalation ---
     "runas": ("T1134", "Access Token Manipulation", "Privilege Escalation"),
     "token": ("T1134", "Access Token Manipulation", "Privilege Escalation"),
-
     # --- Defense Evasion ---
     "process hollowing": ("T1055.012", "Process Hollowing", "Defense Evasion"),
     "injection": ("T1055", "Process Injection", "Defense Evasion"),
@@ -52,7 +49,6 @@ BEHAVIOR_MAP: dict[str, tuple[str, str, str]] = {
     "packer": ("T1027.002", "Software Packing", "Defense Evasion"),
     "upx": ("T1027.002", "Software Packing", "Defense Evasion"),
     "base64": ("T1140", "Deobfuscate/Decode Files", "Defense Evasion"),
-
     # --- Credential Access ---
     "mimikatz": ("T1003.001", "LSASS Memory", "Credential Access"),
     "lsass": ("T1003.001", "LSASS Memory", "Credential Access"),
@@ -61,7 +57,6 @@ BEHAVIOR_MAP: dict[str, tuple[str, str, str]] = {
     "\\login data": ("T1555.003", "Credentials from Web Browsers", "Credential Access"),
     "\\cookies\\": ("T1539", "Steal Web Session Cookie", "Credential Access"),
     "wallet": ("T1005", "Data from Local System", "Collection"),
-
     # --- Discovery ---
     "systeminfo": ("T1082", "System Information Discovery", "Discovery"),
     "ipconfig": ("T1016", "System Network Configuration Discovery", "Discovery"),
@@ -72,17 +67,14 @@ BEHAVIOR_MAP: dict[str, tuple[str, str, str]] = {
     "net user": ("T1087.001", "Local Account", "Discovery"),
     "query reg": ("T1012", "Query Registry", "Discovery"),
     "reg query": ("T1012", "Query Registry", "Discovery"),
-
     # --- Lateral Movement ---
     "psexec": ("T1569.002", "Service Execution", "Lateral Movement"),
     "wmi": ("T1047", "Windows Management Instrumentation", "Lateral Movement"),
-
     # --- Collection ---
     "screenshot": ("T1113", "Screen Capture", "Collection"),
     "clipboard": ("T1115", "Clipboard Data", "Collection"),
     "microphone": ("T1123", "Audio Capture", "Collection"),
     "webcam": ("T1125", "Video Capture", "Collection"),
-
     # --- Command and Control ---
     "tor": ("T1090.003", "Multi-hop Proxy", "Command and Control"),
     "dns tunnel": ("T1071.004", "DNS", "Command and Control"),
@@ -92,13 +84,11 @@ BEHAVIOR_MAP: dict[str, tuple[str, str, str]] = {
     "cobaltstrike": ("T1071.001", "Web Protocols", "Command and Control"),
     "beacon": ("T1071.001", "Web Protocols", "Command and Control"),
     "c2": ("T1071", "Application Layer Protocol", "Command and Control"),
-
     # --- Exfiltration ---
     "ftp": ("T1048.003", "Exfiltration Over Unencrypted Protocol", "Exfiltration"),
     "smtp": ("T1048.003", "Exfiltration Over Unencrypted Protocol", "Exfiltration"),
     "telegram": ("T1567.002", "Exfiltration to Cloud Storage", "Exfiltration"),
     "discord": ("T1567.002", "Exfiltration to Cloud Storage", "Exfiltration"),
-
     # --- Impact ---
     "encrypt": ("T1486", "Data Encrypted for Impact", "Impact"),
     "ransom": ("T1486", "Data Encrypted for Impact", "Impact"),

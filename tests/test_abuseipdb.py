@@ -13,15 +13,15 @@ import pytest
 
 from vex.config import Config, EnrichmentConfig
 from vex.enrichers.protocol import SecondaryEnricherProtocol
-from vex.models import InvestigateResult, TriageResult, Verdict, DetectionStats
+from vex.models import DetectionStats, InvestigateResult, TriageResult, Verdict
 from vex.plugins.abuseipdb import AbuseIPDBPlugin
 from vex.plugins.loader import load_plugins
 from vex.plugins.registry import PluginRegistry
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_investigate_result() -> InvestigateResult:
     """Build a minimal InvestigateResult with required nested TriageResult."""
@@ -60,6 +60,7 @@ _SAMPLE_PAYLOAD = {
 # Protocol compliance
 # ---------------------------------------------------------------------------
 
+
 class TestAbuseIPDBProtocol:
     def test_implements_secondary_enricher_protocol(self):
         plugin = AbuseIPDBPlugin()
@@ -84,6 +85,7 @@ class TestAbuseIPDBProtocol:
 # ---------------------------------------------------------------------------
 # No-key path: no network calls, no-op
 # ---------------------------------------------------------------------------
+
 
 class TestNoKeyPath:
     def test_no_key_returns_immediately_no_network(self, monkeypatch):
@@ -121,6 +123,7 @@ class TestNoKeyPath:
 # ---------------------------------------------------------------------------
 # Happy path: 200 response, fields populated
 # ---------------------------------------------------------------------------
+
 
 class TestHappyPath:
     def test_200_populates_fields(self, monkeypatch):
@@ -173,6 +176,7 @@ class TestHappyPath:
 # ---------------------------------------------------------------------------
 # Fail-open: errors and non-200 responses
 # ---------------------------------------------------------------------------
+
 
 class TestFailOpen:
     def test_network_exception_does_not_raise(self, monkeypatch):
@@ -239,6 +243,7 @@ class TestFailOpen:
 # Registry integration
 # ---------------------------------------------------------------------------
 
+
 class TestRegistryIntegration:
     def test_get_secondary_ipv4_includes_abuseipdb(self):
         """load_plugins() registry must include AbuseIPDB for ipv4."""
@@ -288,6 +293,7 @@ class TestRegistryIntegration:
 # ---------------------------------------------------------------------------
 # Config env-var override
 # ---------------------------------------------------------------------------
+
 
 class TestConfigEnvOverride:
     def test_env_var_beats_config_key(self, monkeypatch):

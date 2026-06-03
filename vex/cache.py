@@ -28,18 +28,14 @@ class Cache:
             )
             """
         )
-        self._conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_stored ON results(stored)"
-        )
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_stored ON results(stored)")
         self._conn.commit()
 
     def get(self, key: str) -> Optional[dict[str, Any]]:
         if not self._enabled:
             return None
         with self._lock:
-            row = self._conn.execute(
-                "SELECT data, stored FROM results WHERE key = ?", (key,)
-            ).fetchone()
+            row = self._conn.execute("SELECT data, stored FROM results WHERE key = ?", (key,)).fetchone()
             if row is None:
                 return None
             data, stored = row
@@ -71,9 +67,7 @@ class Cache:
             return 0
         cutoff = time.time() - self._ttl
         with self._lock:
-            cur = self._conn.execute(
-                "DELETE FROM results WHERE stored < ?", (cutoff,)
-            )
+            cur = self._conn.execute("DELETE FROM results WHERE stored < ?", (cutoff,))
             self._conn.commit()
         return cur.rowcount
 

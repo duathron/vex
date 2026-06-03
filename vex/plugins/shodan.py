@@ -58,9 +58,7 @@ class ShodanPlugin:
             )
 
             if response.status_code != 200:
-                logger.debug(
-                    "Shodan returned HTTP %d for %s", response.status_code, ioc
-                )
+                logger.debug("Shodan returned HTTP %d for %s", response.status_code, ioc)
                 return
 
             data = response.json()

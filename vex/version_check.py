@@ -77,10 +77,12 @@ def check_for_update(check_interval_hours: int = 24) -> Optional[str]:
     else:
         latest = _fetch_latest_version()
         if latest:
-            _save_state({
-                "last_check": time.time(),
-                "latest_version": latest,
-            })
+            _save_state(
+                {
+                    "last_check": time.time(),
+                    "latest_version": latest,
+                }
+            )
         else:
             return None
 

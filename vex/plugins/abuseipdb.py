@@ -62,9 +62,7 @@ class AbuseIPDBPlugin:
             )
 
             if response.status_code != 200:
-                logger.debug(
-                    "AbuseIPDB returned HTTP %d for %s", response.status_code, ioc
-                )
+                logger.debug("AbuseIPDB returned HTTP %d for %s", response.status_code, ioc)
                 return
 
             data = response.json().get("data", {})

@@ -6,10 +6,10 @@ import pytest
 
 from vex.defang import defang, is_defanged, refang
 
-
 # ---------------------------------------------------------------------------
 # refang
 # ---------------------------------------------------------------------------
+
 
 class TestRefang:
     def test_hxxps_protocol(self) -> None:
@@ -56,6 +56,7 @@ class TestRefang:
 # defang
 # ---------------------------------------------------------------------------
 
+
 class TestDefang:
     def test_https_url(self) -> None:
         assert defang("https://evil.com") == "hxxps[://]evil[.]com"
@@ -82,13 +83,17 @@ class TestDefang:
 # Round-trip: defang then refang
 # ---------------------------------------------------------------------------
 
+
 class TestRoundTrip:
-    @pytest.mark.parametrize("live", [
-        "https://evil.com",
-        "http://malware.example.com/payload",
-        "ftp://files.corp.internal",
-        "https://evil.com/path?q=1&r=2",
-    ])
+    @pytest.mark.parametrize(
+        "live",
+        [
+            "https://evil.com",
+            "http://malware.example.com/payload",
+            "ftp://files.corp.internal",
+            "https://evil.com/path?q=1&r=2",
+        ],
+    )
     def test_defang_refang_roundtrip(self, live: str) -> None:
         assert refang(defang(live)) == live
 
@@ -103,28 +108,35 @@ class TestRoundTrip:
 # is_defanged
 # ---------------------------------------------------------------------------
 
+
 class TestIsDefanged:
-    @pytest.mark.parametrize("ioc", [
-        "hxxp://evil.com",
-        "hxxps://evil.com",
-        "fxp://evil.com",
-        "evil[.]com",
-        "hxxps[://]evil.com",
-        "evil.com[:]8080",
-        "user[@]evil.com",
-        "evil[dot]com",
-        "user[at]evil.com",
-    ])
+    @pytest.mark.parametrize(
+        "ioc",
+        [
+            "hxxp://evil.com",
+            "hxxps://evil.com",
+            "fxp://evil.com",
+            "evil[.]com",
+            "hxxps[://]evil.com",
+            "evil.com[:]8080",
+            "user[@]evil.com",
+            "evil[dot]com",
+            "user[at]evil.com",
+        ],
+    )
     def test_defanged_strings_detected(self, ioc: str) -> None:
         assert is_defanged(ioc) is True
 
-    @pytest.mark.parametrize("ioc", [
-        "https://evil.com",
-        "http://evil.com",
-        "8.8.8.8",
-        "evil.com",
-        "user@evil.com",
-    ])
+    @pytest.mark.parametrize(
+        "ioc",
+        [
+            "https://evil.com",
+            "http://evil.com",
+            "8.8.8.8",
+            "evil.com",
+            "user@evil.com",
+        ],
+    )
     def test_live_strings_not_defanged(self, ioc: str) -> None:
         assert is_defanged(ioc) is False
 
@@ -141,6 +153,7 @@ class TestIsDefanged:
 # ---------------------------------------------------------------------------
 # Portfolio parity — new forms added for vex/sift/barb alignment
 # ---------------------------------------------------------------------------
+
 
 class TestRefangParity:
     """New defang forms: paren/brace dots, word-forms, fullwidth, zero-width."""
@@ -246,22 +259,28 @@ class TestRefangParity:
 class TestIsDefangedParity:
     """New indicators added to is_defanged for parity."""
 
-    @pytest.mark.parametrize("ioc", [
-        "evil(.)com",
-        "evil{.}com",
-        "evil(dot)com",
-        "evil{dot}com",
-        "evil．com",
-        "user＠evil.com",
-    ])
+    @pytest.mark.parametrize(
+        "ioc",
+        [
+            "evil(.)com",
+            "evil{.}com",
+            "evil(dot)com",
+            "evil{dot}com",
+            "evil．com",
+            "user＠evil.com",
+        ],
+    )
     def test_new_forms_detected(self, ioc: str) -> None:
         assert is_defanged(ioc) is True
 
-    @pytest.mark.parametrize("ioc", [
-        "https://evil.com",
-        "evil.com",
-        "user@evil.com",
-        "8.8.8.8",
-    ])
+    @pytest.mark.parametrize(
+        "ioc",
+        [
+            "https://evil.com",
+            "evil.com",
+            "user@evil.com",
+            "8.8.8.8",
+        ],
+    )
     def test_live_forms_still_not_defanged(self, ioc: str) -> None:
         assert is_defanged(ioc) is False

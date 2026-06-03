@@ -8,7 +8,6 @@ from vex.defang import defang as defang_ioc
 from vex.models import DetectionStats, InvestigateResult, TriageResult, Verdict
 from vex.output.export import to_ndjson
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -40,6 +39,7 @@ def _investigate(
 # ---------------------------------------------------------------------------
 # to_ndjson: single result → valid one-line JSON
 # ---------------------------------------------------------------------------
+
 
 class TestToNdjson:
     def test_produces_valid_json(self) -> None:
@@ -104,6 +104,7 @@ class TestToNdjson:
 # ---------------------------------------------------------------------------
 # Multiple results → N lines
 # ---------------------------------------------------------------------------
+
 
 class TestNdjsonList:
     def test_n_results_produce_n_lines(self) -> None:

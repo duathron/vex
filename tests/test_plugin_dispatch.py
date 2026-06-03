@@ -6,22 +6,23 @@ VTClient and enricher module functions are monkeypatched throughout.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
 import threading
+from unittest.mock import MagicMock, patch
 
-from vex.plugins.virustotal import VirusTotalPlugin
-from vex.plugins.registry import PluginRegistry
-from vex.plugins.loader import load_plugins
 from vex.enrichers.protocol import EnricherProtocol
-
+from vex.plugins.loader import load_plugins
+from vex.plugins.registry import PluginRegistry
+from vex.plugins.virustotal import VirusTotalPlugin
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_triage_result():
     """Build a minimal TriageResult-like MagicMock."""
     from vex.models import TriageResult
+
     result = MagicMock(spec=TriageResult)
     result.model_dump.return_value = {}
     return result
@@ -29,6 +30,7 @@ def _make_triage_result():
 
 def _make_investigate_result():
     from vex.models import InvestigateResult
+
     result = MagicMock(spec=InvestigateResult)
     result.model_dump.return_value = {}
     return result
@@ -37,6 +39,7 @@ def _make_investigate_result():
 def _dummy_config():
     """Return a Config instance with a fake API key."""
     from vex.config import Config
+
     cfg = Config()
     cfg.api.key = "test-fake-key-00000000"
     return cfg
@@ -45,6 +48,7 @@ def _dummy_config():
 # ---------------------------------------------------------------------------
 # Task 1 — VirusTotalPlugin: lazy, reused, thread-safe client
 # ---------------------------------------------------------------------------
+
 
 class TestVirusTotalPluginClientReuse:
     """The same VTClient must be returned on every call within one plugin instance."""
@@ -97,9 +101,9 @@ class TestVirusTotalPluginClientReuse:
                 mock_ip.triage.return_value = fake_result
 
                 plugin = VirusTotalPlugin()
-                plugin.triage("8.8.8.8", "ipv4", config)   # creates client #1
-                plugin.close()                               # resets to None
-                plugin.triage("1.1.1.1", "ipv4", config)   # creates client #2
+                plugin.triage("8.8.8.8", "ipv4", config)  # creates client #1
+                plugin.close()  # resets to None
+                plugin.triage("1.1.1.1", "ipv4", config)  # creates client #2
 
         assert len(constructor_calls) == 2
 
@@ -110,6 +114,7 @@ class TestVirusTotalPluginClientReuse:
 
         # Simulate a slow constructor to expose races
         import time
+
         constructor_calls = []
         lock = threading.Lock()
 
@@ -144,14 +149,13 @@ class TestVirusTotalPluginClientReuse:
                     t.join()
 
         assert not errors, f"Thread errors: {errors}"
-        assert len(constructor_calls) == 1, (
-            f"Expected 1 VTClient construction, got {len(constructor_calls)}"
-        )
+        assert len(constructor_calls) == 1, f"Expected 1 VTClient construction, got {len(constructor_calls)}"
 
 
 # ---------------------------------------------------------------------------
 # Task 1 — VirusTotalPlugin: investigate delegates correctly
 # ---------------------------------------------------------------------------
+
 
 class TestVirusTotalPluginInvestigate:
     def test_investigate_reuses_same_client_as_triage(self, monkeypatch):
@@ -186,6 +190,7 @@ class TestVirusTotalPluginInvestigate:
 # Task 1 — VirusTotalPlugin: protocol compliance
 # ---------------------------------------------------------------------------
 
+
 class TestVirusTotalPluginProtocol:
     def test_isinstance_enricher_protocol(self):
         assert isinstance(VirusTotalPlugin(), EnricherProtocol)
@@ -202,6 +207,7 @@ class TestVirusTotalPluginProtocol:
 # ---------------------------------------------------------------------------
 # Task 2 — PluginRegistry: close() and context-manager
 # ---------------------------------------------------------------------------
+
 
 class TestPluginRegistryLifecycle:
     def test_close_calls_close_on_plugins_that_have_it(self):
@@ -251,8 +257,9 @@ class TestPluginRegistryLifecycle:
         """with load_plugins() as r: should close the VirusTotalPlugin on exit."""
         close_calls = []
 
-        with patch("vex.plugins.virustotal.VirusTotalPlugin.close",
-                   side_effect=lambda: close_calls.append(True)) as mock_close:
+        with patch(
+            "vex.plugins.virustotal.VirusTotalPlugin.close", side_effect=lambda: close_calls.append(True)
+        ) as mock_close:
             with load_plugins() as registry:
                 assert len(registry.plugins) >= 1
 
@@ -263,6 +270,7 @@ class TestPluginRegistryLifecycle:
 # ---------------------------------------------------------------------------
 # Task 2 — PluginRegistry: get_plugin
 # ---------------------------------------------------------------------------
+
 
 class TestPluginRegistryGetPlugin:
     def _make_plugin(self, types: list[str]) -> MagicMock:

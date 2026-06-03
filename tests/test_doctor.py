@@ -184,9 +184,7 @@ def test_probe_opencti_reachable():
     cfg = _full_config()
     cfg.ai.provider = "none"
     with patch("vex.doctor.httpx") as mock_httpx:
-        mock_httpx.post.return_value = _mock_response(
-            200, {"data": {"about": {"version": "6.2.1"}}}
-        )
+        mock_httpx.post.return_value = _mock_response(200, {"data": {"about": {"version": "6.2.1"}}})
         statuses = run_doctor(cfg, probe=True)
     octi = _by_name(statuses)["OpenCTI"]
     assert octi.reachable is True
@@ -221,9 +219,7 @@ def test_probe_opencti_uses_bearer_token_not_in_detail():
     cfg = _full_config()
     cfg.ai.provider = "none"
     with patch("vex.doctor.httpx") as mock_httpx:
-        mock_httpx.post.return_value = _mock_response(
-            200, {"data": {"about": {"version": "6.0"}}}
-        )
+        mock_httpx.post.return_value = _mock_response(200, {"data": {"about": {"version": "6.0"}}})
         run_doctor(cfg, probe=True)
         _, kwargs = mock_httpx.post.call_args
         assert kwargs["headers"]["Authorization"] == f"Bearer {OPENCTI_TOKEN}"
@@ -283,12 +279,8 @@ def test_probe_abuseipdb_and_shodan_not_probed():
 def test_secrets_never_in_any_detail_full_probe():
     cfg = _full_config()
     cfg.ai.provider = "ollama"
-    with patch("vex.doctor.httpx") as mock_httpx, patch(
-        "vex.ai.ollama.OllamaProvider.is_available", return_value=True
-    ):
+    with patch("vex.doctor.httpx") as mock_httpx, patch("vex.ai.ollama.OllamaProvider.is_available", return_value=True):
         mock_httpx.get.return_value = _mock_response(200, {"version": "2.4"})
-        mock_httpx.post.return_value = _mock_response(
-            200, {"data": {"about": {"version": "6.0"}}}
-        )
+        mock_httpx.post.return_value = _mock_response(200, {"data": {"about": {"version": "6.0"}}})
         statuses = run_doctor(cfg, probe=True)
     _assert_no_secrets(statuses)

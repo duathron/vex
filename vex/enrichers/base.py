@@ -5,13 +5,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from ..config import Config
 from ..models import (
     DetectionStats,
     EngineResult,
     RelatedFile,
     Verdict,
 )
-from ..config import Config
 
 
 def safe_timestamp(value: object) -> Optional[datetime]:
@@ -83,11 +83,13 @@ def extract_flagging_engines(results: dict[str, Any], limit: int = 10) -> list[E
     for engine, data in results.items():
         category = data.get("category", "")
         if category in ("malicious", "suspicious"):
-            flagging.append(EngineResult(
-                engine=engine,
-                category=category,
-                result=data.get("result"),
-            ))
+            flagging.append(
+                EngineResult(
+                    engine=engine,
+                    category=category,
+                    result=data.get("result"),
+                )
+            )
     return sorted(flagging, key=lambda e: e.category)[:limit]
 
 
@@ -98,9 +100,11 @@ def parse_related_files(data: list[dict[str, Any]]) -> list[RelatedFile]:
         stats = attrs.get("last_analysis_stats", {})
         mal = stats.get("malicious", 0)
         total = sum(stats.values()) if stats else 0
-        files.append(RelatedFile(
-            sha256=attrs.get("sha256", item.get("id", "")),
-            name=(attrs.get("names") or [None])[0],
-            detection_ratio=f"{mal}/{total}" if total else None,
-        ))
+        files.append(
+            RelatedFile(
+                sha256=attrs.get("sha256", item.get("id", "")),
+                name=(attrs.get("names") or [None])[0],
+                detection_ratio=f"{mal}/{total}" if total else None,
+            )
+        )
     return files

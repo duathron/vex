@@ -4,6 +4,7 @@ Hypothesis generates arbitrary inputs — the class of bug mock-based tests miss
 detect() must never crash, must honour its (IOCType, str) contract, and must
 never misclassify a filename (e.g. *.dll) as a domain.
 """
+
 from __future__ import annotations
 
 from hypothesis import given

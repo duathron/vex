@@ -11,7 +11,6 @@ import pytest
 
 from vex.knowledge.db import KnowledgeDB
 
-
 IOC = "8.8.8.8"
 IOC2 = "evil.com"
 
@@ -26,6 +25,7 @@ def db(tmp_path: Path) -> KnowledgeDB:
 # ---------------------------------------------------------------------------
 # Tags
 # ---------------------------------------------------------------------------
+
 
 class TestTags:
     def test_add_and_get_tag(self, db: KnowledgeDB) -> None:
@@ -75,6 +75,7 @@ class TestTags:
 # Notes
 # ---------------------------------------------------------------------------
 
+
 class TestNotes:
     def test_add_and_get_note(self, db: KnowledgeDB) -> None:
         db.add_note(IOC, "Suspicious outbound traffic")
@@ -119,6 +120,7 @@ class TestNotes:
 # ---------------------------------------------------------------------------
 # Watchlists
 # ---------------------------------------------------------------------------
+
 
 class TestWatchlists:
     def test_add_and_get_watchlist(self, db: KnowledgeDB) -> None:
@@ -176,6 +178,7 @@ class TestWatchlists:
 # ---------------------------------------------------------------------------
 # Context manager
 # ---------------------------------------------------------------------------
+
 
 class TestContextManager:
     def test_context_manager_enter_returns_db(self, tmp_path: Path) -> None:

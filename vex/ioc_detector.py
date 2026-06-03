@@ -22,9 +22,7 @@ _MD5_RE = re.compile(r"^[a-fA-F0-9]{32}$")
 _SHA1_RE = re.compile(r"^[a-fA-F0-9]{40}$")
 _SHA256_RE = re.compile(r"^[a-fA-F0-9]{64}$")
 
-_IPV4_RE = re.compile(
-    r"^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$"
-)
+_IPV4_RE = re.compile(r"^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$")
 _DOMAIN_RE = re.compile(
     r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)"
     r"+[a-zA-Z]{2,}$"
@@ -35,10 +33,31 @@ _URL_RE = re.compile(r"^https?://", re.IGNORECASE)
 # otherwise misread as a TLD (e.g. "wcdbcrk.dll"). None of these are real TLDs,
 # so a candidate ending in one is a filename, not a domain. Deliberately
 # conservative — real TLDs like .com, .app, .dev, .zip, .mov are NOT listed.
-_FILE_EXTENSIONS = frozenset({
-    "exe", "dll", "sys", "scr", "bat", "cmd", "ps1", "psm1", "vbs", "vbe",
-    "jse", "wsf", "hta", "msi", "lnk", "ocx", "cpl", "drv", "pif", "scf", "dmp",
-})
+_FILE_EXTENSIONS = frozenset(
+    {
+        "exe",
+        "dll",
+        "sys",
+        "scr",
+        "bat",
+        "cmd",
+        "ps1",
+        "psm1",
+        "vbs",
+        "vbe",
+        "jse",
+        "wsf",
+        "hta",
+        "msi",
+        "lnk",
+        "ocx",
+        "cpl",
+        "drv",
+        "pif",
+        "scf",
+        "dmp",
+    }
+)
 
 
 def detect(ioc: str) -> tuple[IOCType, str]:

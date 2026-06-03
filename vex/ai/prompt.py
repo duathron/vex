@@ -156,49 +156,34 @@ def build_explain_prompt(result: Union[TriageResult, InvestigateResult]) -> str:
     # Investigation-specific data
     if isinstance(result, InvestigateResult):
         if result.attack_mappings:
-            mappings = [
-                f"{m.technique_id} {m.technique_name} ({m.tactic})"
-                for m in result.attack_mappings[:10]
-            ]
+            mappings = [f"{m.technique_id} {m.technique_name} ({m.tactic})" for m in result.attack_mappings[:10]]
             sections.append(f"MITRE ATT&CK: {'; '.join(mappings)}")
 
         if result.sandbox_behaviors:
             sb = result.sandbox_behaviors[0]
             if sb.processes_created:
                 safe_procs = _safe_list(sb.processes_created[:5], "processes_created")
-                sections.append(
-                    f"Processes created: {', '.join(safe_procs)}"
-                )
+                sections.append(f"Processes created: {', '.join(safe_procs)}")
             if sb.dns_lookups:
                 # DNS names can be attacker-controlled; scan as free text.
                 safe_dns = _safe_list(sb.dns_lookups[:5], "dns_lookups")
-                sections.append(
-                    f"DNS lookups: {', '.join(safe_dns)}"
-                )
+                sections.append(f"DNS lookups: {', '.join(safe_dns)}")
             if sb.network_connections:
                 safe_net = _safe_list(sb.network_connections[:5], "network_connections")
-                sections.append(
-                    f"Network connections: {', '.join(safe_net)}"
-                )
+                sections.append(f"Network connections: {', '.join(safe_net)}")
             if sb.registry_keys_set:
                 safe_reg = _safe_list(sb.registry_keys_set[:5], "registry_keys_set")
-                sections.append(
-                    f"Registry keys: {', '.join(safe_reg)}"
-                )
+                sections.append(f"Registry keys: {', '.join(safe_reg)}")
 
         if result.contacted_ips:
             # IPs are IOC-like; skip encoded_payload check.
             safe_ips = _safe_list(result.contacted_ips[:5], "contacted_ips", is_ioc=True)
             sections.append(f"Contacted IPs: {', '.join(safe_ips)}")
         if result.contacted_domains:
-            safe_domains = _safe_list(
-                result.contacted_domains[:5], "contacted_domains", is_ioc=True
-            )
+            safe_domains = _safe_list(result.contacted_domains[:5], "contacted_domains", is_ioc=True)
             sections.append(f"Contacted domains: {', '.join(safe_domains)}")
         if result.asn:
-            sections.append(
-                f"ASN: AS{result.asn} {result.asn_owner or ''}"
-            )
+            sections.append(f"ASN: AS{result.asn} {result.asn_owner or ''}")
         if result.country:
             sections.append(f"Country: {result.country}")
         if result.whois and result.whois.registrar:
@@ -227,15 +212,12 @@ def build_correlation_prompt(cluster: "Cluster") -> str:
     detector = PromptInjectionDetector()
     # Member IOCs: scan as IOC fields (skip encoded_payload check for hashes/IPs).
     defanged_members = [
-        defang(detector.sanitize(m, field_name="cluster_member", is_ioc_field=True))
-        for m in cluster.members
+        defang(detector.sanitize(m, field_name="cluster_member", is_ioc_field=True)) for m in cluster.members
     ]
     members_str = ", ".join(defanged_members)
 
     # shared_attribute can be an attacker-influenced label — scan as free text.
-    safe_shared_attr = detector.sanitize(
-        cluster.shared_attribute, field_name="shared_attribute"
-    )
+    safe_shared_attr = detector.sanitize(cluster.shared_attribute, field_name="shared_attribute")
 
     sections: list[str] = [
         f"Cluster ID: {cluster.cluster_id}",

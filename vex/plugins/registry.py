@@ -31,9 +31,7 @@ class PluginRegistry:
     def register(self, plugin: EnricherProtocol) -> None:
         """Register an enricher plugin instance."""
         if not isinstance(plugin, EnricherProtocol):
-            raise TypeError(
-                f"Plugin must implement EnricherProtocol, got {type(plugin).__name__}"
-            )
+            raise TypeError(f"Plugin must implement EnricherProtocol, got {type(plugin).__name__}")
         self._plugins.append(plugin)
 
     def register_secondary(self, enricher: SecondaryEnricherProtocol) -> None:

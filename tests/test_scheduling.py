@@ -16,10 +16,10 @@ from vex.scheduling import (
     partition_by_cache,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers / Factories
 # ---------------------------------------------------------------------------
+
 
 def _make_config(tier: str = "free") -> Config:
     """Build a Config with the given tier, no filesystem side-effects."""
@@ -46,6 +46,7 @@ def _make_investigate_result(ioc: str = "1.2.3.4", from_cache: bool = False) -> 
 # ---------------------------------------------------------------------------
 # Part A — estimate_eta
 # ---------------------------------------------------------------------------
+
 
 class TestEstimateEta:
     def test_free_tier_small_n(self) -> None:
@@ -110,6 +111,7 @@ class TestEstimateEta:
 # Part B — count_cache_hits / format_batch_summary
 # ---------------------------------------------------------------------------
 
+
 class TestCountCacheHits:
     def test_all_fresh_triage(self) -> None:
         results = [_make_triage_result(from_cache=False) for _ in range(5)]
@@ -124,19 +126,17 @@ class TestCountCacheHits:
         assert cached == 5
 
     def test_mixed_triage(self) -> None:
-        results = (
-            [_make_triage_result(from_cache=True) for _ in range(3)]
-            + [_make_triage_result(from_cache=False) for _ in range(7)]
-        )
+        results = [_make_triage_result(from_cache=True) for _ in range(3)] + [
+            _make_triage_result(from_cache=False) for _ in range(7)
+        ]
         fresh, cached = count_cache_hits(results)
         assert fresh == 7
         assert cached == 3
 
     def test_mixed_investigate(self) -> None:
-        results = (
-            [_make_investigate_result(from_cache=True) for _ in range(2)]
-            + [_make_investigate_result(from_cache=False) for _ in range(3)]
-        )
+        results = [_make_investigate_result(from_cache=True) for _ in range(2)] + [
+            _make_investigate_result(from_cache=False) for _ in range(3)
+        ]
         fresh, cached = count_cache_hits(results)
         assert fresh == 3
         assert cached == 2
@@ -171,6 +171,7 @@ class TestFormatBatchSummary:
 # Part C — partition_by_cache
 # ---------------------------------------------------------------------------
 
+
 class FakeCache:
     """Minimal in-memory cache stub for partition tests."""
 
@@ -202,6 +203,7 @@ class TestPartitionByCache:
     def _cache_keys_for(self, iocs: list[str], mode: str) -> set[str]:
         """Compute the exact cache keys the partition helper would use."""
         from vex.ioc_detector import detect as _detect
+
         keys = set()
         for raw in iocs:
             ioc_type, norm = _detect(raw)
@@ -212,9 +214,7 @@ class TestPartitionByCache:
 
     def test_all_uncached_no_quota(self) -> None:
         cache = FakeCache(set())
-        cached, quota, skipped = partition_by_cache(
-            self._IPV4S, cache, "triage", False, None
-        )
+        cached, quota, skipped = partition_by_cache(self._IPV4S, cache, "triage", False, None)
         assert len(cached) == 0
         assert len(quota) == 10
         assert len(skipped) == 0
@@ -222,9 +222,7 @@ class TestPartitionByCache:
     def test_all_cached_no_quota(self) -> None:
         keys = self._cache_keys_for(self._IPV4S, "triage")
         cache = FakeCache(keys)
-        cached, quota, skipped = partition_by_cache(
-            self._IPV4S, cache, "triage", False, None
-        )
+        cached, quota, skipped = partition_by_cache(self._IPV4S, cache, "triage", False, None)
         assert len(cached) == 10
         assert len(quota) == 0
         assert len(skipped) == 0
@@ -233,9 +231,7 @@ class TestPartitionByCache:
         first_5 = self._IPV4S[:5]
         keys = self._cache_keys_for(first_5, "triage")
         cache = FakeCache(keys)
-        cached, quota, skipped = partition_by_cache(
-            self._IPV4S, cache, "triage", False, None
-        )
+        cached, quota, skipped = partition_by_cache(self._IPV4S, cache, "triage", False, None)
         assert len(cached) == 5
         assert len(quota) == 5
         assert len(skipped) == 0
@@ -245,9 +241,7 @@ class TestPartitionByCache:
     def test_max_quota_caps_uncached(self) -> None:
         """With 10 uncached IOCs and max_quota=3, only 3 get quota, 7 are skipped."""
         cache = FakeCache(set())
-        cached, quota, skipped = partition_by_cache(
-            self._IPV4S, cache, "triage", False, 3
-        )
+        cached, quota, skipped = partition_by_cache(self._IPV4S, cache, "triage", False, 3)
         assert len(cached) == 0
         assert len(quota) == 3
         assert len(skipped) == 7
@@ -257,9 +251,7 @@ class TestPartitionByCache:
         first_6 = self._IPV4S[:6]
         keys = self._cache_keys_for(first_6, "triage")
         cache = FakeCache(keys)
-        cached, quota, skipped = partition_by_cache(
-            self._IPV4S, cache, "triage", False, 2
-        )
+        cached, quota, skipped = partition_by_cache(self._IPV4S, cache, "triage", False, 2)
         # 6 cached, 2 out of 4 uncached go to quota, 2 skipped
         assert len(cached) == 6
         assert len(quota) == 2
@@ -267,9 +259,7 @@ class TestPartitionByCache:
 
     def test_max_quota_zero_skips_all_uncached(self) -> None:
         cache = FakeCache(set())
-        cached, quota, skipped = partition_by_cache(
-            self._IPV4S, cache, "triage", False, 0
-        )
+        cached, quota, skipped = partition_by_cache(self._IPV4S, cache, "triage", False, 0)
         assert len(cached) == 0
         assert len(quota) == 0
         assert len(skipped) == 10
@@ -277,9 +267,7 @@ class TestPartitionByCache:
     def test_max_quota_larger_than_uncached(self) -> None:
         """max_quota > uncached count → all uncached go to quota, none skipped."""
         cache = FakeCache(set())
-        cached, quota, skipped = partition_by_cache(
-            self._IPV4S, cache, "triage", False, 100
-        )
+        cached, quota, skipped = partition_by_cache(self._IPV4S, cache, "triage", False, 100)
         assert len(quota) == 10
         assert len(skipped) == 0
 
@@ -289,9 +277,7 @@ class TestPartitionByCache:
         """When no_cache=True, even keys that exist in cache are treated as uncached."""
         keys = self._cache_keys_for(self._IPV4S, "triage")
         cache = FakeCache(keys)
-        cached, quota, skipped = partition_by_cache(
-            self._IPV4S, cache, "triage", True, None
-        )
+        cached, quota, skipped = partition_by_cache(self._IPV4S, cache, "triage", True, None)
         # no_cache=True: nothing should appear as cached
         assert len(cached) == 0
         assert len(quota) == 10
@@ -300,9 +286,7 @@ class TestPartitionByCache:
         """With no_cache=True and max_quota=3, first 3 get quota, 7 skipped."""
         keys = self._cache_keys_for(self._IPV4S, "triage")
         cache = FakeCache(keys)
-        cached, quota, skipped = partition_by_cache(
-            self._IPV4S, cache, "triage", True, 3
-        )
+        cached, quota, skipped = partition_by_cache(self._IPV4S, cache, "triage", True, 3)
         assert len(cached) == 0
         assert len(quota) == 3
         assert len(skipped) == 7
@@ -313,6 +297,7 @@ class TestPartitionByCache:
         """partition_by_cache works correctly with mode='investigate'."""
         iocs = ["8.8.8.8"]
         from vex.ioc_detector import detect as _detect
+
         ioc_type, norm = _detect("8.8.8.8")
         key = f"investigate:{ioc_type.value}:{norm}"
         cache_hit = FakeCache({key})

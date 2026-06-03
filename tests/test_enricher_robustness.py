@@ -11,15 +11,15 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from vex.config import Config
-from vex.enrichers.base import _ts, parse_stats, safe_int, safe_timestamp
-from vex.enrichers.hash import _parse_pe_info
 from vex.enrichers import domain as domain_enricher
 from vex.enrichers import ip as ip_enricher
-
+from vex.enrichers.base import _ts, parse_stats, safe_int, safe_timestamp
+from vex.enrichers.hash import _parse_pe_info
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_config(malicious_min: int = 3, suspicious_min: int = 1, min_engines: int = 10) -> Config:
     cfg = Config()
@@ -68,6 +68,7 @@ def _domain_attrs(extra: dict | None = None) -> dict:
 # Finding 1 & hash ts_raw (Findings 1 & 3): safe_timestamp / _ts with bad input
 # ---------------------------------------------------------------------------
 
+
 class TestSafeTimestamp:
     def test_dict_returns_none(self):
         assert safe_timestamp({"nested": "junk"}) is None
@@ -90,6 +91,7 @@ class TestSafeTimestamp:
 
     def test_valid_int_returns_datetime(self):
         from datetime import datetime, timezone
+
         result = safe_timestamp(1609459200)  # 2021-01-01T00:00:00Z
         assert result is not None
         assert result == datetime(2021, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
@@ -99,7 +101,7 @@ class TestSafeTimestamp:
         assert result is not None
 
     def test_overflow_returns_none(self):
-        assert safe_timestamp(10 ** 20) is None
+        assert safe_timestamp(10**20) is None
 
 
 class TestTsWrapper:
@@ -123,6 +125,7 @@ class TestTsWrapper:
 # ---------------------------------------------------------------------------
 # Finding 2: parse_stats() with null/string values
 # ---------------------------------------------------------------------------
+
 
 class TestParseStats:
     def test_null_values_default_to_zero(self):
@@ -158,6 +161,7 @@ class TestParseStats:
 # Finding 3: hash.py ts_raw (pe timestamp as dict / non-numeric)
 # ---------------------------------------------------------------------------
 
+
 class TestHashPeTimestamp:
     def test_pe_timestamp_as_dict_no_crash(self):
         # Before fix: datetime.fromtimestamp({"ts": 0}) → TypeError not caught
@@ -190,6 +194,7 @@ class TestHashPeTimestamp:
 # (old: str(get("creation_date","")) → "" for a missing key, "None" for explicit null)
 # ---------------------------------------------------------------------------
 
+
 class TestDomainWhoisDates:
     """Missing or non-string WHOIS dates must pass through as None, not "" or "None"."""
 
@@ -221,12 +226,14 @@ class TestDomainWhoisDates:
         assert result.whois.updated_date is None
 
     def test_valid_string_date_preserved(self):
-        result = self._run_investigate({
-            "registrar": "ICANN",
-            "creation_date": "2000-01-01",
-            "expiration_date": "2030-01-01",
-            "updated_date": "2023-06-01",
-        })
+        result = self._run_investigate(
+            {
+                "registrar": "ICANN",
+                "creation_date": "2000-01-01",
+                "expiration_date": "2030-01-01",
+                "updated_date": "2023-06-01",
+            }
+        )
         assert result.whois.creation_date == "2000-01-01"
         assert result.whois.expiration_date == "2030-01-01"
         assert result.whois.updated_date == "2023-06-01"
@@ -240,6 +247,7 @@ class TestDomainWhoisDates:
 # ---------------------------------------------------------------------------
 # Finding 5: ip.py asn as non-numeric string
 # ---------------------------------------------------------------------------
+
 
 class TestIPAsnCoercion:
     def _run_investigate(self, extra_attrs: dict) -> object:
@@ -273,6 +281,7 @@ class TestIPAsnCoercion:
 # ---------------------------------------------------------------------------
 # Finding 6: hash.py exports_list as non-list
 # ---------------------------------------------------------------------------
+
 
 class TestExportsList:
     def test_exports_list_as_dict_returns_empty(self):
@@ -320,6 +329,7 @@ class TestExportsList:
 # ---------------------------------------------------------------------------
 # safe_int: direct unit tests
 # ---------------------------------------------------------------------------
+
 
 class TestSafeInt:
     def test_int_returned_as_is(self):

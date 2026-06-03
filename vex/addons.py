@@ -20,11 +20,11 @@ from typing import Optional
 class AddonInfo:
     """Status of a single optional addon package."""
 
-    name: str           # package import name (e.g. "anthropic")
-    group: str          # extras group (e.g. "ai")
-    description: str    # human-readable description
-    install_cmd: str    # pip install command for this addon
-    installed: bool     # whether the package is importable
+    name: str  # package import name (e.g. "anthropic")
+    group: str  # extras group (e.g. "ai")
+    description: str  # human-readable description
+    install_cmd: str  # pip install command for this addon
+    installed: bool  # whether the package is importable
     version: Optional[str] = None  # installed version string, or None
 
 
@@ -69,22 +69,23 @@ def get_addon_status() -> list[AddonInfo]:
         if installed:
             try:
                 import importlib.metadata as meta
+
                 version = meta.version(import_name)
             except Exception:
                 pass
-        results.append(AddonInfo(
-            name=import_name,
-            group=group,
-            description=description,
-            install_cmd=install_cmd,
-            installed=installed,
-            version=version,
-        ))
+        results.append(
+            AddonInfo(
+                name=import_name,
+                group=group,
+                description=description,
+                install_cmd=install_cmd,
+                installed=installed,
+                version=version,
+            )
+        )
     return results
 
 
 def any_ai_addon_installed() -> bool:
     """Return True if at least one AI provider package is installed."""
-    return any(
-        a.installed for a in get_addon_status() if a.group == "ai"
-    )
+    return any(a.installed for a in get_addon_status() if a.group == "ai")

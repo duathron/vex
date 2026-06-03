@@ -15,10 +15,10 @@ from vex.models import (
 )
 from vex.output.html import write_html_report
 
-
 # ---------------------------------------------------------------------------
 # Fixtures: minimal in-memory results
 # ---------------------------------------------------------------------------
+
 
 def _make_triage(ioc: str = "evil.com", verdict: Verdict = Verdict.MALICIOUS) -> TriageResult:
     return TriageResult(
@@ -55,6 +55,7 @@ def _make_investigate(ioc: str = "evil.com") -> InvestigateResult:
 # Basic existence and structure tests
 # ---------------------------------------------------------------------------
 
+
 class TestWriteHtmlReport:
     def test_creates_file(self, tmp_path) -> None:
         path = str(tmp_path / "report.html")
@@ -82,6 +83,7 @@ class TestWriteHtmlReport:
 # Defanging: domain IOC
 # ---------------------------------------------------------------------------
 
+
 class TestDefangingDomain:
     def test_domain_defanged_in_html(self, tmp_path) -> None:
         """The IOC 'evil.com' should appear defanged as 'evil[.]com' in the HTML."""
@@ -104,6 +106,7 @@ class TestDefangingDomain:
 # ---------------------------------------------------------------------------
 # Defanging: URL IOC
 # ---------------------------------------------------------------------------
+
 
 class TestDefangingURL:
     def test_url_defanged_in_html(self, tmp_path) -> None:
@@ -130,6 +133,7 @@ class TestDefangingURL:
 # ---------------------------------------------------------------------------
 # Batch list
 # ---------------------------------------------------------------------------
+
 
 class TestBatchList:
     def test_batch_two_triage(self, tmp_path) -> None:
@@ -161,6 +165,7 @@ class TestBatchList:
 # ---------------------------------------------------------------------------
 # Single InvestigateResult
 # ---------------------------------------------------------------------------
+
 
 class TestInvestigateResult:
     def test_investigate_creates_file(self, tmp_path) -> None:
@@ -203,6 +208,7 @@ class TestInvestigateResult:
 # ---------------------------------------------------------------------------
 # Mixed list (TriageResult and InvestigateResult together)
 # ---------------------------------------------------------------------------
+
 
 class TestMixedList:
     def test_mixed_triage_and_investigate(self, tmp_path) -> None:

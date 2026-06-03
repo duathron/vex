@@ -16,10 +16,10 @@ from vex.models import (
 )
 from vex.timeline import build_timeline
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_triage(
     ioc: str = "evil.com",
@@ -52,6 +52,7 @@ _T_LATE = datetime(2024, 1, 1, tzinfo=timezone.utc)
 # ---------------------------------------------------------------------------
 # Basic behaviour
 # ---------------------------------------------------------------------------
+
 
 class TestBuildTimelineBasic:
     def test_empty_result_produces_empty_timeline(self) -> None:
@@ -98,6 +99,7 @@ class TestBuildTimelineBasic:
 # Chronological ordering
 # ---------------------------------------------------------------------------
 
+
 class TestChronologicalOrder:
     def test_events_sorted_ascending(self) -> None:
         result = _make_result(
@@ -124,6 +126,7 @@ class TestChronologicalOrder:
 # Naive datetime treated as UTC
 # ---------------------------------------------------------------------------
 
+
 class TestNaiveDatetimeAsUTC:
     def test_naive_timestamp_becomes_utc_aware(self) -> None:
         naive_dt = datetime(2023, 3, 15, 12, 0, 0)  # no tzinfo
@@ -143,6 +146,7 @@ class TestNaiveDatetimeAsUTC:
 # ---------------------------------------------------------------------------
 # PE Info
 # ---------------------------------------------------------------------------
+
 
 class TestPEInfo:
     def test_pe_compilation_timestamp_produces_event(self) -> None:
@@ -175,6 +179,7 @@ class TestPEInfo:
 # ---------------------------------------------------------------------------
 # Signature info
 # ---------------------------------------------------------------------------
+
 
 class TestSignatureInfo:
     def test_signing_date_produces_signed_event(self) -> None:
@@ -209,6 +214,7 @@ class TestSignatureInfo:
 # ---------------------------------------------------------------------------
 # WHOIS
 # ---------------------------------------------------------------------------
+
 
 class TestWHOIS:
     def test_creation_date_produces_whois_event(self) -> None:
@@ -255,6 +261,7 @@ class TestWHOIS:
 # Passive DNS
 # ---------------------------------------------------------------------------
 
+
 class TestPassiveDNS:
     def test_passive_dns_record_produces_event(self) -> None:
         result = InvestigateResult(
@@ -297,6 +304,7 @@ class TestPassiveDNS:
 # ---------------------------------------------------------------------------
 # Sandbox behaviors
 # ---------------------------------------------------------------------------
+
 
 class TestSandboxBehaviors:
     def test_sandbox_with_dns_lookups_and_analysis_date_produces_event(self) -> None:
@@ -343,6 +351,7 @@ class TestSandboxBehaviors:
 # ---------------------------------------------------------------------------
 # Event field content
 # ---------------------------------------------------------------------------
+
 
 class TestEventFields:
     def test_first_seen_source_is_virustotal(self) -> None:

@@ -50,10 +50,7 @@ def estimate_eta(n_iocs: int, config: Config) -> str:
         else:
             duration = f"≤ {hours}h{mins:02d}m"
 
-    return (
-        f"{n_iocs} IOCs · tier: {tier_name} ({rpm} req/min) · "
-        f"est. {duration} (cache hits reduce this)"
-    )
+    return f"{n_iocs} IOCs · tier: {tier_name} ({rpm} req/min) · est. {duration} (cache hits reduce this)"
 
 
 # ---------------------------------------------------------------------------

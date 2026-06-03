@@ -17,6 +17,7 @@ from .models import InvestigateResult, TriageResult, Verdict
 # Data model
 # ---------------------------------------------------------------------------
 
+
 class Cluster(BaseModel):
     cluster_id: str
     attribute_type: str  # "asn" | "family" | "ip" | "domain" | "network"
@@ -30,6 +31,7 @@ class Cluster(BaseModel):
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _ioc_and_verdict(result: Union[TriageResult, InvestigateResult]) -> tuple[str, Verdict]:
     """Return (ioc_string, verdict) for either result type."""
@@ -105,6 +107,7 @@ def _max_verdict(verdicts: list[Verdict]) -> Verdict:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def build_clusters(
     results: list[Union[TriageResult, InvestigateResult]],
 ) -> list[Cluster]:
@@ -127,7 +130,7 @@ def build_clusters(
         ioc, verdict = _ioc_and_verdict(result)
         ioc_verdict[ioc] = verdict
 
-        for (attr_key, label) in _extract_attributes(result):
+        for attr_key, label in _extract_attributes(result):
             attr_members[attr_key].add(ioc)
             # Last-write wins for label; consistent because we iterate deterministically
             # and the label is derived from the attribute key anyway.

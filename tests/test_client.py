@@ -14,13 +14,13 @@ from unittest.mock import patch
 import httpx
 import pytest
 
-from vex.client import RateLimiter, VTClient, VT_BASE
+from vex.client import VT_BASE, RateLimiter, VTClient
 from vex.config import Config
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_config(api_key: str = "test-key-00000000") -> Config:
     cfg = Config()
@@ -71,6 +71,7 @@ def _make_client(config: Config, transport: httpx.MockTransport) -> VTClient:
 # ---------------------------------------------------------------------------
 # RateLimiter tests
 # ---------------------------------------------------------------------------
+
 
 class TestRateLimiter:
     def test_interval_calculation(self) -> None:
@@ -127,6 +128,7 @@ class TestRateLimiter:
 # VTClient._get — HTTP status handling
 # ---------------------------------------------------------------------------
 
+
 class TestVTClientGet:
     def test_200_returns_parsed_json(self) -> None:
         cfg = _make_config()
@@ -168,10 +170,12 @@ class TestVTClientGet:
         """On 429: sleep 60 s, retry, succeed on second attempt."""
         cfg = _make_config()
         payload = {"data": {"id": "abc"}}
-        transport = _SequenceTransport([
-            _status_response(429),
-            _json_response(payload),
-        ])
+        transport = _SequenceTransport(
+            [
+                _status_response(429),
+                _json_response(payload),
+            ]
+        )
         client = _make_client(cfg, transport)
         slept = []
         with patch("vex.client.time.sleep", side_effect=lambda d: slept.append(d)):
@@ -182,10 +186,12 @@ class TestVTClientGet:
     def test_429_twice_raises_runtime_error(self) -> None:
         """Two consecutive 429 responses must raise RuntimeError."""
         cfg = _make_config()
-        transport = _SequenceTransport([
-            _status_response(429),
-            _status_response(429),
-        ])
+        transport = _SequenceTransport(
+            [
+                _status_response(429),
+                _status_response(429),
+            ]
+        )
         client = _make_client(cfg, transport)
         with patch("vex.client.time.sleep"):
             with pytest.raises(RuntimeError, match="rate limit exceeded"):
@@ -195,6 +201,7 @@ class TestVTClientGet:
 # ---------------------------------------------------------------------------
 # VTClient — URL path construction
 # ---------------------------------------------------------------------------
+
 
 class TestVTClientPaths:
     def _last_request_path(self, transport: _SequenceTransport, idx: int = 0) -> str:
@@ -275,6 +282,7 @@ class TestVTClientPaths:
 # VTClient — get_url submit-and-poll path (cache miss)
 # ---------------------------------------------------------------------------
 
+
 class TestVTClientGetUrlSubmit:
     def test_get_url_submits_when_not_cached(self) -> None:
         """If GET /urls/{id} returns {}, POST + sleep + GET /analyses/{id}."""
@@ -319,6 +327,7 @@ class TestVTClientGetUrlSubmit:
 # ---------------------------------------------------------------------------
 # VTClient — context manager / close
 # ---------------------------------------------------------------------------
+
 
 class TestVTClientLifecycle:
     def test_context_manager_closes_http_client(self) -> None:

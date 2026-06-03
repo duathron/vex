@@ -14,8 +14,8 @@ from __future__ import annotations
 import json
 from typing import Optional, Union
 
-from ..models import ATTACKMapping, InvestigateResult, TriageResult
 from .. import __version__
+from ..models import ATTACKMapping, InvestigateResult, TriageResult
 
 # Mapping from vex tactic names (Title Case) to Navigator tactic IDs (lowercase hyphenated)
 _TACTIC_NORMALIZE: dict[str, str] = {
@@ -91,17 +91,19 @@ def to_navigator_layer(
         comment = ""
         if m.evidence:
             comment = m.evidence[:200]  # Navigator truncates long comments
-        techniques.append({
-            "techniqueID": m.technique_id,
-            "tactic": tactic_norm,
-            "score": 100,
-            "color": "",
-            "comment": comment,
-            "enabled": True,
-            "metadata": [],
-            "links": [],
-            "showSubtechniques": True,
-        })
+        techniques.append(
+            {
+                "techniqueID": m.technique_id,
+                "tactic": tactic_norm,
+                "score": 100,
+                "color": "",
+                "comment": comment,
+                "enabled": True,
+                "metadata": [],
+                "links": [],
+                "showSubtechniques": True,
+            }
+        )
 
     # Determine IOC string for metadata
     if not ioc:

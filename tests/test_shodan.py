@@ -12,14 +12,14 @@ import httpx
 
 from vex.config import Config, EnrichmentConfig
 from vex.enrichers.protocol import SecondaryEnricherProtocol
-from vex.models import InvestigateResult, TriageResult, Verdict, DetectionStats
-from vex.plugins.shodan import ShodanPlugin
+from vex.models import DetectionStats, InvestigateResult, TriageResult, Verdict
 from vex.plugins.loader import load_plugins
-
+from vex.plugins.shodan import ShodanPlugin
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_investigate_result(ioc: str = "1.2.3.4", ioc_type: str = "ipv4") -> InvestigateResult:
     """Build a minimal InvestigateResult with required nested TriageResult."""
@@ -57,6 +57,7 @@ _SAMPLE_PAYLOAD = {
 # Protocol compliance
 # ---------------------------------------------------------------------------
 
+
 class TestShodanProtocol:
     def test_implements_secondary_enricher_protocol(self):
         plugin = ShodanPlugin()
@@ -81,6 +82,7 @@ class TestShodanProtocol:
 # ---------------------------------------------------------------------------
 # No-key path: no network calls, no-op
 # ---------------------------------------------------------------------------
+
 
 class TestNoKeyPath:
     def test_no_key_returns_immediately_no_network(self, monkeypatch):
@@ -119,6 +121,7 @@ class TestNoKeyPath:
 # ---------------------------------------------------------------------------
 # Happy path: 200 response, fields populated
 # ---------------------------------------------------------------------------
+
 
 class TestHappyPath:
     def test_200_populates_all_fields(self, monkeypatch):
@@ -210,6 +213,7 @@ class TestHappyPath:
 # Fail-open: errors and non-200 responses
 # ---------------------------------------------------------------------------
 
+
 class TestFailOpen:
     def test_network_exception_does_not_raise(self, monkeypatch):
         """A network error must be swallowed — enrich must not raise."""
@@ -293,6 +297,7 @@ class TestFailOpen:
 # Registry integration
 # ---------------------------------------------------------------------------
 
+
 class TestRegistryIntegration:
     def test_get_secondary_ipv4_includes_shodan(self):
         """load_plugins() registry must include Shodan for ipv4."""
@@ -334,6 +339,7 @@ class TestRegistryIntegration:
 # ---------------------------------------------------------------------------
 # Config env-var override
 # ---------------------------------------------------------------------------
+
 
 class TestConfigEnvOverride:
     def test_env_var_beats_config_key(self, monkeypatch):

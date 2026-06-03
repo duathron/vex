@@ -60,10 +60,7 @@ def run_secondary_enrichers(
 
     workers = min(len(secondaries), _MAX_SECONDARY_WORKERS)
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {
-            pool.submit(_enrich_one, sec, result, ioc, ioc_type, config): sec
-            for sec in secondaries
-        }
+        futures = {pool.submit(_enrich_one, sec, result, ioc, ioc_type, config): sec for sec in secondaries}
         for future in concurrent.futures.as_completed(futures):
             # Exceptions are already swallowed inside _enrich_one;
             # calling result() here surfaces any unexpected propagation.

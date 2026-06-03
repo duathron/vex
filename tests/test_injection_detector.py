@@ -22,7 +22,6 @@ from vex.ai.injection_detector import (
     scan,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -66,12 +65,12 @@ class TestPatternDetection:
         assert "output_manipulation" in find_types(findings)
 
     def test_json_escape_sequence_detected(self) -> None:
-        value = r'hello\njust kiddingA'
+        value = r"hello\njust kiddingA"
         findings = detector().detect(value, "test_field")
         assert "json_escape_sequence" in find_types(findings)
 
     def test_json_escape_severity_warning(self) -> None:
-        value = r'prefix\nsome content'
+        value = r"prefix\nsome content"
         findings = detector().detect(value)
         warn = [f for f in findings if f.pattern_type == "json_escape_sequence"]
         assert warn and warn[0].severity == SeverityLevel.WARNING
@@ -259,6 +258,7 @@ class TestSanitize:
 
     def test_sanitize_field_name_in_log(self, caplog) -> None:
         import logging
+
         value = "$(whoami)"
         with caplog.at_level(logging.WARNING, logger="vex.ai.injection_detector"):
             detector().sanitize(value, "proc_field")

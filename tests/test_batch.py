@@ -27,10 +27,10 @@ from vex.models import (
 )
 from vex.plugins.registry import PluginRegistry
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_config() -> Config:
     cfg = Config()
@@ -95,6 +95,7 @@ def _make_fake_registry(
 # _process_single_triage unit tests
 # ---------------------------------------------------------------------------
 
+
 class TestProcessSingleTriage:
     def test_known_ioc_returns_triage_result(self, tmp_path: Path) -> None:
         cfg = _make_config()
@@ -132,14 +133,32 @@ class TestProcessSingleTriage:
         plugin = _make_fake_plugin()
         registry = _make_fake_registry(plugin=plugin)
         cached_data = {
-            "ioc": "1.2.3.4", "ioc_type": "ipv4", "verdict": "MALICIOUS",
-            "detection_stats": {"malicious": 5, "suspicious": 0, "undetected": 65,
-                                "harmless": 0, "timeout": 0, "type_unsupported": 0,
-                                "confirmed_timeout": 0, "failure": 0},
-            "malware_families": [], "categories": [], "tags": [],
-            "first_seen": None, "last_seen": None, "last_analysis_date": None,
-            "flagging_engines": [], "reputation": None, "from_cache": False,
-            "error": None, "local_tags": [], "local_notes": [], "watchlists": [],
+            "ioc": "1.2.3.4",
+            "ioc_type": "ipv4",
+            "verdict": "MALICIOUS",
+            "detection_stats": {
+                "malicious": 5,
+                "suspicious": 0,
+                "undetected": 65,
+                "harmless": 0,
+                "timeout": 0,
+                "type_unsupported": 0,
+                "confirmed_timeout": 0,
+                "failure": 0,
+            },
+            "malware_families": [],
+            "categories": [],
+            "tags": [],
+            "first_seen": None,
+            "last_seen": None,
+            "last_analysis_date": None,
+            "flagging_engines": [],
+            "reputation": None,
+            "from_cache": False,
+            "error": None,
+            "local_tags": [],
+            "local_notes": [],
+            "watchlists": [],
         }
         with Cache(tmp_path / "c.db", ttl_hours=24, enabled=True) as cache:
             cache.set("triage:ipv4:1.2.3.4", cached_data)
@@ -153,14 +172,32 @@ class TestProcessSingleTriage:
         plugin = _make_fake_plugin()
         registry = _make_fake_registry(plugin=plugin)
         cached_data = {
-            "ioc": "1.2.3.4", "ioc_type": "ipv4", "verdict": "CLEAN",
-            "detection_stats": {"malicious": 0, "suspicious": 0, "undetected": 70,
-                                "harmless": 0, "timeout": 0, "type_unsupported": 0,
-                                "confirmed_timeout": 0, "failure": 0},
-            "malware_families": [], "categories": [], "tags": [],
-            "first_seen": None, "last_seen": None, "last_analysis_date": None,
-            "flagging_engines": [], "reputation": None, "from_cache": False,
-            "error": None, "local_tags": [], "local_notes": [], "watchlists": [],
+            "ioc": "1.2.3.4",
+            "ioc_type": "ipv4",
+            "verdict": "CLEAN",
+            "detection_stats": {
+                "malicious": 0,
+                "suspicious": 0,
+                "undetected": 70,
+                "harmless": 0,
+                "timeout": 0,
+                "type_unsupported": 0,
+                "confirmed_timeout": 0,
+                "failure": 0,
+            },
+            "malware_families": [],
+            "categories": [],
+            "tags": [],
+            "first_seen": None,
+            "last_seen": None,
+            "last_analysis_date": None,
+            "flagging_engines": [],
+            "reputation": None,
+            "from_cache": False,
+            "error": None,
+            "local_tags": [],
+            "local_notes": [],
+            "watchlists": [],
         }
         with Cache(tmp_path / "c.db", ttl_hours=24, enabled=True) as cache:
             cache.set("triage:ipv4:1.2.3.4", cached_data)
@@ -175,6 +212,7 @@ class TestProcessSingleTriage:
 # ---------------------------------------------------------------------------
 # _process_single_investigate unit tests
 # ---------------------------------------------------------------------------
+
 
 class TestProcessSingleInvestigate:
     def test_known_ioc_returns_investigate_result(self, tmp_path: Path) -> None:
@@ -208,31 +246,78 @@ class TestProcessSingleInvestigate:
         registry = _make_fake_registry(plugin=plugin)
         cached_data = {
             "triage": {
-                "ioc": "1.2.3.4", "ioc_type": "ipv4", "verdict": "SUSPICIOUS",
-                "detection_stats": {"malicious": 1, "suspicious": 1, "undetected": 65,
-                                    "harmless": 0, "timeout": 0, "type_unsupported": 0,
-                                    "confirmed_timeout": 0, "failure": 0},
-                "malware_families": [], "categories": [], "tags": [],
-                "first_seen": None, "last_seen": None, "last_analysis_date": None,
-                "flagging_engines": [], "reputation": None, "from_cache": False,
-                "error": None, "local_tags": [], "local_notes": [], "watchlists": [],
+                "ioc": "1.2.3.4",
+                "ioc_type": "ipv4",
+                "verdict": "SUSPICIOUS",
+                "detection_stats": {
+                    "malicious": 1,
+                    "suspicious": 1,
+                    "undetected": 65,
+                    "harmless": 0,
+                    "timeout": 0,
+                    "type_unsupported": 0,
+                    "confirmed_timeout": 0,
+                    "failure": 0,
+                },
+                "malware_families": [],
+                "categories": [],
+                "tags": [],
+                "first_seen": None,
+                "last_seen": None,
+                "last_analysis_date": None,
+                "flagging_engines": [],
+                "reputation": None,
+                "from_cache": False,
+                "error": None,
+                "local_tags": [],
+                "local_notes": [],
+                "watchlists": [],
             },
             "attack_mappings": [],
-            "file_type": None, "file_size": None, "file_names": [],
-            "magic": None, "ssdeep": None, "tlsh": None,
-            "pe_info": None, "sandbox_behaviors": [],
-            "contacted_ips": [], "contacted_domains": [], "dropped_files": [],
-            "yara_hits": [], "signature_info": None,
-            "asn": None, "asn_owner": None, "country": None,
-            "continent": None, "network": None,
-            "abuse_confidence": None, "abuse_total_reports": None, "abuse_last_reported": None,
-            "shodan_ports": [], "shodan_hostnames": [], "shodan_org": None, "shodan_tags": [],
-            "misp_known": False, "misp_event_ids": [], "misp_tags": [], "misp_tlp": None,
-            "misp_last_seen": None, "opencti_known": False, "opencti_id": None,
-            "opencti_score": None, "opencti_labels": [], "opencti_tlp": None,
-            "passive_dns": [], "communicating_files": [], "downloaded_files": [],
-            "whois": None, "dns_records": [], "subdomains": [],
-            "final_url": None, "title": None, "related_files": [],
+            "file_type": None,
+            "file_size": None,
+            "file_names": [],
+            "magic": None,
+            "ssdeep": None,
+            "tlsh": None,
+            "pe_info": None,
+            "sandbox_behaviors": [],
+            "contacted_ips": [],
+            "contacted_domains": [],
+            "dropped_files": [],
+            "yara_hits": [],
+            "signature_info": None,
+            "asn": None,
+            "asn_owner": None,
+            "country": None,
+            "continent": None,
+            "network": None,
+            "abuse_confidence": None,
+            "abuse_total_reports": None,
+            "abuse_last_reported": None,
+            "shodan_ports": [],
+            "shodan_hostnames": [],
+            "shodan_org": None,
+            "shodan_tags": [],
+            "misp_known": False,
+            "misp_event_ids": [],
+            "misp_tags": [],
+            "misp_tlp": None,
+            "misp_last_seen": None,
+            "opencti_known": False,
+            "opencti_id": None,
+            "opencti_score": None,
+            "opencti_labels": [],
+            "opencti_tlp": None,
+            "passive_dns": [],
+            "communicating_files": [],
+            "downloaded_files": [],
+            "whois": None,
+            "dns_records": [],
+            "subdomains": [],
+            "final_url": None,
+            "title": None,
+            "related_files": [],
         }
         with Cache(tmp_path / "c.db", ttl_hours=24, enabled=True) as cache:
             cache.set("investigate:ipv4:1.2.3.4", cached_data)
@@ -269,6 +354,7 @@ class TestProcessSingleInvestigate:
 # ---------------------------------------------------------------------------
 # batch_triage — sequential path
 # ---------------------------------------------------------------------------
+
 
 class TestBatchTriageSequential:
     def _run(
@@ -321,6 +407,7 @@ class TestBatchTriageSequential:
 # batch_triage — thread-pool path (show_progress=False but max_workers>1)
 # ---------------------------------------------------------------------------
 
+
 class TestBatchTriageThreadPool:
     """The parallel path is exercised by patching show_progress path to use pool."""
 
@@ -344,9 +431,7 @@ class TestBatchTriageThreadPool:
                 mock_progress.__exit__ = MagicMock(return_value=False)
                 mock_progress.add_task.return_value = 0
                 mock_progress_cls.return_value = mock_progress
-                results, failed = batch_triage(
-                    iocs, cfg, no_cache=True, show_progress=True, max_workers=max_workers
-                )
+                results, failed = batch_triage(iocs, cfg, no_cache=True, show_progress=True, max_workers=max_workers)
         return results, failed
 
     def test_parallel_all_success(self, tmp_path: Path) -> None:
@@ -372,6 +457,7 @@ class TestBatchTriageThreadPool:
 # batch_triage — cache hit path
 # ---------------------------------------------------------------------------
 
+
 class TestBatchTriageCache:
     def test_cache_hit_served_without_plugin_call(self, tmp_path: Path) -> None:
         cfg = _make_config()
@@ -381,14 +467,32 @@ class TestBatchTriageCache:
         registry = _make_fake_registry(plugin=plugin)
 
         cached_data = {
-            "ioc": "1.2.3.4", "ioc_type": "ipv4", "verdict": "SUSPICIOUS",
-            "detection_stats": {"malicious": 1, "suspicious": 1, "undetected": 65,
-                                "harmless": 0, "timeout": 0, "type_unsupported": 0,
-                                "confirmed_timeout": 0, "failure": 0},
-            "malware_families": [], "categories": [], "tags": [],
-            "first_seen": None, "last_seen": None, "last_analysis_date": None,
-            "flagging_engines": [], "reputation": None, "from_cache": False,
-            "error": None, "local_tags": [], "local_notes": [], "watchlists": [],
+            "ioc": "1.2.3.4",
+            "ioc_type": "ipv4",
+            "verdict": "SUSPICIOUS",
+            "detection_stats": {
+                "malicious": 1,
+                "suspicious": 1,
+                "undetected": 65,
+                "harmless": 0,
+                "timeout": 0,
+                "type_unsupported": 0,
+                "confirmed_timeout": 0,
+                "failure": 0,
+            },
+            "malware_families": [],
+            "categories": [],
+            "tags": [],
+            "first_seen": None,
+            "last_seen": None,
+            "last_analysis_date": None,
+            "flagging_engines": [],
+            "reputation": None,
+            "from_cache": False,
+            "error": None,
+            "local_tags": [],
+            "local_notes": [],
+            "watchlists": [],
         }
 
         # Pre-populate cache
@@ -396,9 +500,7 @@ class TestBatchTriageCache:
             seed_cache.set("triage:ipv4:1.2.3.4", cached_data)
 
         with patch("vex.batch.load_plugins", return_value=registry):
-            results, failed = batch_triage(
-                ["1.2.3.4"], cfg, no_cache=False, show_progress=False
-            )
+            results, failed = batch_triage(["1.2.3.4"], cfg, no_cache=False, show_progress=False)
 
         assert failed == 0
         assert len(results) == 1
@@ -410,6 +512,7 @@ class TestBatchTriageCache:
 # ---------------------------------------------------------------------------
 # batch_investigate — sequential path
 # ---------------------------------------------------------------------------
+
 
 class TestBatchInvestigateSequential:
     def _run(
@@ -455,6 +558,7 @@ class TestBatchInvestigateSequential:
 # batch_investigate — thread-pool path
 # ---------------------------------------------------------------------------
 
+
 class TestBatchInvestigateThreadPool:
     def _run_parallel(
         self,
@@ -473,9 +577,7 @@ class TestBatchInvestigateThreadPool:
                 mock_progress.__exit__ = MagicMock(return_value=False)
                 mock_progress.add_task.return_value = 0
                 mock_progress_cls.return_value = mock_progress
-                results, failed = batch_investigate(
-                    iocs, cfg, no_cache=True, show_progress=True, max_workers=2
-                )
+                results, failed = batch_investigate(iocs, cfg, no_cache=True, show_progress=True, max_workers=2)
         return results, failed
 
     def test_parallel_all_success(self, tmp_path: Path) -> None:
@@ -501,6 +603,7 @@ class TestBatchInvestigateThreadPool:
 # batch_investigate — cache hit path
 # ---------------------------------------------------------------------------
 
+
 class TestBatchInvestigateCache:
     def test_cache_hit_served_without_plugin_call(self, tmp_path: Path) -> None:
         cfg = _make_config()
@@ -511,40 +614,85 @@ class TestBatchInvestigateCache:
 
         cached_data = {
             "triage": {
-                "ioc": "1.2.3.4", "ioc_type": "ipv4", "verdict": "MALICIOUS",
-                "detection_stats": {"malicious": 5, "suspicious": 0, "undetected": 65,
-                                    "harmless": 0, "timeout": 0, "type_unsupported": 0,
-                                    "confirmed_timeout": 0, "failure": 0},
-                "malware_families": [], "categories": [], "tags": [],
-                "first_seen": None, "last_seen": None, "last_analysis_date": None,
-                "flagging_engines": [], "reputation": None, "from_cache": False,
-                "error": None, "local_tags": [], "local_notes": [], "watchlists": [],
+                "ioc": "1.2.3.4",
+                "ioc_type": "ipv4",
+                "verdict": "MALICIOUS",
+                "detection_stats": {
+                    "malicious": 5,
+                    "suspicious": 0,
+                    "undetected": 65,
+                    "harmless": 0,
+                    "timeout": 0,
+                    "type_unsupported": 0,
+                    "confirmed_timeout": 0,
+                    "failure": 0,
+                },
+                "malware_families": [],
+                "categories": [],
+                "tags": [],
+                "first_seen": None,
+                "last_seen": None,
+                "last_analysis_date": None,
+                "flagging_engines": [],
+                "reputation": None,
+                "from_cache": False,
+                "error": None,
+                "local_tags": [],
+                "local_notes": [],
+                "watchlists": [],
             },
             "attack_mappings": [],
-            "file_type": None, "file_size": None, "file_names": [],
-            "magic": None, "ssdeep": None, "tlsh": None,
-            "pe_info": None, "sandbox_behaviors": [],
-            "contacted_ips": [], "contacted_domains": [], "dropped_files": [],
-            "yara_hits": [], "signature_info": None,
-            "asn": None, "asn_owner": None, "country": None,
-            "continent": None, "network": None,
-            "abuse_confidence": None, "abuse_total_reports": None, "abuse_last_reported": None,
-            "shodan_ports": [], "shodan_hostnames": [], "shodan_org": None, "shodan_tags": [],
-            "misp_known": False, "misp_event_ids": [], "misp_tags": [], "misp_tlp": None,
-            "misp_last_seen": None, "opencti_known": False, "opencti_id": None,
-            "opencti_score": None, "opencti_labels": [], "opencti_tlp": None,
-            "passive_dns": [], "communicating_files": [], "downloaded_files": [],
-            "whois": None, "dns_records": [], "subdomains": [],
-            "final_url": None, "title": None, "related_files": [],
+            "file_type": None,
+            "file_size": None,
+            "file_names": [],
+            "magic": None,
+            "ssdeep": None,
+            "tlsh": None,
+            "pe_info": None,
+            "sandbox_behaviors": [],
+            "contacted_ips": [],
+            "contacted_domains": [],
+            "dropped_files": [],
+            "yara_hits": [],
+            "signature_info": None,
+            "asn": None,
+            "asn_owner": None,
+            "country": None,
+            "continent": None,
+            "network": None,
+            "abuse_confidence": None,
+            "abuse_total_reports": None,
+            "abuse_last_reported": None,
+            "shodan_ports": [],
+            "shodan_hostnames": [],
+            "shodan_org": None,
+            "shodan_tags": [],
+            "misp_known": False,
+            "misp_event_ids": [],
+            "misp_tags": [],
+            "misp_tlp": None,
+            "misp_last_seen": None,
+            "opencti_known": False,
+            "opencti_id": None,
+            "opencti_score": None,
+            "opencti_labels": [],
+            "opencti_tlp": None,
+            "passive_dns": [],
+            "communicating_files": [],
+            "downloaded_files": [],
+            "whois": None,
+            "dns_records": [],
+            "subdomains": [],
+            "final_url": None,
+            "title": None,
+            "related_files": [],
         }
 
         with Cache(tmp_path / "c.db", ttl_hours=24, enabled=True) as seed_cache:
             seed_cache.set("investigate:ipv4:1.2.3.4", cached_data)
 
         with patch("vex.batch.load_plugins", return_value=registry):
-            results, failed = batch_investigate(
-                ["1.2.3.4"], cfg, no_cache=False, show_progress=False
-            )
+            results, failed = batch_investigate(["1.2.3.4"], cfg, no_cache=False, show_progress=False)
 
         assert failed == 0
         assert len(results) == 1

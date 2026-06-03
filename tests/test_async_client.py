@@ -33,9 +33,11 @@ _TEST_KEY = "test-api-key-1234"
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_config(requests_per_minute: int = 4) -> Config:
     """Build a minimal Config with a hard-coded API key and given RPM."""
-    from vex.config import RateLimitTier, RateLimits
+    from vex.config import RateLimits, RateLimitTier
+
     rate_limits = RateLimits(
         free=RateLimitTier(requests_per_minute=requests_per_minute, requests_per_day=500),
         premium=RateLimitTier(requests_per_minute=1000, requests_per_day=50000),
@@ -91,6 +93,7 @@ def _patch_sleep(monkeypatch: Any) -> _SleepRecorder:
 # AsyncRateLimiter
 # ---------------------------------------------------------------------------
 
+
 class TestAsyncRateLimiter:
     def test_interval_calculation(self) -> None:
         rl = AsyncRateLimiter(requests_per_minute=4)
@@ -145,6 +148,7 @@ class TestAsyncRateLimiter:
 # ---------------------------------------------------------------------------
 # AsyncVTClient — 200 OK paths
 # ---------------------------------------------------------------------------
+
 
 class TestAsyncVTClientOKPaths:
     def test_get_file_correct_path_and_returns_json(self, monkeypatch: Any) -> None:
@@ -257,6 +261,7 @@ class TestAsyncVTClientOKPaths:
 # AsyncVTClient — 404 → empty dict
 # ---------------------------------------------------------------------------
 
+
 class TestAsyncVTClient404:
     def test_get_file_404_returns_empty_dict(self, monkeypatch: Any) -> None:
         _patch_sleep(monkeypatch)
@@ -307,15 +312,18 @@ class TestAsyncVTClient404:
 # AsyncVTClient — 429 retry
 # ---------------------------------------------------------------------------
 
+
 class TestAsyncVTClient429Retry:
     def test_429_retries_once_and_returns_second_response(self, monkeypatch: Any) -> None:
         """On HTTP 429, _get must sleep and retry once; the second response is returned."""
         recorder = _patch_sleep(monkeypatch)
         payload = {"data": {"id": "retry-result"}}
-        handler = _seq_handler([
-            httpx.Response(429),
-            httpx.Response(200, json=payload),
-        ])
+        handler = _seq_handler(
+            [
+                httpx.Response(429),
+                httpx.Response(200, json=payload),
+            ]
+        )
         client = _make_client(handler)
 
         async def run():
@@ -330,10 +338,12 @@ class TestAsyncVTClient429Retry:
 
     def test_429_sleep_is_called_with_60s(self, monkeypatch: Any) -> None:
         recorder = _patch_sleep(monkeypatch)
-        handler = _seq_handler([
-            httpx.Response(429),
-            httpx.Response(200, json={}),
-        ])
+        handler = _seq_handler(
+            [
+                httpx.Response(429),
+                httpx.Response(200, json={}),
+            ]
+        )
         client = _make_client(handler)
 
         async def run():
@@ -347,6 +357,7 @@ class TestAsyncVTClient429Retry:
 # ---------------------------------------------------------------------------
 # AsyncVTClient — non-2xx raises
 # ---------------------------------------------------------------------------
+
 
 class TestAsyncVTClientErrorRaises:
     def test_500_raises_http_status_error(self, monkeypatch: Any) -> None:
@@ -390,6 +401,7 @@ class TestAsyncVTClientErrorRaises:
 # AsyncVTClient — lifecycle (close and context manager)
 # ---------------------------------------------------------------------------
 
+
 class TestAsyncVTClientLifecycle:
     def test_close_does_not_raise(self, monkeypatch: Any) -> None:
         _patch_sleep(monkeypatch)
@@ -408,9 +420,7 @@ class TestAsyncVTClientLifecycle:
             async with AsyncVTClient(cfg) as client:
                 # Replace transport after entering — __aenter__ just returns self
                 client._client = httpx.AsyncClient(
-                    transport=httpx.MockTransport(
-                        lambda _req: httpx.Response(200, json={"data": "ok"})
-                    ),
+                    transport=httpx.MockTransport(lambda _req: httpx.Response(200, json={"data": "ok"})),
                     base_url=_VT_BASE,
                 )
                 result = await client.get_file("abc123")
@@ -428,9 +438,7 @@ class TestAsyncVTClientLifecycle:
             cfg = _make_config()
             async with AsyncVTClient(cfg) as client:
                 client._client = httpx.AsyncClient(
-                    transport=httpx.MockTransport(
-                        lambda _req: httpx.Response(200, json={})
-                    ),
+                    transport=httpx.MockTransport(lambda _req: httpx.Response(200, json={})),
                     base_url=_VT_BASE,
                 )
             closed.append(client._client.is_closed)

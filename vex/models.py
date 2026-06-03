@@ -65,6 +65,7 @@ class EngineResult(BaseModel):
 
 # --- Triage result (minimal, all IOC types) ---
 
+
 class TriageResult(BaseModel):
     ioc: str
     ioc_type: str
@@ -89,6 +90,7 @@ class TriageResult(BaseModel):
 
 
 # --- Investigate results (extended, per IOC type) ---
+
 
 class PEInfo(BaseModel):
     compilation_timestamp: Optional[datetime] = None
@@ -137,6 +139,7 @@ class RelatedFile(BaseModel):
 
 class ATTACKMapping(BaseModel):
     """A single MITRE ATT&CK technique mapping."""
+
     technique_id: str
     technique_name: str
     tactic: str
@@ -145,6 +148,7 @@ class ATTACKMapping(BaseModel):
 
 class InvestigateResult(BaseModel):
     """Extended result for investigate mode - includes triage data + deep dive."""
+
     triage: TriageResult
     attack_mappings: list[ATTACKMapping] = Field(default_factory=list)
 
@@ -207,8 +211,10 @@ class InvestigateResult(BaseModel):
 
 # --- Timeline models ---
 
+
 class TimelineEvent(BaseModel):
     """A single dated event in the IOC's lifecycle."""
+
     timestamp: datetime
     event_type: str
     source: str
@@ -217,6 +223,7 @@ class TimelineEvent(BaseModel):
 
 class TimelineResult(BaseModel):
     """Chronological timeline reconstructed from investigate data."""
+
     ioc: str
     events: list[TimelineEvent] = Field(default_factory=list)
     earliest: Optional[datetime] = None

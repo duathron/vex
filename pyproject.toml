@@ -52,5 +52,8 @@ Homepage = "https://github.com/duathron/vex"
 Repository = "https://github.com/duathron/vex"
 "Bug Tracker" = "https://github.com/duathron/vex/issues"
 
+[tool.ruff]
+extend = "tooling/ruff-base.toml"
+
 [tool.setuptools.packages.find]
 include = ["vex*"]

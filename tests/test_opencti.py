@@ -12,14 +12,14 @@ import httpx
 
 from vex.config import Config, EnrichmentConfig
 from vex.enrichers.protocol import SecondaryEnricherProtocol
-from vex.models import InvestigateResult, TriageResult, Verdict, DetectionStats
+from vex.models import DetectionStats, InvestigateResult, TriageResult, Verdict
 from vex.plugins.loader import load_plugins
 from vex.plugins.opencti import OpenCTIEnricher
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_result(ioc: str = "evil.com", ioc_type: str = "domain") -> InvestigateResult:
     """Build a minimal InvestigateResult with required nested TriageResult."""
@@ -38,9 +38,7 @@ def _config_with_creds(
     verify_tls: bool = True,
 ) -> Config:
     cfg = Config()
-    cfg.enrichment = EnrichmentConfig(
-        opencti_url=url, opencti_token=token, opencti_verify_tls=verify_tls
-    )
+    cfg.enrichment = EnrichmentConfig(opencti_url=url, opencti_token=token, opencti_verify_tls=verify_tls)
     return cfg
 
 
@@ -52,9 +50,7 @@ def _config_no_url() -> Config:
 
 def _config_no_token() -> Config:
     cfg = Config()
-    cfg.enrichment = EnrichmentConfig(
-        opencti_url="https://opencti.example.com", opencti_token=None
-    )
+    cfg.enrichment = EnrichmentConfig(opencti_url="https://opencti.example.com", opencti_token=None)
     return cfg
 
 
@@ -93,18 +89,13 @@ _SAMPLE_RESPONSE = {
 }
 
 # Response with no matching observables
-_EMPTY_RESPONSE = {
-    "data": {
-        "stixCyberObservables": {
-            "edges": []
-        }
-    }
-}
+_EMPTY_RESPONSE = {"data": {"stixCyberObservables": {"edges": []}}}
 
 
 # ---------------------------------------------------------------------------
 # Protocol compliance
 # ---------------------------------------------------------------------------
+
 
 class TestOpenCTIProtocol:
     def test_implements_secondary_enricher_protocol(self):
@@ -125,6 +116,7 @@ class TestOpenCTIProtocol:
 # ---------------------------------------------------------------------------
 # No-config path: no network calls, no-op
 # ---------------------------------------------------------------------------
+
 
 class TestNoConfigPath:
     def test_no_url_returns_immediately_no_network(self, monkeypatch):
@@ -187,6 +179,7 @@ class TestNoConfigPath:
 # ---------------------------------------------------------------------------
 # Happy path: 200 with a matching observable → all fields populated
 # ---------------------------------------------------------------------------
+
 
 class TestHappyPath:
     def test_200_sets_opencti_known_true(self, monkeypatch):
@@ -264,9 +257,7 @@ class TestHappyPath:
         """Request must use /graphql endpoint, Bearer token, and correct GraphQL body."""
         enricher = OpenCTIEnricher()
         result = _make_result()
-        config = _config_with_creds(
-            url="https://opencti.corp.example", token="my-secret-token"
-        )
+        config = _config_with_creds(url="https://opencti.corp.example", token="my-secret-token")
 
         captured: dict = {}
 
@@ -316,6 +307,7 @@ class TestHappyPath:
 # ---------------------------------------------------------------------------
 # Not found: empty edges list → opencti_known stays False
 # ---------------------------------------------------------------------------
+
 
 class TestNotFound:
     def test_empty_edges_known_stays_false(self, monkeypatch):
@@ -368,6 +360,7 @@ class TestNotFound:
 # ---------------------------------------------------------------------------
 # Fail-open: errors, non-200, bad JSON, unexpected shape
 # ---------------------------------------------------------------------------
+
 
 class TestFailOpen:
     def test_connect_error_does_not_raise(self, monkeypatch):
@@ -448,15 +441,7 @@ class TestFailOpen:
         result = _make_result()
         config = _config_with_creds()
 
-        sparse_response = {
-            "data": {
-                "stixCyberObservables": {
-                    "edges": [
-                        {"node": {"id": "observable--sparse"}}
-                    ]
-                }
-            }
-        }
+        sparse_response = {"data": {"stixCyberObservables": {"edges": [{"node": {"id": "observable--sparse"}}]}}}
 
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -489,6 +474,7 @@ class TestFailOpen:
 # TLP precedence
 # ---------------------------------------------------------------------------
 
+
 class TestTLPPrecedence:
     def _response_with_markings(self, *definitions: str) -> dict:
         return {
@@ -500,9 +486,7 @@ class TestTLPPrecedence:
                                 "id": "observable--test",
                                 "observable_value": "evil.com",
                                 "objectLabel": [],
-                                "objectMarking": [
-                                    {"definition": d} for d in definitions
-                                ],
+                                "objectMarking": [{"definition": d} for d in definitions],
                                 "indicators": {"edges": []},
                             }
                         }
@@ -602,6 +586,7 @@ class TestTLPPrecedence:
 # verify flag
 # ---------------------------------------------------------------------------
 
+
 class TestVerifyFlag:
     def test_verify_true_passed_to_httpx(self, monkeypatch):
         enricher = OpenCTIEnricher()
@@ -646,6 +631,7 @@ class TestVerifyFlag:
 # Registry integration
 # ---------------------------------------------------------------------------
 
+
 class TestRegistryIntegration:
     def test_get_secondary_ipv4_includes_opencti(self):
         registry = load_plugins()
@@ -687,6 +673,7 @@ class TestRegistryIntegration:
 # All IOC types handled (no crash for any of the 7 types)
 # ---------------------------------------------------------------------------
 
+
 class TestAllIOCTypes:
     def test_all_seven_ioc_types_no_error(self, monkeypatch):
         """enrich must not raise for any of the 7 supported IOC types."""
@@ -717,6 +704,7 @@ class TestAllIOCTypes:
 # ---------------------------------------------------------------------------
 # Config env-var override
 # ---------------------------------------------------------------------------
+
 
 class TestConfigEnvOverride:
     def test_opencti_url_env_beats_config(self, monkeypatch):

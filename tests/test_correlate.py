@@ -11,7 +11,6 @@ from vex.models import (
     Verdict,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -62,6 +61,7 @@ def _investigate(
 # Basic cases
 # ---------------------------------------------------------------------------
 
+
 def test_empty_input_returns_empty_list() -> None:
     assert build_clusters([]) == []
 
@@ -81,6 +81,7 @@ def test_no_shared_attributes_returns_empty_list() -> None:
 # ---------------------------------------------------------------------------
 # ASN clustering
 # ---------------------------------------------------------------------------
+
 
 def test_shared_asn_produces_one_cluster() -> None:
     r1 = _investigate("1.1.1.1", ioc_type="ipv4", asn=13335, asn_owner="CLOUDFLARENET")
@@ -116,6 +117,7 @@ def test_different_asns_no_cluster() -> None:
 # Malware family clustering
 # ---------------------------------------------------------------------------
 
+
 def test_shared_family_cluster() -> None:
     r1 = _triage("hash1", ioc_type="sha256", verdict=Verdict.MALICIOUS, families=["Emotet"])
     r2 = _triage("hash2", ioc_type="sha256", verdict=Verdict.SUSPICIOUS, families=["emotet"])
@@ -147,6 +149,7 @@ def test_singleton_family_excluded() -> None:
 # Contacted IP clustering
 # ---------------------------------------------------------------------------
 
+
 def test_shared_contacted_ip_cluster() -> None:
     r1 = _investigate("a.com", contacted_ips=["192.168.1.1", "10.0.0.1"])
     r2 = _investigate("b.com", contacted_ips=["192.168.1.1", "172.16.0.1"])
@@ -169,6 +172,7 @@ def test_no_shared_contacted_ips_no_cluster() -> None:
 # Contacted domain clustering
 # ---------------------------------------------------------------------------
 
+
 def test_shared_contacted_domain_cluster() -> None:
     r1 = _investigate("hash1", contacted_domains=["c2.evil.com", "update.evil.com"])
     r2 = _investigate("hash2", contacted_domains=["c2.evil.com", "other.com"])
@@ -189,6 +193,7 @@ def test_contacted_domain_case_insensitive() -> None:
 # ---------------------------------------------------------------------------
 # Passive DNS clustering
 # ---------------------------------------------------------------------------
+
 
 def test_shared_passive_dns_ip() -> None:
     pdns1 = [PassiveDNSRecord(ip_address="5.5.5.5", hostname="ns1.evil.com")]
@@ -225,6 +230,7 @@ def test_passive_dns_none_fields_skipped() -> None:
 # Network CIDR clustering
 # ---------------------------------------------------------------------------
 
+
 def test_shared_network_cluster() -> None:
     r1 = _investigate("1.1.1.1", ioc_type="ipv4", network="1.1.1.0/24")
     r2 = _investigate("1.1.1.2", ioc_type="ipv4", network="1.1.1.0/24")
@@ -237,6 +243,7 @@ def test_shared_network_cluster() -> None:
 # ---------------------------------------------------------------------------
 # max_verdict
 # ---------------------------------------------------------------------------
+
 
 def test_max_verdict_picks_highest_severity() -> None:
     r1 = _triage("a.com", verdict=Verdict.CLEAN, families=["emotet"])
@@ -256,6 +263,7 @@ def test_max_verdict_suspicious_over_unknown() -> None:
 # ---------------------------------------------------------------------------
 # Deterministic ordering and stable cluster IDs
 # ---------------------------------------------------------------------------
+
 
 def test_cluster_ids_are_stable_across_calls() -> None:
     r1 = _investigate("a.com", asn=100, contacted_ips=["1.1.1.1"])
@@ -297,6 +305,7 @@ def test_cluster_ids_sequential() -> None:
 # Mixed list of TriageResult + InvestigateResult
 # ---------------------------------------------------------------------------
 
+
 def test_mixed_triage_and_investigate() -> None:
     """TriageResult and InvestigateResult can be in the same list."""
     t = _triage("hash1", families=["qakbot"])
@@ -321,6 +330,7 @@ def test_triage_only_exposes_family_attribute() -> None:
 # ---------------------------------------------------------------------------
 # Cluster model fields
 # ---------------------------------------------------------------------------
+
 
 def test_cluster_model_fields() -> None:
     r1 = _triage("a.com", families=["cobalt"])

@@ -60,9 +60,9 @@ def _render_investigate_to_console(
     to avoid duplicating rendering logic.  The only difference is that we target
     our recording console rather than the module-level one.
     """
+    from rich import box
     from rich.panel import Panel
     from rich.table import Table
-    from rich import box
 
     r = result
 
@@ -246,11 +246,11 @@ def _html_wrapper(body_html: str, title: str) -> str:
     ts = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     return (
         "<!DOCTYPE html>\n"
-        "<html lang=\"en\">\n"
+        '<html lang="en">\n'
         "<head>\n"
         f"<title>{title}</title>\n"
-        "<meta charset=\"utf-8\">\n"
-        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+        '<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         "<style>\n"
         "body { background: #1a1a1a; color: #e0e0e0; font-family: monospace; margin: 0; padding: 1rem; }\n"
         "header { margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #444; }\n"
@@ -264,7 +264,7 @@ def _html_wrapper(body_html: str, title: str) -> str:
         f"<h1>vex IOC Enrichment Report</h1>\n"
         f"<p>Generated: {ts} &mdash; IOC strings are defanged for safe sharing.</p>\n"
         "</header>\n"
-        "<div class=\"vex-body\">\n"
+        '<div class="vex-body">\n'
         f"{body_html}\n"
         "</div>\n"
         "</body>\n"
@@ -312,7 +312,7 @@ def write_html_report(
     body_start = rich_html.find("<body>")
     body_end = rich_html.find("</body>")
     if body_start != -1 and body_end != -1:
-        body_content = rich_html[body_start + len("<body>"):body_end].strip()
+        body_content = rich_html[body_start + len("<body>") : body_end].strip()
     else:
         # Fallback: use the full Rich HTML
         body_content = rich_html

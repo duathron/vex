@@ -43,6 +43,7 @@ def get_provider(config: Config) -> Optional[LLMProviderProtocol]:
                 "  Set ai.api_key in ~/.vex/config.yaml"
             )
         from .anthropic import ClaudeProvider
+
         return ClaudeProvider(api_key=key, model=ai.model)
 
     if provider_name == "openai":
@@ -54,13 +55,12 @@ def get_provider(config: Config) -> Optional[LLMProviderProtocol]:
                 "  Set ai.api_key in ~/.vex/config.yaml"
             )
         from .openai import OpenAIProvider
+
         return OpenAIProvider(api_key=key, model=ai.model)
 
     if provider_name == "ollama":
         from .ollama import OllamaProvider
+
         return OllamaProvider(model=ai.model, base_url=ai.base_url)
 
-    raise ValueError(
-        f"Unknown AI provider: '{provider_name}'. "
-        "Use: anthropic, openai, ollama, or none."
-    )
+    raise ValueError(f"Unknown AI provider: '{provider_name}'. Use: anthropic, openai, ollama, or none.")

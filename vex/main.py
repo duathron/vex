@@ -20,12 +20,9 @@ from .cache import Cache
 from .config import load_config, save_config
 from .defang import defang as defang_ioc
 from .ioc_detector import IOCType, detect
-from .plugins.loader import load_plugins
 from .mitre.mapper import map_to_attack
 from .models import InvestigateResult, TriageResult, Verdict
 from .output.export import to_csv_triage, to_json, to_json_list, to_json_list_with_clusters, to_ndjson
-from .output.html import write_html_report
-from .output.stix import to_stix_bundle
 from .output.formatter import (
     console,
     err_console,
@@ -43,6 +40,9 @@ from .output.formatter import (
     print_triage_console,
     print_triage_rich,
 )
+from .output.html import write_html_report
+from .output.stix import to_stix_bundle
+from .plugins.loader import load_plugins
 from .timeline import build_timeline
 
 # Exit code mapping (highest severity wins)
@@ -54,13 +54,14 @@ app = typer.Typer(
     add_completion=False,
     rich_markup_mode="rich",
     invoke_without_command=True,
-    epilog="[dim]Quick start:  vex config --set-api-key YOUR_VT_KEY  |  vex triage <ioc>  |  vex triage <ioc> --explain[/dim]",
+    epilog="[dim]Quick start:  vex config --set-api-key YOUR_VT_KEY  |  vex triage <ioc>  |  vex triage <ioc> --explain[/dim]",  # noqa: E501
 )
 
 
 # ---------------------------------------------------------------------------
 # App callback — banner + global options
 # ---------------------------------------------------------------------------
+
 
 @app.callback()
 def _app_callback(
@@ -136,50 +137,72 @@ _QuietOpt = Annotated[
 ]
 _ExplainOpt = Annotated[
     bool,
-    typer.Option("--explain", "-e", help="Add AI-powered threat explanation. Providers: anthropic, openai, ollama. Falls back to template if unconfigured. See 'vex manual ai' for setup."),
+    typer.Option(
+        "--explain",
+        "-e",
+        help="Add AI-powered threat explanation. Providers: anthropic, openai, ollama. Falls back to template if unconfigured. See 'vex manual ai' for setup.",  # noqa: E501
+    ),
 ]
 _ExplainModelOpt = Annotated[
     Optional[str],
-    typer.Option("--explain-model", help="Override AI model (e.g. claude-sonnet-4-20250514, gpt-4o, llama3). Requires provider in ~/.vex/config.yaml."),
+    typer.Option(
+        "--explain-model",
+        help="Override AI model (e.g. claude-sonnet-4-20250514, gpt-4o, llama3). Requires provider in ~/.vex/config.yaml.",  # noqa: E501
+    ),
 ]
 _FromBarbOpt = Annotated[
     bool,
-    typer.Option("--from-barb", help=(
-        "Read barb JSON from stdin and use URLs as IOCs. "
-        "Displays barb pre-scan verdict alongside VT enrichment. "
-        "Usage: barb analyze <url> -o json | vex triage --from-barb. "
-        "See 'vex manual pipeline'."
-    )),
+    typer.Option(
+        "--from-barb",
+        help=(
+            "Read barb JSON from stdin and use URLs as IOCs. "
+            "Displays barb pre-scan verdict alongside VT enrichment. "
+            "Usage: barb analyze <url> -o json | vex triage --from-barb. "
+            "See 'vex manual pipeline'."
+        ),
+    ),
 ]
 _FromSiftOpt = Annotated[
     bool,
-    typer.Option("--from-sift", help=(
-        "Read sift JSON (TriageReport) from stdin and enrich the IOCs it found. "
-        "Usage: sift triage alerts.json -o json | vex triage --from-sift. "
-        "See 'vex manual pipeline'."
-    )),
+    typer.Option(
+        "--from-sift",
+        help=(
+            "Read sift JSON (TriageReport) from stdin and enrich the IOCs it found. "
+            "Usage: sift triage alerts.json -o json | vex triage --from-sift. "
+            "See 'vex manual pipeline'."
+        ),
+    ),
 ]
 _NavigatorOpt = Annotated[
     bool,
-    typer.Option("--navigator", help=(
-        "Export ATT&CK Navigator layer JSON to stdout (investigate only). "
-        "Redirect to file: vex investigate <ioc> --navigator > layer.json"
-    )),
+    typer.Option(
+        "--navigator",
+        help=(
+            "Export ATT&CK Navigator layer JSON to stdout (investigate only). "
+            "Redirect to file: vex investigate <ioc> --navigator > layer.json"
+        ),
+    ),
 ]
 _CorrelateOpt = Annotated[
     bool,
-    typer.Option("--correlate", help=(
-        "Cluster batch IOCs by shared infrastructure (ASN, malware family, "
-        "contacted IPs/domains, passive DNS). Batch only; no-op for single IOC."
-    )),
+    typer.Option(
+        "--correlate",
+        help=(
+            "Cluster batch IOCs by shared infrastructure (ASN, malware family, "
+            "contacted IPs/domains, passive DNS). Batch only; no-op for single IOC."
+        ),
+    ),
 ]
 _HtmlOpt = Annotated[
     Optional[str],
-    typer.Option("--html", help=(
-        "Write a self-contained HTML report to this path. "
-        "IOC strings are defanged in the report. "
-        "Works alongside normal console/rich output."
-    )),
+    typer.Option(
+        "--html",
+        help=(
+            "Write a self-contained HTML report to this path. "
+            "IOC strings are defanged in the report. "
+            "Works alongside normal console/rich output."
+        ),
+    ),
 ]
 _NoDedupOpt = Annotated[
     bool,
@@ -187,7 +210,10 @@ _NoDedupOpt = Annotated[
 ]
 _MaxQuotaOpt = Annotated[
     Optional[int],
-    typer.Option("--max-quota", help="Cap the number of fresh API lookups this run. Cached IOCs are always served and do not count against the quota."),
+    typer.Option(
+        "--max-quota",
+        help="Cap the number of fresh API lookups this run. Cached IOCs are always served and do not count against the quota.",  # noqa: E501
+    ),
 ]
 
 
@@ -264,7 +290,9 @@ def _filter_by_alert(results: list[TriageResult], alert: Optional[str]) -> list[
     try:
         threshold = Verdict(alert.upper()).severity
     except ValueError:
-        err_console.print(f"[yellow]Warning:[/yellow] Invalid --alert value '{alert}'. Use CLEAN/UNKNOWN/SUSPICIOUS/MALICIOUS.")
+        err_console.print(
+            f"[yellow]Warning:[/yellow] Invalid --alert value '{alert}'. Use CLEAN/UNKNOWN/SUSPICIOUS/MALICIOUS."
+        )
         return results
     return [r for r in results if r.verdict.severity >= threshold]
 
@@ -276,7 +304,9 @@ def _filter_inv_by_alert(results: list[InvestigateResult], alert: Optional[str])
     try:
         threshold = Verdict(alert.upper()).severity
     except ValueError:
-        err_console.print(f"[yellow]Warning:[/yellow] Invalid --alert value '{alert}'. Use CLEAN/UNKNOWN/SUSPICIOUS/MALICIOUS.")
+        err_console.print(
+            f"[yellow]Warning:[/yellow] Invalid --alert value '{alert}'. Use CLEAN/UNKNOWN/SUSPICIOUS/MALICIOUS."
+        )
         return results
     return [r for r in results if r.triage.verdict.severity >= threshold]
 
@@ -410,14 +440,10 @@ def _run_correlation_explain(
                 cached = cache.get(provider.name, model_name, prompt)
                 if cached:
                     narrative = cached
-                    err_console.print(
-                        f"[dim]AI cluster narrative from cache ({provider.name})[/dim]"
-                    )
+                    err_console.print(f"[dim]AI cluster narrative from cache ({provider.name})[/dim]")
                 else:
                     try:
-                        err_console.print(
-                            f"[dim]→ Generating AI cluster narrative ({provider.name})...[/dim]"
-                        )
+                        err_console.print(f"[dim]→ Generating AI cluster narrative ({provider.name})...[/dim]")
                         narrative = provider.explain(
                             prompt,
                             system=get_system_prompt("correlation"),
@@ -426,12 +452,8 @@ def _run_correlation_explain(
                         )
                         cache.set(provider.name, model_name, prompt, narrative)
                     except Exception as e:
-                        err_console.print(
-                            f"[yellow]AI error ({provider.name}):[/yellow] {e}"
-                        )
-                        err_console.print(
-                            "[dim]Falling back to template-based cluster narrative.[/dim]"
-                        )
+                        err_console.print(f"[yellow]AI error ({provider.name}):[/yellow] {e}")
+                        err_console.print("[dim]Falling back to template-based cluster narrative.[/dim]")
                         narrative = template_correlation(cluster)
                         provider = None  # mark as fallback for display
             provider_name = provider.name if provider else "template"
@@ -450,12 +472,15 @@ def _run_correlation_explain(
             else:
                 title = f"[bold]AI Analysis[/bold] [dim]({provider_name}) — {cluster_label}[/dim]"
             from rich.panel import Panel
-            console.print(Panel(
-                narrative,
-                title=title,
-                border_style="cyan",
-                padding=(1, 2),
-            ))
+
+            console.print(
+                Panel(
+                    narrative,
+                    title=title,
+                    border_style="cyan",
+                    padding=(1, 2),
+                )
+            )
         elif output_fmt == OutputFormat.console:
             label = (
                 f"Template Analysis — {cluster_label}"
@@ -474,7 +499,11 @@ def _run_correlation_explain(
 # Subcommand: triage
 # ---------------------------------------------------------------------------
 
-@app.command(name="triage", help="[bold cyan]Fast SOC triage[/bold cyan] - detection ratio, verdict, families. Minimal API calls.")
+
+@app.command(
+    name="triage",
+    help="[bold cyan]Fast SOC triage[/bold cyan] - detection ratio, verdict, families. Minimal API calls.",
+)
 def cmd_triage(
     ioc: _IOCArg = None,
     file: _FileOpt = None,
@@ -515,6 +544,7 @@ def cmd_triage(
     barb_map: dict = {}
     if from_barb:
         from .pipeline.barb_bridge import parse_barb_json
+
         try:
             raw_barb = sys.stdin.read()
             barb_entries = parse_barb_json(raw_barb)
@@ -529,6 +559,7 @@ def cmd_triage(
             raise typer.Exit(code=1)
     elif from_sift:
         from .pipeline.sift_bridge import extract_iocs_from_sift
+
         try:
             raw_sift = sys.stdin.read()
             iocs = extract_iocs_from_sift(raw_sift)
@@ -546,7 +577,9 @@ def cmd_triage(
     if not no_dedup:
         iocs, removed = dedup_iocs(iocs)
         if removed:
-            err_console.print(f"[dim]Deduplicated: {len(iocs) + removed} IOCs → {len(iocs)} unique ({removed} removed)[/dim]")
+            err_console.print(
+                f"[dim]Deduplicated: {len(iocs) + removed} IOCs → {len(iocs)} unique ({removed} removed)[/dim]"
+            )
 
     try:
         config.api_key  # validate key exists before proceeding
@@ -568,7 +601,9 @@ def cmd_triage(
         # budget is set; otherwise skip the extra cache reads on the default path
         # (cache/fresh counts for Part B come from the results, not the pre-check).
         if max_quota is not None:
-            with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as pre_cache:
+            with Cache(
+                config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache
+            ) as pre_cache:
                 cached_iocs, quota_iocs, skipped_iocs = partition_by_cache(
                     iocs, pre_cache, "triage", no_cache, max_quota
                 )
@@ -588,9 +623,7 @@ def cmd_triage(
 
         # Part B: cache/fresh counters in the post-batch summary
         from_api, from_cache_count = count_cache_hits(results)
-        err_console.print(
-            f"[dim]{format_batch_summary(len(results), failed_count, from_api, from_cache_count)}[/dim]"
-        )
+        err_console.print(f"[dim]{format_batch_summary(len(results), failed_count, from_api, from_cache_count)}[/dim]")
     else:
         with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
             with load_plugins() as registry:
@@ -598,7 +631,9 @@ def cmd_triage(
                     ioc_type, normalised_ioc = detect(raw_ioc)
 
                     if ioc_type == IOCType.UNKNOWN:
-                        err_console.print(f"[yellow]Warning:[/yellow] Cannot detect IOC type for '{raw_ioc}' - skipping.")
+                        err_console.print(
+                            f"[yellow]Warning:[/yellow] Cannot detect IOC type for '{raw_ioc}' - skipping."
+                        )
                         failed_count += 1
                         continue
 
@@ -611,7 +646,9 @@ def cmd_triage(
                     else:
                         plugin = registry.get_plugin(ioc_type.value)
                         if plugin is None:
-                            err_console.print(f"[yellow]Warning:[/yellow] No plugin for IOC type '{ioc_type.value}' - skipping.")
+                            err_console.print(
+                                f"[yellow]Warning:[/yellow] No plugin for IOC type '{ioc_type.value}' - skipping."
+                            )
                             failed_count += 1
                             continue
                         if output in (OutputFormat.rich, OutputFormat.console):
@@ -640,7 +677,9 @@ def cmd_triage(
     pre_filter_count = len(results)
     results = _filter_by_alert(results, alert)
     if alert and not results and pre_filter_count > 0:
-        err_console.print(f"[dim]No IOCs matched alert threshold {alert.upper()} ({pre_filter_count} below threshold)[/dim]")
+        err_console.print(
+            f"[dim]No IOCs matched alert threshold {alert.upper()} ({pre_filter_count} below threshold)[/dim]"
+        )
 
     # Summary to stderr
     if summary:
@@ -654,6 +693,7 @@ def cmd_triage(
     triage_clusters: list = []
     if correlate and len(results) > 1:
         from .correlate import build_clusters
+
         triage_clusters = build_clusters(results)
 
     # Output results
@@ -669,7 +709,9 @@ def cmd_triage(
         # Emit cluster objects as additional NDJSON lines with _type discriminator
         if triage_clusters:
             import json as _json
+
             from .output.export import _cluster_to_dict
+
             for cl in triage_clusters:
                 d = _cluster_to_dict(cl)
                 d["_type"] = "cluster"
@@ -684,6 +726,7 @@ def cmd_triage(
         elif from_barb and barb_map:
             # Inject barb_context into JSON output
             import json as _json
+
             out = []
             for r in results:
                 d = r.model_dump(mode="json")
@@ -725,7 +768,11 @@ def cmd_triage(
 # Subcommand: investigate
 # ---------------------------------------------------------------------------
 
-@app.command(name="investigate", help="[bold magenta]Deep DFIR investigation[/bold magenta] - PE info, sandbox, passive DNS, relationships.")
+
+@app.command(
+    name="investigate",
+    help="[bold magenta]Deep DFIR investigation[/bold magenta] - PE info, sandbox, passive DNS, relationships.",
+)
 def cmd_investigate(
     ioc: _IOCArg = None,
     file: _FileOpt = None,
@@ -767,6 +814,7 @@ def cmd_investigate(
     barb_map: dict = {}
     if from_barb:
         from .pipeline.barb_bridge import parse_barb_json
+
         try:
             raw_barb = sys.stdin.read()
             barb_entries = parse_barb_json(raw_barb)
@@ -781,6 +829,7 @@ def cmd_investigate(
             raise typer.Exit(code=1)
     elif from_sift:
         from .pipeline.sift_bridge import extract_iocs_from_sift
+
         try:
             raw_sift = sys.stdin.read()
             iocs = extract_iocs_from_sift(raw_sift)
@@ -798,7 +847,9 @@ def cmd_investigate(
     if not no_dedup:
         iocs, removed = dedup_iocs(iocs)
         if removed:
-            err_console.print(f"[dim]Deduplicated: {len(iocs) + removed} IOCs → {len(iocs)} unique ({removed} removed)[/dim]")
+            err_console.print(
+                f"[dim]Deduplicated: {len(iocs) + removed} IOCs → {len(iocs)} unique ({removed} removed)[/dim]"
+            )
 
     try:
         config.api_key  # validate key exists before proceeding
@@ -820,7 +871,9 @@ def cmd_investigate(
         # budget is set; otherwise skip the extra cache reads on the default path
         # (cache/fresh counts for Part B come from the results, not the pre-check).
         if max_quota is not None:
-            with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as pre_cache:
+            with Cache(
+                config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache
+            ) as pre_cache:
                 cached_iocs, quota_iocs, skipped_iocs = partition_by_cache(
                     iocs, pre_cache, "investigate", no_cache, max_quota
                 )
@@ -840,9 +893,7 @@ def cmd_investigate(
 
         # Part B: cache/fresh counters in the post-batch summary
         from_api, from_cache_count = count_cache_hits(results)
-        err_console.print(
-            f"[dim]{format_batch_summary(len(results), failed_count, from_api, from_cache_count)}[/dim]"
-        )
+        err_console.print(f"[dim]{format_batch_summary(len(results), failed_count, from_api, from_cache_count)}[/dim]")
     else:
         with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
             with load_plugins() as registry:
@@ -850,7 +901,9 @@ def cmd_investigate(
                     ioc_type, normalised_ioc = detect(raw_ioc)
 
                     if ioc_type == IOCType.UNKNOWN:
-                        err_console.print(f"[yellow]Warning:[/yellow] Cannot detect IOC type for '{raw_ioc}' - skipping.")
+                        err_console.print(
+                            f"[yellow]Warning:[/yellow] Cannot detect IOC type for '{raw_ioc}' - skipping."
+                        )
                         failed_count += 1
                         continue
 
@@ -863,7 +916,9 @@ def cmd_investigate(
                     else:
                         plugin = registry.get_plugin(ioc_type.value)
                         if plugin is None:
-                            err_console.print(f"[yellow]Warning:[/yellow] No plugin for IOC type '{ioc_type.value}' - skipping.")
+                            err_console.print(
+                                f"[yellow]Warning:[/yellow] No plugin for IOC type '{ioc_type.value}' - skipping."
+                            )
                             failed_count += 1
                             continue
                         if output in (OutputFormat.rich, OutputFormat.console):
@@ -874,6 +929,7 @@ def cmd_investigate(
                             result.attack_mappings = map_to_attack(result)
                             # Secondary enrichers — run in parallel, fail-open per enricher
                             from .batch import run_secondary_enrichers  # noqa: PLC0415
+
                             run_secondary_enrichers(
                                 result,
                                 normalised_ioc,
@@ -897,15 +953,15 @@ def cmd_investigate(
         results = [_maybe_defang_inv(r, True) for r in results]
 
     # Compute exit code from highest severity BEFORE filtering
-    exit_code = _EXIT_CODES.get(
-        max((r.triage.verdict.severity for r in results), default=0), 0
-    )
+    exit_code = _EXIT_CODES.get(max((r.triage.verdict.severity for r in results), default=0), 0)
 
     # Filter by alert threshold
     pre_filter_count = len(results)
     results = _filter_inv_by_alert(results, alert)
     if alert and not results and pre_filter_count > 0:
-        err_console.print(f"[dim]No IOCs matched alert threshold {alert.upper()} ({pre_filter_count} below threshold)[/dim]")
+        err_console.print(
+            f"[dim]No IOCs matched alert threshold {alert.upper()} ({pre_filter_count} below threshold)[/dim]"
+        )
 
     # Summary to stderr
     if summary:
@@ -918,6 +974,7 @@ def cmd_investigate(
     # ATT&CK Navigator export (exclusive — skips all other output)
     if navigator:
         from .output.navigator import to_navigator_layer
+
         sys.stdout.write(to_navigator_layer(results, ioc=iocs[0] if iocs else None))
         sys.stdout.write("\n")
         raise typer.Exit(code=exit_code)
@@ -926,6 +983,7 @@ def cmd_investigate(
     inv_clusters: list = []
     if correlate and len(results) > 1:
         from .correlate import build_clusters
+
         inv_clusters = build_clusters(results)
 
     # Output results
@@ -939,7 +997,9 @@ def cmd_investigate(
         # Emit cluster objects as additional NDJSON lines with _type discriminator
         if inv_clusters:
             import json as _json
+
             from .output.export import _cluster_to_dict
+
             for cl in inv_clusters:
                 d = _cluster_to_dict(cl)
                 d["_type"] = "cluster"
@@ -993,6 +1053,7 @@ def cmd_investigate(
 # Utility commands
 # ---------------------------------------------------------------------------
 
+
 @app.command(name="cache-clear", help="Clear all cached results.")
 def cmd_cache_clear(config_path: _ConfigOpt = None) -> None:
     config = load_config(config_path)
@@ -1013,6 +1074,7 @@ def cmd_version() -> None:
         console.print(f"[dim]Plugins: {', '.join(names)}[/dim]")
     try:
         from .version_check import check_for_update
+
         latest = check_for_update(check_interval_hours=24)
         if latest:
             console.print(f"  [yellow]Latest: {latest}[/yellow] [dim](update available)[/dim]")
@@ -1020,12 +1082,15 @@ def cmd_version() -> None:
         pass
 
 
-@app.command(name="addons", help="[bold green]Show available addons[/bold green] — AI providers, extras, installation status.")
+@app.command(
+    name="addons", help="[bold green]Show available addons[/bold green] — AI providers, extras, installation status."
+)
 def cmd_addons() -> None:
     """Display all optional vex addons and their installation status."""
-    from .addons import get_addon_status
-    from rich.table import Table
     from rich import box
+    from rich.table import Table
+
+    from .addons import get_addon_status
 
     addons = get_addon_status()
     t = Table(title="vex addons", box=box.ROUNDED)
@@ -1087,9 +1152,7 @@ def cmd_doctor(
     statuses = run_doctor(config, probe=probe)
 
     if output.lower() == "json":
-        console.print(
-            _json.dumps([s.model_dump() for s in statuses], indent=2)
-        )
+        console.print(_json.dumps([s.model_dump() for s in statuses], indent=2))
         return
 
     def _bool_mark(value: Optional[bool]) -> str:
@@ -1117,13 +1180,12 @@ def cmd_doctor(
     console.print(t)
     console.print()
     if not probe:
-        console.print(
-            "[dim]Config-only check (no network). "
-            "Run 'vex doctor --probe' to test live connectivity.[/dim]"
-        )
+        console.print("[dim]Config-only check (no network). Run 'vex doctor --probe' to test live connectivity.[/dim]")
 
 
-@app.command(name="config", help="[bold blue]Manage configuration[/bold blue] - save API key, AI provider, show settings.")
+@app.command(
+    name="config", help="[bold blue]Manage configuration[/bold blue] - save API key, AI provider, show settings."
+)
 def cmd_config(
     set_api_key: Annotated[
         Optional[str],
@@ -1161,7 +1223,9 @@ def cmd_config(
         path = save_config(config)
         console.print(f"[green]✓[/green] AI provider set to [bold]{set_ai_provider.lower()}[/bold] in {path}")
         if set_ai_provider.lower() in ("anthropic", "openai") and not config.ai_api_key:
-            console.print("[yellow]Note:[/yellow] Set the AI API key with [bold]--set-ai-key[/bold] or [bold]VEX_AI_API_KEY[/bold] env var.")
+            console.print(
+                "[yellow]Note:[/yellow] Set the AI API key with [bold]--set-ai-key[/bold] or [bold]VEX_AI_API_KEY[/bold] env var."  # noqa: E501
+            )
         if set_ai_provider.lower() in ("anthropic", "openai"):
             console.print(r"[dim]Install AI packages: pip install vex-ioc\[ai][/dim]")
 
@@ -1186,8 +1250,9 @@ def cmd_config(
 def _show_config(config) -> None:
     """Display active config with masked secrets."""
     import os
-    from rich.table import Table
+
     from rich import box
+    from rich.table import Table
 
     def mask(val: Optional[str]) -> str:
         if not val:
@@ -1204,7 +1269,10 @@ def _show_config(config) -> None:
     t.add_row("api.key (config)", mask(config.api.key))
     t.add_row("api.key (env VT_API_KEY)", mask(os.getenv("VT_API_KEY")))
     t.add_row("api.tier", config.api.tier)
-    t.add_row("api.rate_limit", f"{config.rate_limit.requests_per_minute} req/min, {config.rate_limit.requests_per_day} req/day")
+    t.add_row(
+        "api.rate_limit",
+        f"{config.rate_limit.requests_per_minute} req/min, {config.rate_limit.requests_per_day} req/day",
+    )
 
     # Thresholds
     t.add_row("thresholds.malicious_min", str(config.thresholds.malicious_min_detections))
@@ -1252,6 +1320,7 @@ def _show_config(config) -> None:
 
     # Addon status
     from .addons import get_addon_status
+
     addons = get_addon_status()
     addon_t = Table(title="Addons", box=box.ROUNDED)
     addon_t.add_column("Package", style="cyan")
@@ -1337,7 +1406,6 @@ The [bold]--explain[/bold] flag is strictly opt-in — it is never active by def
   template-based explanation from enrichment data. No external calls.
   This ensures --explain always produces useful output.
 """,
-
     "config": """\
 [bold cyan]CONFIGURATION REFERENCE[/bold cyan]
 
@@ -1371,7 +1439,6 @@ vex reads configuration from multiple sources (priority order):
   VEX_AI_API_KEY     AI provider API key
   VEX_AI_PROVIDER    AI provider name
 """,
-
     "examples": """\
 [bold cyan]USAGE EXAMPLES[/bold cyan]
 
@@ -1413,7 +1480,6 @@ vex reads configuration from multiple sources (priority order):
   [green]vex triage <ioc> && echo "clean" || echo "alert"[/green]
   Exit 0 = clean/unknown, 1 = suspicious, 2 = malicious, 3 = error
 """,
-
     "pipeline": r"""\
 [bold cyan]vex PIPELINE — barb → vex → sift[/bold cyan]
 
@@ -1482,7 +1548,6 @@ consumes vex output AND feeds the IOCs it found back for enrichment — the
   sift turns a flood of alerts into prioritized clusters, and --from-sift
   enriches the IOCs inside them in one pass.
 """,
-
     "addons": r"""\
 [bold cyan]ADDONS & EXTRAS[/bold cyan]
 
@@ -1526,7 +1591,9 @@ STIX 2.1, barb pipeline). Optional extras enable additional capabilities.
 }
 
 
-@app.command(name="manual", help="[bold blue]Show usage guide[/bold blue] — setup, AI, config, addons, pipeline, examples.")
+@app.command(
+    name="manual", help="[bold blue]Show usage guide[/bold blue] — setup, AI, config, addons, pipeline, examples."
+)
 def cmd_manual(
     topic: Annotated[
         Optional[str],
@@ -1569,6 +1636,7 @@ def cmd_manual(
 # Knowledge base commands
 # ---------------------------------------------------------------------------
 
+
 @app.command(name="tag", help="[bold green]Manage IOC tags[/bold green] in the local knowledge base.")
 def cmd_tag(
     ioc: Annotated[str, typer.Argument(help="IOC to tag.")],
@@ -1576,6 +1644,7 @@ def cmd_tag(
     remove: Annotated[Optional[list[str]], typer.Option("--remove", "-r", help="Tag(s) to remove.")] = None,
 ) -> None:
     from .knowledge.db import KnowledgeDB
+
     with KnowledgeDB() as db:
         if add:
             for t in add:
@@ -1599,6 +1668,7 @@ def cmd_note(
     delete_id: Annotated[Optional[int], typer.Option("--delete", "-d", help="Note ID to delete.")] = None,
 ) -> None:
     from .knowledge.db import KnowledgeDB
+
     with KnowledgeDB() as db:
         if add:
             nid = db.add_note(ioc, add)
@@ -1623,6 +1693,7 @@ def cmd_watchlist(
     show: Annotated[bool, typer.Option("--list", "-l", help="List all IOCs in this watchlist.")] = False,
 ) -> None:
     from .knowledge.db import KnowledgeDB
+
     with KnowledgeDB() as db:
         if add:
             for ioc in add:

@@ -26,12 +26,16 @@ def _fetch_url(ioc: str, client: VTClient) -> dict[str, Any]:
     return client.get_url(ioc)
 
 
-def triage(ioc: str, ioc_type: str, client: VTClient, config: Config, from_cache: bool = False, _prefetched: dict | None = None) -> TriageResult:
+def triage(
+    ioc: str, ioc_type: str, client: VTClient, config: Config, from_cache: bool = False, _prefetched: dict | None = None
+) -> TriageResult:
     raw = _prefetched if _prefetched is not None else _fetch_url(ioc, client)
 
     if not raw:
         return TriageResult(
-            ioc=ioc, ioc_type=ioc_type, verdict=Verdict.UNKNOWN,
+            ioc=ioc,
+            ioc_type=ioc_type,
+            verdict=Verdict.UNKNOWN,
             detection_stats=parse_stats({}),
             error="Not found or analysis pending in VirusTotal",
             from_cache=from_cache,
@@ -76,7 +80,9 @@ def triage(ioc: str, ioc_type: str, client: VTClient, config: Config, from_cache
     )
 
 
-def investigate(ioc: str, ioc_type: str, client: VTClient, config: Config, from_cache: bool = False) -> InvestigateResult:
+def investigate(
+    ioc: str, ioc_type: str, client: VTClient, config: Config, from_cache: bool = False
+) -> InvestigateResult:
     raw = _fetch_url(ioc, client)
     triage_result = triage(ioc, ioc_type, client, config, from_cache, _prefetched=raw)
 

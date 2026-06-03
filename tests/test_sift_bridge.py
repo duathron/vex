@@ -8,10 +8,10 @@ import pytest
 
 from vex.pipeline.sift_bridge import extract_iocs_from_sift
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_report(clusters: list) -> str:
     """Wrap clusters in a full TriageReport JSON string."""
@@ -27,6 +27,7 @@ def _make_bare(clusters: list) -> str:
 # Representative full-report test
 # ---------------------------------------------------------------------------
 
+
 class TestExtractIocsFullReport:
     def test_representative_report_extracts_all_sources(self) -> None:
         """Covers cluster.iocs, alert.iocs, source_ip, and dest_ip — deduped."""
@@ -41,7 +42,7 @@ class TestExtractIocsFullReport:
                         {
                             "id": "a1",
                             "source_ip": "10.0.0.5",
-                            "dest_ip": "1.2.3.4",          # dup of cluster ioc
+                            "dest_ip": "1.2.3.4",  # dup of cluster ioc
                             "iocs": ["abc123" + "0" * 26, "evil.com"],  # evil.com dup
                         },
                         {
@@ -61,7 +62,7 @@ class TestExtractIocsFullReport:
                         {
                             "id": "a3",
                             "source_ip": "192.168.1.1",
-                            "dest_ip": "malware.example",   # dup of cluster ioc
+                            "dest_ip": "malware.example",  # dup of cluster ioc
                             "iocs": ["newdomain.test"],
                         },
                     ],
@@ -74,19 +75,19 @@ class TestExtractIocsFullReport:
         # Order-preserving dedup: first-seen wins.
         # Within each alert: alert.iocs[] first, then source_ip, then dest_ip.
         expected = [
-            "evil.com",             # c1.iocs[0]
-            "1.2.3.4",              # c1.iocs[1]
-            "deadbeef" * 8,         # c1.iocs[2]
-            "abc123" + "0" * 26,    # a1.iocs[0]  (alert.iocs processed first)
+            "evil.com",  # c1.iocs[0]
+            "1.2.3.4",  # c1.iocs[1]
+            "deadbeef" * 8,  # c1.iocs[2]
+            "abc123" + "0" * 26,  # a1.iocs[0]  (alert.iocs processed first)
             # evil.com already seen — skipped (a1.iocs[1])
-            "10.0.0.5",             # a1.source_ip
+            "10.0.0.5",  # a1.source_ip
             # 1.2.3.4 already seen — skipped (a1.dest_ip)
-            "10.0.0.6",             # a2.source_ip
-            "5.6.7.8",              # a2.dest_ip
-            "malware.example",      # c2.iocs[0]
+            "10.0.0.6",  # a2.source_ip
+            "5.6.7.8",  # a2.dest_ip
+            "malware.example",  # c2.iocs[0]
             # 10.0.0.5 already seen — skipped (c2.iocs[1])
-            "newdomain.test",       # a3.iocs[0]  (alert.iocs processed first)
-            "192.168.1.1",          # a3.source_ip
+            "newdomain.test",  # a3.iocs[0]  (alert.iocs processed first)
+            "192.168.1.1",  # a3.source_ip
             # malware.example already seen — skipped (a3.dest_ip)
         ]
         assert result == expected
@@ -110,6 +111,7 @@ class TestExtractIocsFullReport:
 # Bare list-of-clusters form
 # ---------------------------------------------------------------------------
 
+
 class TestBareListForm:
     def test_bare_list_accepted(self) -> None:
         clusters = [
@@ -130,6 +132,7 @@ class TestBareListForm:
 # ---------------------------------------------------------------------------
 # Tolerance for missing / null fields
 # ---------------------------------------------------------------------------
+
 
 class TestMissingAndNullFields:
     def test_cluster_without_iocs_key(self) -> None:
@@ -187,6 +190,7 @@ class TestMissingAndNullFields:
 # Order-preserving dedup across clusters
 # ---------------------------------------------------------------------------
 
+
 class TestOrderPreservingDedup:
     def test_first_seen_wins_across_clusters(self) -> None:
         clusters = [
@@ -201,9 +205,7 @@ class TestOrderPreservingDedup:
         clusters = [
             {
                 "iocs": ["cluster-first.com"],
-                "alerts": [
-                    {"source_ip": "10.0.0.1", "dest_ip": "cluster-first.com", "iocs": []}
-                ],
+                "alerts": [{"source_ip": "10.0.0.1", "dest_ip": "cluster-first.com", "iocs": []}],
             }
         ]
         result = extract_iocs_from_sift(_make_bare(clusters))
@@ -232,6 +234,7 @@ class TestOrderPreservingDedup:
 # Invalid JSON → ValueError
 # ---------------------------------------------------------------------------
 
+
 class TestInvalidJson:
     def test_invalid_json_raises_value_error(self) -> None:
         with pytest.raises(ValueError, match="Invalid JSON from sift"):
@@ -249,6 +252,7 @@ class TestInvalidJson:
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestEdgeCases:
     def test_single_cluster_single_ioc(self) -> None:

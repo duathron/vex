@@ -33,7 +33,14 @@ def _fetch_domain(ioc: str, client: VTClient) -> tuple[dict[str, Any], dict[str,
     return raw, attrs, results
 
 
-def triage(ioc: str, ioc_type: str, client: VTClient, config: Config, from_cache: bool = False, _prefetched: tuple | None = None) -> TriageResult:
+def triage(
+    ioc: str,
+    ioc_type: str,
+    client: VTClient,
+    config: Config,
+    from_cache: bool = False,
+    _prefetched: tuple | None = None,
+) -> TriageResult:
     if _prefetched:
         raw, attrs, results = _prefetched
     else:
@@ -41,7 +48,9 @@ def triage(ioc: str, ioc_type: str, client: VTClient, config: Config, from_cache
 
     if not raw:
         return TriageResult(
-            ioc=ioc, ioc_type=ioc_type, verdict=Verdict.UNKNOWN,
+            ioc=ioc,
+            ioc_type=ioc_type,
+            verdict=Verdict.UNKNOWN,
             detection_stats=parse_stats({}),
             error="Not found in VirusTotal",
             from_cache=from_cache,
@@ -69,7 +78,9 @@ def triage(ioc: str, ioc_type: str, client: VTClient, config: Config, from_cache
     )
 
 
-def investigate(ioc: str, ioc_type: str, client: VTClient, config: Config, from_cache: bool = False) -> InvestigateResult:
+def investigate(
+    ioc: str, ioc_type: str, client: VTClient, config: Config, from_cache: bool = False
+) -> InvestigateResult:
     raw, attrs, results = _fetch_domain(ioc, client)
     triage_result = triage(ioc, ioc_type, client, config, from_cache, _prefetched=(raw, attrs, results))
     if triage_result.error:
@@ -84,12 +95,14 @@ def investigate(ioc: str, ioc_type: str, client: VTClient, config: Config, from_
     passive_dns = []
     for item in resolutions_raw:
         item_attrs = item.get("attributes", {})
-        passive_dns.append(PassiveDNSRecord(
-            hostname=ioc,
-            ip_address=item_attrs.get("ip_address"),
-            resolver=item_attrs.get("resolver"),
-            last_resolved=_ts(item_attrs.get("date")),
-        ))
+        passive_dns.append(
+            PassiveDNSRecord(
+                hostname=ioc,
+                ip_address=item_attrs.get("ip_address"),
+                resolver=item_attrs.get("resolver"),
+                last_resolved=_ts(item_attrs.get("date")),
+            )
+        )
 
     # WHOIS (take most recent entry)
     whois = None
@@ -114,11 +127,13 @@ def investigate(ioc: str, ioc_type: str, client: VTClient, config: Config, from_
     if isinstance(raw_dns, list):
         for rec in raw_dns:
             if isinstance(rec, dict):
-                dns_records.append({
-                    "type": rec.get("type", ""),
-                    "value": rec.get("value", ""),
-                    "ttl": rec.get("ttl"),
-                })
+                dns_records.append(
+                    {
+                        "type": rec.get("type", ""),
+                        "value": rec.get("value", ""),
+                        "ttl": rec.get("ttl"),
+                    }
+                )
 
     # Subdomains from attributes
     subdomains = attrs.get("subdomains", [])[:20]
@@ -126,6 +141,7 @@ def investigate(ioc: str, ioc_type: str, client: VTClient, config: Config, from_
     # Direct WHOIS fallback for free-tier users (supplements VT premium WHOIS)
     if whois is None and config.enrichment.whois_enabled:
         from .whois_enricher import enrich_whois
+
         whois = enrich_whois(ioc)
 
     return InvestigateResult(

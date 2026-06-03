@@ -14,10 +14,7 @@ class ClaudeProvider:
         try:
             import anthropic
         except ImportError:
-            raise ImportError(
-                "anthropic package not installed. "
-                "Run: pip install vex-ioc[ai]"
-            )
+            raise ImportError("anthropic package not installed. Run: pip install vex-ioc[ai]")
         self._anthropic = anthropic
         self._client = anthropic.Anthropic(api_key=api_key)
         self._model = model or self.DEFAULT_MODEL
@@ -59,9 +56,7 @@ class ClaudeProvider:
         try:
             message = self._client.messages.create(**kwargs)
         except self._anthropic.APIError as exc:
-            raise RuntimeError(
-                f"Anthropic API error while generating explanation: {exc}"
-            ) from exc
+            raise RuntimeError(f"Anthropic API error while generating explanation: {exc}") from exc
 
         # Defensive extraction: iterate content blocks, take first with .text
         response_text = ""
@@ -76,6 +71,7 @@ class ClaudeProvider:
         """Check if anthropic SDK is installed."""
         try:
             import anthropic  # noqa: F401
+
             return True
         except ImportError:
             return False

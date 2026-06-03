@@ -28,9 +28,7 @@ class AICache:
         cached = self._cache.get(key)
         return cached.get("explanation") if cached else None
 
-    def set(
-        self, provider: str, model: str, prompt: str, explanation: str
-    ) -> None:
+    def set(self, provider: str, model: str, prompt: str, explanation: str) -> None:
         """Cache an explanation."""
         key = self._make_key(provider, model, prompt)
         self._cache.set(key, {"explanation": explanation})

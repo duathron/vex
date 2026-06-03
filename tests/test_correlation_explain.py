@@ -13,17 +13,16 @@ from __future__ import annotations
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
-
 from vex.ai.prompt import build_correlation_prompt
 from vex.ai.template import template_correlation
 from vex.correlate import Cluster, build_clusters
 from vex.models import DetectionStats, TriageResult, Verdict
 from vex.output.export import _cluster_to_dict
 
-
 # ---------------------------------------------------------------------------
 # FAKE provider stub — no network, no deps
 # ---------------------------------------------------------------------------
+
 
 class FakeProvider:
     """Minimal stub implementing the LLMProviderProtocol."""
@@ -119,6 +118,7 @@ def _make_aicache_mock(cached_value: Optional[str] = None) -> MagicMock:
 
 def _default_config():
     from vex.config import Config
+
     config = Config()
     config.ai.provider = "fake"
     config.ai.model = "test-model"
@@ -129,6 +129,7 @@ def _default_config():
 # ---------------------------------------------------------------------------
 # 1. Cluster model: explanation field
 # ---------------------------------------------------------------------------
+
 
 def test_cluster_explanation_defaults_to_none() -> None:
     cl = _make_cluster()
@@ -143,6 +144,7 @@ def test_cluster_explanation_can_be_set() -> None:
 # ---------------------------------------------------------------------------
 # 2. export._cluster_to_dict: explanation serialisation
 # ---------------------------------------------------------------------------
+
 
 def test_cluster_to_dict_no_explanation_key_absent() -> None:
     cl = _make_cluster()
@@ -162,6 +164,7 @@ def test_cluster_to_dict_with_explanation_included() -> None:
 # ---------------------------------------------------------------------------
 # 3. build_correlation_prompt — structure and defanging
 # ---------------------------------------------------------------------------
+
 
 def test_build_correlation_prompt_contains_cluster_fields() -> None:
     cl = _make_cluster(
@@ -212,6 +215,7 @@ def test_build_correlation_prompt_returns_str() -> None:
 # 4. template_correlation — deterministic fallback
 # ---------------------------------------------------------------------------
 
+
 def test_template_correlation_returns_str() -> None:
     cl = _make_cluster()
     result = template_correlation(cl)
@@ -255,9 +259,10 @@ def test_template_correlation_unknown_attribute_type_fallback() -> None:
 # 5. Provider present → each cluster gets a narrative
 # ---------------------------------------------------------------------------
 
+
 def test_provider_present_fills_explanation() -> None:
     """When a provider is available and cache misses, each cluster.explanation is set."""
-    from vex.main import _run_correlation_explain, OutputFormat
+    from vex.main import OutputFormat, _run_correlation_explain
 
     FakeProvider.reset()
     config = _default_config()
@@ -282,10 +287,11 @@ def test_provider_present_fills_explanation() -> None:
 # 6. No provider → template fallback fills explanation
 # ---------------------------------------------------------------------------
 
+
 def test_no_provider_uses_template_fallback() -> None:
     """When provider returns None (ai.provider='none'), template fills explanation."""
-    from vex.main import _run_correlation_explain, OutputFormat
     from vex.config import Config
+    from vex.main import OutputFormat, _run_correlation_explain
 
     config = Config()
     config.ai.provider = "none"
@@ -303,9 +309,10 @@ def test_no_provider_uses_template_fallback() -> None:
 # 7. Provider error → template fallback (fail-safe)
 # ---------------------------------------------------------------------------
 
+
 def test_provider_error_falls_back_to_template() -> None:
     """If provider.explain raises, template fallback is used; run does not crash."""
-    from vex.main import _run_correlation_explain, OutputFormat
+    from vex.main import OutputFormat, _run_correlation_explain
 
     config = _default_config()
     clusters = [_make_cluster("C1")]
@@ -328,9 +335,10 @@ def test_provider_error_falls_back_to_template() -> None:
 # 8. Cache hit: AICache hit avoids .explain call
 # ---------------------------------------------------------------------------
 
+
 def test_cache_hit_avoids_explain_call() -> None:
     """When AICache returns a hit, provider.explain is never called."""
-    from vex.main import _run_correlation_explain, OutputFormat
+    from vex.main import OutputFormat, _run_correlation_explain
 
     CountingProvider.reset()
     cached_narrative = "Cached narrative from a previous run."
@@ -353,6 +361,7 @@ def test_cache_hit_avoids_explain_call() -> None:
 # 9. build_clusters: explanation is None after clustering (no auto-generate)
 # ---------------------------------------------------------------------------
 
+
 def test_build_clusters_explanation_starts_as_none() -> None:
     r1 = _triage("a.com", families=["emotet"])
     r2 = _triage("b.com", families=["emotet"])
@@ -364,6 +373,7 @@ def test_build_clusters_explanation_starts_as_none() -> None:
 # ---------------------------------------------------------------------------
 # 10. correlate-only: no narrative generated (unchanged deterministic path)
 # ---------------------------------------------------------------------------
+
 
 def test_correlate_alone_leaves_explanation_none() -> None:
     """build_clusters never auto-populates explanations."""

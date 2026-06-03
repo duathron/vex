@@ -65,6 +65,7 @@ query SearchObservable($value: Any!) {
 }
 """
 
+
 def _most_restrictive_tlp(definitions: list[str]) -> str | None:
     """Return the most restrictive TLP level found in the marking definitions, or None.
 
@@ -131,11 +132,7 @@ class OpenCTIEnricher:
             data = response.json()
 
             # Defensive: tolerate missing/renamed fields across OpenCTI versions
-            edges = (
-                data.get("data", {})
-                .get("stixCyberObservables", {})
-                .get("edges", [])
-            )
+            edges = data.get("data", {}).get("stixCyberObservables", {}).get("edges", [])
             if not edges:
                 return
 
@@ -166,10 +163,7 @@ class OpenCTIEnricher:
             result.opencti_tlp = _most_restrictive_tlp(definitions)
 
             # Score from first indicator
-            indicators_edges = (
-                (node.get("indicators") or {})
-                .get("edges", [])
-            )
+            indicators_edges = (node.get("indicators") or {}).get("edges", [])
             if indicators_edges:
                 first_indicator_node = indicators_edges[0].get("node", {})
                 score = first_indicator_node.get("x_opencti_score")

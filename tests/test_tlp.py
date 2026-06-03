@@ -6,10 +6,10 @@ import pytest
 
 from vex.tlp import most_restrictive_tlp, normalize_tlp
 
-
 # ---------------------------------------------------------------------------
 # normalize_tlp — single-string parsing
 # ---------------------------------------------------------------------------
+
 
 class TestNormalizeTlp:
     # Basic levels — exact lowercase
@@ -83,20 +83,23 @@ class TestNormalizeTlp:
         assert normalize_tlp("  tlp:amber  ") == "amber"
 
     # Parametrized canonical round-trip
-    @pytest.mark.parametrize("raw,expected", [
-        ("tlp:red", "red"),
-        ("TLP:RED", "red"),
-        ("tlp:amber", "amber"),
-        ("TLP:AMBER", "amber"),
-        ("tlp:green", "green"),
-        ("TLP:GREEN", "green"),
-        ("tlp:clear", "clear"),
-        ("TLP:CLEAR", "clear"),
-        ("tlp:white", "clear"),
-        ("TLP:WHITE", "clear"),
-        ("tlp:amber+strict", "amber"),
-        ("TLP:AMBER+STRICT", "amber"),
-    ])
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            ("tlp:red", "red"),
+            ("TLP:RED", "red"),
+            ("tlp:amber", "amber"),
+            ("TLP:AMBER", "amber"),
+            ("tlp:green", "green"),
+            ("TLP:GREEN", "green"),
+            ("tlp:clear", "clear"),
+            ("TLP:CLEAR", "clear"),
+            ("tlp:white", "clear"),
+            ("TLP:WHITE", "clear"),
+            ("tlp:amber+strict", "amber"),
+            ("TLP:AMBER+STRICT", "amber"),
+        ],
+    )
     def test_parametrized(self, raw: str, expected: str) -> None:
         assert normalize_tlp(raw) == expected
 
@@ -104,6 +107,7 @@ class TestNormalizeTlp:
 # ---------------------------------------------------------------------------
 # most_restrictive_tlp — precedence + edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestMostRestrictiveTlp:
     def test_red_beats_amber(self) -> None:

@@ -14,10 +14,7 @@ class OpenAIProvider:
         try:
             import openai
         except ImportError:
-            raise ImportError(
-                "openai package not installed. "
-                "Run: pip install vex-ioc[ai]"
-            )
+            raise ImportError("openai package not installed. Run: pip install vex-ioc[ai]")
         self._client = openai.OpenAI(api_key=api_key)
         self._model = model or self.DEFAULT_MODEL
 
@@ -60,6 +57,7 @@ class OpenAIProvider:
         """Check if openai SDK is installed."""
         try:
             import openai  # noqa: F401
+
             return True
         except ImportError:
             return False

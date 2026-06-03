@@ -202,6 +202,7 @@ def _tlp_marking_id(misp_tlp: str, tlp_version: str = "1.0") -> str | None:
 # SCO (Cyber Observable Object) helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_sco(ioc: str, ioc_type: str) -> dict[str, Any] | None:
     """Return a STIX SCO dict for the given IOC, or None if unmapped."""
     t = ioc_type.lower()
@@ -261,6 +262,7 @@ def _make_sco(ioc: str, ioc_type: str) -> dict[str, Any] | None:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def to_stix_bundle(
     results: list[TriageResult | InvestigateResult],
     config: Config | None = None,
@@ -309,16 +311,11 @@ def to_stix_bundle(
             "created_by_ref": _VEX_IDENTITY_ID,
             "name": f"VEX: {triage.ioc}",
             "description": (
-                f"VirusTotal verdict: {triage.verdict.value}. "
-                f"Detections: {triage.detection_stats.ratio_str}."
+                f"VirusTotal verdict: {triage.verdict.value}. Detections: {triage.detection_stats.ratio_str}."
             ),
             "pattern": _make_indicator_pattern(triage.ioc, triage.ioc_type),
             "pattern_type": "stix",
-            "valid_from": (
-                triage.first_seen.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-                if triage.first_seen
-                else now
-            ),
+            "valid_from": (triage.first_seen.strftime("%Y-%m-%dT%H:%M:%S.000Z") if triage.first_seen else now),
             "labels": _verdict_to_labels(triage.verdict),
             "confidence": min(100, triage.detection_stats.malicious * 10),
         }
@@ -333,9 +330,7 @@ def to_stix_bundle(
                 sco["object_marking_refs"] = object_marking_refs
             objects.append(sco)
 
-            based_on_id = _deterministic_id(
-                "relationship", indicator_id, "based-on", sco["id"]
-            )
+            based_on_id = _deterministic_id("relationship", indicator_id, "based-on", sco["id"])
             based_on_rel: dict[str, Any] = {
                 "type": "relationship",
                 "spec_version": "2.1",
@@ -429,9 +424,7 @@ def to_stix_bundle(
     # Prepend referenced TLP marking-definition objects (before other objects,
     # after identity — stable order for deterministic output)
     tlp_objects: list[dict[str, Any]] = [
-        marking_def_map[mid]
-        for mid in sorted(used_tlp_marking_ids)
-        if mid in marking_def_map
+        marking_def_map[mid] for mid in sorted(used_tlp_marking_ids) if mid in marking_def_map
     ]
 
     # Deduplicate by ID (identity first, then tlp markings, then rest)

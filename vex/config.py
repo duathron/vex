@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
-from pydantic import BaseModel
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 _USER_CONFIG_PATH = Path.home() / ".vex" / "config.yaml"
 _DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"

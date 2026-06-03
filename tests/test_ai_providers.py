@@ -15,13 +15,14 @@ import importlib
 import sys
 from unittest.mock import MagicMock, patch
 
-
 # ---------------------------------------------------------------------------
 # 1. get_system_prompt — distinct, non-empty
 # ---------------------------------------------------------------------------
 
+
 def test_get_system_prompt_explain_is_nonempty() -> None:
     from vex.ai.prompt import get_system_prompt
+
     result = get_system_prompt("explain")
     assert isinstance(result, str)
     assert len(result) > 50
@@ -29,6 +30,7 @@ def test_get_system_prompt_explain_is_nonempty() -> None:
 
 def test_get_system_prompt_correlation_is_nonempty() -> None:
     from vex.ai.prompt import get_system_prompt
+
     result = get_system_prompt("correlation")
     assert isinstance(result, str)
     assert len(result) > 50
@@ -36,16 +38,19 @@ def test_get_system_prompt_correlation_is_nonempty() -> None:
 
 def test_get_system_prompt_explain_and_correlation_are_distinct() -> None:
     from vex.ai.prompt import get_system_prompt
+
     assert get_system_prompt("explain") != get_system_prompt("correlation")
 
 
 def test_get_system_prompt_default_is_explain() -> None:
     from vex.ai.prompt import get_system_prompt
+
     assert get_system_prompt() == get_system_prompt("explain")
 
 
 def test_get_system_prompt_unknown_mode_returns_explain() -> None:
     from vex.ai.prompt import get_system_prompt
+
     # Unknown modes fall back to explain prompt
     assert get_system_prompt("unknown_mode") == get_system_prompt("explain")
 
@@ -53,6 +58,7 @@ def test_get_system_prompt_unknown_mode_returns_explain() -> None:
 # ---------------------------------------------------------------------------
 # 2. Injection sanitization still present in build_explain_prompt
 # ---------------------------------------------------------------------------
+
 
 def test_build_explain_prompt_uses_injection_sanitization() -> None:
     """Injection-critical values should be redacted from the data block."""
@@ -70,6 +76,7 @@ def test_build_explain_prompt_uses_injection_sanitization() -> None:
     )
 
     from vex.ai.prompt import build_explain_prompt
+
     prompt = build_explain_prompt(result)
 
     # The raw injection string must NOT appear verbatim in the prompt
@@ -78,8 +85,8 @@ def test_build_explain_prompt_uses_injection_sanitization() -> None:
 
 def test_build_explain_prompt_returns_data_block() -> None:
     """build_explain_prompt must return the data section (no role/instruction text)."""
-    from vex.models import DetectionStats, TriageResult, Verdict
     from vex.ai.prompt import build_explain_prompt
+    from vex.models import DetectionStats, TriageResult, Verdict
 
     result = TriageResult(
         ioc="evil.com",
@@ -96,8 +103,8 @@ def test_build_explain_prompt_returns_data_block() -> None:
 
 def test_build_correlation_prompt_returns_data_block() -> None:
     """build_correlation_prompt must return cluster data (no role text)."""
-    from vex.correlate import Cluster
     from vex.ai.prompt import build_correlation_prompt
+    from vex.correlate import Cluster
     from vex.models import Verdict
 
     cluster = Cluster(
@@ -118,6 +125,7 @@ def test_build_correlation_prompt_returns_data_block() -> None:
 # 3. Anthropic provider — DEFAULT_MODEL, system forwarding, defensive
 #    extraction, APIError → RuntimeError
 # ---------------------------------------------------------------------------
+
 
 def _make_fake_anthropic_module() -> MagicMock:
     """Build a minimal fake anthropic module with Anthropic client and APIError."""
@@ -140,6 +148,7 @@ def _make_claude_provider(fake_anthropic: MagicMock):
 
 def test_anthropic_default_model_is_claude_sonnet_4_6() -> None:
     from vex.ai.anthropic import ClaudeProvider
+
     assert ClaudeProvider.DEFAULT_MODEL == "claude-sonnet-4-6"
 
 
@@ -215,13 +224,12 @@ def test_anthropic_api_error_wrapped_as_runtime_error() -> None:
     """anthropic.APIError must be caught and re-raised as RuntimeError."""
     fake_anthropic = _make_fake_anthropic_module()
 
-    fake_anthropic.Anthropic.return_value.messages.create.side_effect = (
-        fake_anthropic.APIError("quota exceeded")
-    )
+    fake_anthropic.Anthropic.return_value.messages.create.side_effect = fake_anthropic.APIError("quota exceeded")
 
     provider = _make_claude_provider(fake_anthropic)
 
     import pytest
+
     with pytest.raises(RuntimeError, match="Anthropic API error"):
         provider.explain("data block")
 
@@ -229,6 +237,7 @@ def test_anthropic_api_error_wrapped_as_runtime_error() -> None:
 # ---------------------------------------------------------------------------
 # 4. OpenAI provider — system message prepend, defensive extraction
 # ---------------------------------------------------------------------------
+
 
 def _make_openai_provider(fake_openai: MagicMock):
     """Instantiate OpenAIProvider with a patched openai module."""
@@ -244,9 +253,7 @@ def test_openai_system_message_prepended_when_provided() -> None:
 
     choice = MagicMock()
     choice.message.content = "openai response"
-    fake_openai.OpenAI.return_value.chat.completions.create.return_value = MagicMock(
-        choices=[choice]
-    )
+    fake_openai.OpenAI.return_value.chat.completions.create.return_value = MagicMock(choices=[choice])
 
     provider = _make_openai_provider(fake_openai)
     provider.explain("user prompt", system="system content")
@@ -264,9 +271,7 @@ def test_openai_no_system_message_when_none() -> None:
 
     choice = MagicMock()
     choice.message.content = "openai response"
-    fake_openai.OpenAI.return_value.chat.completions.create.return_value = MagicMock(
-        choices=[choice]
-    )
+    fake_openai.OpenAI.return_value.chat.completions.create.return_value = MagicMock(choices=[choice])
 
     provider = _make_openai_provider(fake_openai)
     provider.explain("user prompt", system=None)
@@ -281,9 +286,7 @@ def test_openai_defensive_extraction_returns_empty_on_bad_response() -> None:
     """When choices is empty, defensive extraction returns empty string."""
     fake_openai = MagicMock()
 
-    fake_openai.OpenAI.return_value.chat.completions.create.return_value = MagicMock(
-        choices=[]
-    )
+    fake_openai.OpenAI.return_value.chat.completions.create.return_value = MagicMock(choices=[])
 
     provider = _make_openai_provider(fake_openai)
     result = provider.explain("data block")
@@ -293,6 +296,7 @@ def test_openai_defensive_extraction_returns_empty_on_bad_response() -> None:
 # ---------------------------------------------------------------------------
 # 5. Ollama provider — system field forwarded
 # ---------------------------------------------------------------------------
+
 
 def test_ollama_system_field_forwarded_when_provided() -> None:
     """When system= is set, Ollama /api/generate payload includes system field."""
@@ -304,6 +308,7 @@ def test_ollama_system_field_forwarded_when_provided() -> None:
 
     with _patch("httpx.post", return_value=fake_response) as mock_post:
         from vex.ai.ollama import OllamaProvider
+
         provider = OllamaProvider()
         result = provider.explain("user prompt", system="my system")
 
@@ -323,6 +328,7 @@ def test_ollama_system_field_omitted_when_none() -> None:
 
     with _patch("httpx.post", return_value=fake_response) as mock_post:
         from vex.ai.ollama import OllamaProvider
+
         provider = OllamaProvider()
         provider.explain("user prompt", system=None)
 
@@ -340,6 +346,7 @@ def test_ollama_defensive_parse_on_missing_response_key() -> None:
 
     with _patch("httpx.post", return_value=fake_response):
         from vex.ai.ollama import OllamaProvider
+
         provider = OllamaProvider()
         result = provider.explain("data block")
 
@@ -349,6 +356,7 @@ def test_ollama_defensive_parse_on_missing_response_key() -> None:
 # ---------------------------------------------------------------------------
 # 6. Protocol conformance — system param accepted by all providers
 # ---------------------------------------------------------------------------
+
 
 def test_fake_provider_with_system_kwarg() -> None:
     """A minimal stub with system= kwarg is usable as a provider."""
@@ -363,6 +371,7 @@ def test_fake_provider_with_system_kwarg() -> None:
             return True
 
     from vex.ai.protocol import LLMProviderProtocol
+
     provider = StubProvider()
     assert isinstance(provider, LLMProviderProtocol)
     assert provider.explain("p", system="s") == "system=set"

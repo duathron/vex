@@ -65,21 +65,23 @@ def _parse_sandbox(raw_list: list[dict[str, Any]]) -> list[SandboxBehavior]:
     behaviors = []
     for item in raw_list:
         attrs = item.get("attributes", {})
-        behaviors.append(SandboxBehavior(
-            sandbox_name=attrs.get("sandbox_name"),
-            processes_created=[p.get("process_name", "") for p in attrs.get("processes_created", [])],
-            files_written=[f.get("path", "") for f in attrs.get("files_written", [])[:20]],
-            files_deleted=[f.get("path", "") for f in attrs.get("files_deleted", [])[:10]],
-            registry_keys_set=[r.get("key", "") for r in attrs.get("registry_keys_set", [])[:20]],
-            network_connections=[
-                f"{c.get('destination_ip')}:{c.get('destination_port')}"
-                for c in attrs.get("network_connections", [])[:20]
-                if c.get("destination_ip")
-            ],
-            dns_lookups=[d.get("hostname", "") for d in attrs.get("dns_lookups", [])[:20]],
-            mutexes=attrs.get("mutexes_created", [])[:10],
-            verdict=attrs.get("verdict"),
-        ))
+        behaviors.append(
+            SandboxBehavior(
+                sandbox_name=attrs.get("sandbox_name"),
+                processes_created=[p.get("process_name", "") for p in attrs.get("processes_created", [])],
+                files_written=[f.get("path", "") for f in attrs.get("files_written", [])[:20]],
+                files_deleted=[f.get("path", "") for f in attrs.get("files_deleted", [])[:10]],
+                registry_keys_set=[r.get("key", "") for r in attrs.get("registry_keys_set", [])[:20]],
+                network_connections=[
+                    f"{c.get('destination_ip')}:{c.get('destination_port')}"
+                    for c in attrs.get("network_connections", [])[:20]
+                    if c.get("destination_ip")
+                ],
+                dns_lookups=[d.get("hostname", "") for d in attrs.get("dns_lookups", [])[:20]],
+                mutexes=attrs.get("mutexes_created", [])[:10],
+                verdict=attrs.get("verdict"),
+            )
+        )
     return behaviors
 
 
@@ -107,7 +109,14 @@ def _fetch_file(ioc: str, client: VTClient) -> tuple[dict[str, Any], dict[str, A
     return raw, attrs, results
 
 
-def triage(ioc: str, ioc_type: str, client: VTClient, config: Config, from_cache: bool = False, _prefetched: tuple | None = None) -> TriageResult:
+def triage(
+    ioc: str,
+    ioc_type: str,
+    client: VTClient,
+    config: Config,
+    from_cache: bool = False,
+    _prefetched: tuple | None = None,
+) -> TriageResult:
     if _prefetched:
         raw, attrs, results = _prefetched
     else:
@@ -115,7 +124,9 @@ def triage(ioc: str, ioc_type: str, client: VTClient, config: Config, from_cache
 
     if not raw:
         return TriageResult(
-            ioc=ioc, ioc_type=ioc_type, verdict=Verdict.UNKNOWN,
+            ioc=ioc,
+            ioc_type=ioc_type,
+            verdict=Verdict.UNKNOWN,
             detection_stats=parse_stats({}),
             error="Not found in VirusTotal",
             from_cache=from_cache,
@@ -140,7 +151,9 @@ def triage(ioc: str, ioc_type: str, client: VTClient, config: Config, from_cache
     )
 
 
-def investigate(ioc: str, ioc_type: str, client: VTClient, config: Config, from_cache: bool = False) -> InvestigateResult:
+def investigate(
+    ioc: str, ioc_type: str, client: VTClient, config: Config, from_cache: bool = False
+) -> InvestigateResult:
     raw, attrs, results = _fetch_file(ioc, client)
     triage_result = triage(ioc, ioc_type, client, config, from_cache, _prefetched=(raw, attrs, results))
     if triage_result.error:

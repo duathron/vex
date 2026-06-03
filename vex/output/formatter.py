@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich import box
 
 from ..models import (
     InvestigateResult,
@@ -42,6 +42,7 @@ err_console = Console(stderr=True)
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
 
 def _verdict_badge(verdict: Verdict) -> Text:
     style = _VERDICT_STYLE.get(verdict, "bold white")
@@ -100,6 +101,7 @@ def _triage_panel(r: TriageResult) -> Panel:
 # Rich output
 # ---------------------------------------------------------------------------
 
+
 def print_triage_rich(result: TriageResult) -> None:
     console.print(_triage_panel(result))
 
@@ -137,7 +139,9 @@ def print_investigate_rich(result: InvestigateResult) -> None:
                 file_grid.add_row("PE Target", pe.target_machine)
             if pe.sections:
                 section_info = ", ".join(
-                    f"{s.get('name', '?')}(entropy={s['entropy']:.2f})" if isinstance(s.get('entropy'), (int, float)) else s.get('name', '?')
+                    f"{s.get('name', '?')}(entropy={s['entropy']:.2f})"
+                    if isinstance(s.get("entropy"), (int, float))
+                    else s.get("name", "?")
                     for s in pe.sections[:5]
                 )
                 file_grid.add_row("PE Sections", section_info)
@@ -182,13 +186,7 @@ def print_investigate_rich(result: InvestigateResult) -> None:
         console.print(Panel(net_grid, title="[bold]Network Activity[/bold]", border_style="yellow"))
 
     # --- Network IOC specific ---
-    if (
-        result.asn
-        or result.country
-        or result.abuse_confidence is not None
-        or result.shodan_ports
-        or result.shodan_org
-    ):
+    if result.asn or result.country or result.abuse_confidence is not None or result.shodan_ports or result.shodan_org:
         net_grid = Table.grid(padding=(0, 2))
         net_grid.add_column(style="bold cyan", no_wrap=True)
         net_grid.add_column()
@@ -334,6 +332,7 @@ def _print_sandbox_rich(sb: SandboxBehavior) -> None:
 # Plain console output (no rich dependency at runtime for piping)
 # ---------------------------------------------------------------------------
 
+
 def _truncated(items: list[str], limit: int) -> str:
     """Join items with truncation indicator if list exceeds limit."""
     shown = items[:limit]
@@ -346,7 +345,7 @@ def _truncated(items: list[str], limit: int) -> str:
 
 def print_triage_console(result: TriageResult) -> None:
     verdict_markup = _VERDICT_ICON.get(result.verdict, result.verdict.value)
-    console.print(f"\n{'='*60}")
+    console.print(f"\n{'=' * 60}")
     console.print(f"IOC     : {result.ioc}")
     console.print(f"Type    : {result.ioc_type.upper()}")
     console.print(f"Verdict : {verdict_markup}")
@@ -374,7 +373,7 @@ def print_triage_console(result: TriageResult) -> None:
         console.print("[dim](from cache)[/dim]")
     if result.error:
         console.print(f"[red]ERROR   : {result.error}[/red]")
-    console.print(f"{'='*60}")
+    console.print(f"{'=' * 60}")
 
 
 def print_summary(results: list[TriageResult]) -> None:
@@ -429,20 +428,21 @@ def print_timeline_console(timeline: TimelineResult) -> None:
         print("No timeline events found.")
         return
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Timeline: {timeline.ioc}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     for ev in timeline.events:
         print(f"  {ev.timestamp.strftime('%Y-%m-%d %H:%M')}  [{ev.event_type}]  {ev.description}")
     if timeline.earliest and timeline.latest:
         span = timeline.latest - timeline.earliest
         print(f"  Span: {span.days} days")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
 
 # ---------------------------------------------------------------------------
 # AI explanation output
 # ---------------------------------------------------------------------------
+
 
 def print_explanation_rich(explanation: str, provider: str = "template") -> None:
     """Print AI or template explanation as a Rich panel with blue border."""
@@ -450,12 +450,14 @@ def print_explanation_rich(explanation: str, provider: str = "template") -> None
         title = "[bold]Template Explanation[/bold]"
     else:
         title = f"[bold]AI Explanation[/bold] [dim]({provider})[/dim]"
-    console.print(Panel(
-        explanation,
-        title=title,
-        border_style="blue",
-        padding=(1, 2),
-    ))
+    console.print(
+        Panel(
+            explanation,
+            title=title,
+            border_style="blue",
+            padding=(1, 2),
+        )
+    )
 
 
 def print_explanation_console(explanation: str, provider: str = "template") -> None:
@@ -523,12 +525,14 @@ def print_barb_context_rich(ctx) -> None:  # ctx: BarbContext (lazy import to av
         grid.add_row("Explanation", ctx.explanation[:200] + ("…" if len(ctx.explanation) > 200 else ""))
 
     border_style = "dark_orange"
-    console.print(Panel(
-        grid,
-        title="[bold]barb pre-scan[/bold]",
-        border_style=border_style,
-        subtitle="[dim]offline heuristic analysis[/dim]",
-    ))
+    console.print(
+        Panel(
+            grid,
+            title="[bold]barb pre-scan[/bold]",
+            border_style=border_style,
+            subtitle="[dim]offline heuristic analysis[/dim]",
+        )
+    )
 
 
 def print_barb_context_console(ctx) -> None:  # ctx: BarbContext
@@ -551,6 +555,7 @@ def print_barb_context_console(ctx) -> None:  # ctx: BarbContext
 # ---------------------------------------------------------------------------
 # Plain console output (no rich dependency at runtime for piping)
 # ---------------------------------------------------------------------------
+
 
 def print_investigate_console(result: InvestigateResult) -> None:
     print_triage_console(result.triage)
@@ -621,7 +626,9 @@ def print_investigate_console(result: InvestigateResult) -> None:
         console.print("\nPassive DNS:")
         for r in result.passive_dns[:10]:
             resolved = r.last_resolved.strftime("%Y-%m-%d") if r.last_resolved else ""
-            console.print(f"  [cyan]{r.hostname or r.ip_address}[/cyan] -> [green]{r.ip_address or r.hostname}[/green]  [dim]\\[{resolved}][/dim]")
+            console.print(
+                f"  [cyan]{r.hostname or r.ip_address}[/cyan] -> [green]{r.ip_address or r.hostname}[/green]  [dim]\\[{resolved}][/dim]"  # noqa: E501
+            )
 
     if result.whois:
         w = result.whois
@@ -631,6 +638,7 @@ def print_investigate_console(result: InvestigateResult) -> None:
 # ---------------------------------------------------------------------------
 # Cluster correlation output
 # ---------------------------------------------------------------------------
+
 
 def print_clusters_rich(clusters: list["Cluster"]) -> None:
     """Print correlation clusters as a Rich table."""
@@ -670,9 +678,9 @@ def print_clusters_console(clusters: list["Cluster"]) -> None:
         console.print("No shared infrastructure found.")
         return
 
-    console.print(f"\n{'='*60}")
+    console.print(f"\n{'=' * 60}")
     console.print("IOC Correlation Clusters")
-    console.print(f"{'='*60}")
+    console.print(f"{'=' * 60}")
     for cl in clusters:
         verdict_label = cl.max_verdict.value
         console.print(
@@ -681,4 +689,4 @@ def print_clusters_console(clusters: list["Cluster"]) -> None:
         )
         for m in cl.members:
             console.print(f"    {m}")
-    console.print(f"{'='*60}")
+    console.print(f"{'=' * 60}")

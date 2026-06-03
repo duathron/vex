@@ -76,10 +76,10 @@ _REFANG_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\(at\)" + _AT_DOMAIN_LOOKAHEAD, re.I), "@"),
     (re.compile(r"\{at\}" + _AT_DOMAIN_LOOKAHEAD, re.I), "@"),
     # Fullwidth Unicode lookalikes.
-    (re.compile("．"), "."),   # U+FF0E FULLWIDTH FULL STOP
-    (re.compile("＠"), "@"),   # U+FF20 FULLWIDTH COMMERCIAL AT
-    (re.compile("："), ":"),   # U+FF1A FULLWIDTH COLON
-    (re.compile("／"), "/"),   # U+FF0F FULLWIDTH SOLIDUS
+    (re.compile("．"), "."),  # U+FF0E FULLWIDTH FULL STOP
+    (re.compile("＠"), "@"),  # U+FF20 FULLWIDTH COMMERCIAL AT
+    (re.compile("："), ":"),  # U+FF1A FULLWIDTH COLON
+    (re.compile("／"), "/"),  # U+FF0F FULLWIDTH SOLIDUS
 ]
 
 
@@ -99,6 +99,7 @@ _DEFANG_RULES: list[tuple[re.Pattern[str], str]] = [
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def refang(ioc: str) -> str:
     """Convert a defanged IOC back to its live form.
@@ -142,12 +143,22 @@ def is_defanged(ioc: str) -> bool:
     """
     lowered = ioc.lower()
     indicators = (
-        "hxxp", "fxp",
-        "[.]", "[://]", "[:]", "[@]", "[/]",
-        "[dot]", "[at]",
-        "(.)", "{.}",
-        "(dot)", "{dot}",
-        "(at)", "{at}",
-        "．", "＠",
+        "hxxp",
+        "fxp",
+        "[.]",
+        "[://]",
+        "[:]",
+        "[@]",
+        "[/]",
+        "[dot]",
+        "[at]",
+        "(.)",
+        "{.}",
+        "(dot)",
+        "{dot}",
+        "(at)",
+        "{at}",
+        "．",
+        "＠",
     )
     return any(ind in lowered for ind in indicators)

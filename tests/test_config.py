@@ -18,17 +18,17 @@ from vex.config import (
     EnrichmentConfig,
     OutputConfig,
     PluginConfig,
-    RateLimitTier,
     RateLimits,
+    RateLimitTier,
     ThresholdConfig,
     UpdateCheckConfig,
     load_config,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _write_yaml(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -39,6 +39,7 @@ def _write_yaml(path: Path, data: dict) -> None:
 # ---------------------------------------------------------------------------
 # Default config (no file, no env)
 # ---------------------------------------------------------------------------
+
 
 class TestDefaults:
     def test_load_config_no_file_returns_defaults(self, tmp_path: Path, monkeypatch) -> None:
@@ -91,6 +92,7 @@ class TestDefaults:
 # ---------------------------------------------------------------------------
 # File-based config loading
 # ---------------------------------------------------------------------------
+
 
 class TestFileLoading:
     def test_explicit_path_loaded(self, tmp_path: Path) -> None:
@@ -162,6 +164,7 @@ class TestFileLoading:
 # Environment variable priority
 # ---------------------------------------------------------------------------
 
+
 class TestEnvVarPriority:
     def test_vt_api_key_from_env(self, tmp_path: Path, monkeypatch) -> None:
         monkeypatch.setenv("VT_API_KEY", "env-test-key-123")
@@ -212,6 +215,7 @@ class TestEnvVarPriority:
 # Config model properties
 # ---------------------------------------------------------------------------
 
+
 class TestConfigProperties:
     def test_is_premium_false_for_free_tier(self) -> None:
         cfg = Config(api=ApiConfig(tier="free"))
@@ -242,6 +246,7 @@ class TestConfigProperties:
 # ---------------------------------------------------------------------------
 # Sub-model defaults (unit tests, no file I/O)
 # ---------------------------------------------------------------------------
+
 
 class TestSubModelDefaults:
     def test_ai_config_defaults(self) -> None:
