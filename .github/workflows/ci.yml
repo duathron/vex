@@ -5,6 +5,6 @@ on:
 
 jobs:
   ci:
-    uses: duathron/shipwright/.github/workflows/python-ci.yml@main
+    uses: duathron/shipwright/.github/workflows/python-ci.yml@v0.1.0
     with:
       python-version: "3.13"
