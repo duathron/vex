@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Project metadata: added a LinkedIn link to the package URLs (shown in the PyPI sidebar) and a README **Author** section; removed the personal email from `authors` — contact is via GitHub issues / LinkedIn.
+
 ## [1.6.0] - 2026-06-05
 
 Minor release: shared prompt-injection defense (new detections) + vex now consumes the Shipwright library from PyPI.
