@@ -1,8 +1,8 @@
 # vex — Project History and Documentation
 
 **Author:** Christian Huhn (GitHub: [duathron](https://github.com/duathron))
-**Version:** 1.1.0
-**Date:** 2026-03-13
+**Version:** 1.6.0
+**Date:** 2026-06-05
 **Repository:** https://github.com/duathron/vex
 
 ---
@@ -43,6 +43,7 @@ Dependencies were kept deliberately minimal:
 | `pydantic` (v2) | Configuration and data models with validation |
 | `pyyaml` | Configuration file (`config.yaml`) reading and writing |
 | `python-dotenv` | `.env` file loading (API key) |
+| `shipwright-kit` | Shared Shipwright library — design tokens, eval harness, prompt-injection engine, and config mechanism, consumed from PyPI (`>=0.6.0,<0.7.0`). Added in v1.6.0; backs the injection detector and config loader (see Core Design Decisions). |
 
 No heavy dependencies like `stix2`, `pandas`, or external threat intelligence libraries. The STIX 2.1 bundle is generated using only the built-in `json` and `uuid` modules.
 
@@ -109,6 +110,12 @@ Configuration (`vex/config.py`) follows a clear priority chain:
 5. Default values from Pydantic models
 
 The `Config` class is a Pydantic `BaseModel` with nested submodels (`ApiConfig`, `CacheConfig`, `ThresholdConfig`, `OutputConfig`). The `api_key` property outputs a clear error message with all three options when no key is found.
+
+Since v1.6.0, `load_config()` delegates the resolve→load→validate skeleton to `shipwright_kit.config` (the shared, secure config mechanism). vex keeps its own `Config` schema, dotenv loading, packaged-default fallback, lazy `@property` env accessors, and `save_config()` verbatim — only the candidate-path resolution and validation plumbing is single-sourced from the shared library. The priority chain above is preserved.
+
+#### Shared Prompt-Injection Engine (v1.6.0)
+
+The AI layer scans attacker-influenced enrichment data before it is inserted into LLM prompts. Since v1.6.0, vex's `PromptInjectionDetector` (`vex/ai/injection_detector.py`) **subclasses** the shared `shipwright_kit.security.injection.PromptInjectionDetector` instead of being a standalone copy of the patterns. vex contributes only its prompt-insertion `sanitize()` method on top of the shared `detect()` engine. Because the pattern set and detection engine are now single-sourced across vex, barb, and sift, a bypass fixed once in the shared engine propagates to all three tools automatically.
 
 #### SQLite in Two Places
 
@@ -224,7 +231,7 @@ build-backend = "setuptools.build_meta"
 
 ### Bug 2: Invalid Email Address in Author Metadata
 
-**Problem:** The `authors` field contained a GitHub URL instead of an email address:
+**Problem:** The `authors` field contained a GitHub URL where an email address belongs:
 
 ```toml
 # Broken:
@@ -233,16 +240,9 @@ authors = [
 ]
 ```
 
-The PEP 621 schema for `pyproject.toml` requires a valid RFC 5322 email address in the `email` field. PyPI and build tools validate this and throw an error during publishing.
+The PEP 621 schema for `pyproject.toml` requires a valid RFC 5322 email address in the `email` field. A GitHub profile URL is not a valid email address. PyPI and the build tools validate this field and reject the package during build/publishing.
 
-**Fix:**
-
-```toml
-# Correct:
-authors = [
-    { name = "Christian Huhn", email = "duathron@gmail.com" },
-]
-```
+**Fix:** the `email` field was corrected to a real, RFC 5322-valid email address (kept out of this document), leaving the `name` field as `"Christian Huhn"`. The package then built and published cleanly.
 
 ### New Feature: `--api-key` / `-k` Flag
 
@@ -302,35 +302,32 @@ Those who need JSON output (automation, pipelines) pass `-o json` explicitly. Th
 
 ## Current Status and Outlook
 
-### Status v1.0.0
+### Status v1.6.0
 
-vex 1.0.0 is a fully functional CLI tool for SOC/DFIR use:
+vex 1.6.0 is a mature, multi-source IOC enrichment hub for SOC/DFIR use, live on PyPI as **`vex-ioc`** (`pip install vex-ioc`). It is covered by **898 automated tests** (deterministic, no network) with a green CI pipeline (ruff + pytest). The state of the tool:
 
-- All IOC types are supported (MD5/SHA1/SHA256/IPv4/IPv6/Domain/URL)
-- Triage and investigate work with rate limiting and caching
-- MITRE ATT&CK mapping is implemented (80+ keywords)
-- STIX 2.1 export runs without external dependencies
-- Knowledge base (tags, notes, watchlists) is operational
-- The package is correctly installable via `pip install -e .`
-
-### Status v1.0.1
-
-Patch release focused on UX polish and quality management. No API changes, no new features — purely improvements to existing behaviour and documentation accuracy.
+- All IOC types are supported (MD5/SHA1/SHA256/IPv4/IPv6/Domain/URL), with full refang parity to barb/sift and a guard against misclassifying executable/script filenames as domains.
+- `triage` and `investigate` work with rate limiting, caching, IOC deduplication, NDJSON streaming, rate-limit-aware scheduling (`--max-quota`, ETA), and a `vex doctor` diagnostic.
+- Multi-source enrichment: VirusTotal (primary) plus secondary enrichers for AbuseIPDB, Shodan, MISP, and OpenCTI — all fail-open and key-gated. vex acts as an enrichment hub in the barb→vex→sift / sift↔vex flows.
+- Opt-in AI explanations and correlation narratives across three providers (Anthropic, OpenAI, Ollama) with a template fallback, hardened by a shared prompt-injection defense.
+- MITRE ATT&CK mapping, STIX 2.1 export (OpenCTI-hardened, with TLP markings), and ATT&CK Navigator layer export.
+- Knowledge base (tags, notes, watchlists) is operational.
+- v1.6.0 onboards vex onto the shared **shipwright-kit** library: the injection detector subclasses the shared engine and the config loader delegates to `shipwright_kit.config`.
 
 ### Known Limitations
 
-- **Async client (`async_client.py`) and batch processing (`batch.py`)** are present in the code, but the `investigate` subcommand still uses the sync `VTClient` with a sequential loop. Parallel batch processing for `investigate` is prepared but not fully activated.
-- **Sandbox behaviour** (`get_file_behaviors`) is restricted to the premium tier of the VT API. With free-tier keys, the corresponding calls return empty results without errors.
-- **Plugin registry** (`vex/plugins/`) is implemented, but loading third-party plugins from external packages is not yet documented and not supported through automatic discovery (e.g., via entry points).
-- **IPv6 regex** covers the most common formats but is not fully RFC 4291 compliant for all edge cases.
+- **Sandbox behaviour** (`get_file_behaviors`) is restricted to the premium tier of the VT API. With free-tier keys, the corresponding calls return empty results without errors (graceful degradation, resolved in v1.1.0).
+- **Async high-throughput mode** is deliberately deferred: at the VT free-tier rate ceiling, async ≈ threads (vex's throughput is quota-bound, not concurrency-bound). The `ThreadPoolExecutor` batch path stays the default; `async_client.py` is retained as a tested seed for a future premium-gated mode.
+- **TI write-back is not yet implemented.** vex currently reads MISP/OpenCTI for context (lookup-before-write-back); pushing data back (MISP sightings, OpenCTI observables) is the notable deferred feature.
+
+*(Earlier limitations — sequential batch processing, entry-point plugin discovery, and full RFC 4291 IPv6 handling — were resolved in v1.1.0.)*
 
 ### Possible Next Steps
 
-- Full activation of async batch processing for `investigate` with large IOC lists
-- Entry-point-based plugin discovery for third-party enrichers
-- `vex config --show` to display the active configuration
-- Integration of community scores and VT graph relationships
-- Optional: local ATT&CK Navigator layer export from `attack_mappings`
+- **TI write-back** (the notable next item): MISP sightings → attributes and OpenCTI observables, opt-in and marking-aware, with explicit TLP governance for data leaving vex.
+- Optional `pymisp`/`pycti` extras if raw-REST/GraphQL version-resilience ever demands them.
+- Premium-gated async high-throughput batch mode (wiring `AsyncVTClient`), only if high-volume/premium demand appears.
+- Integration of community scores and VT graph relationships.
 
 ---
 
@@ -463,7 +460,7 @@ The caching logic and `~/.vex/version_check.json` state file remain unchanged.
 3. `pip install build twine` — install build tools
 4. `python -m build` — build wheel + sdist
 5. `twine check dist/*` — validate package
-6. `twine upload dist/*` — publish to PyPI (uses `PYPI_API_TOKEN` GitHub Secret)
+6. publish to PyPI
 
 Future releases are triggered with:
 
@@ -471,7 +468,7 @@ Future releases are triggered with:
 git tag v1.2.0 && git push origin main --tags
 ```
 
-Decision: no OIDC trusted publisher setup for simplicity; API token via GitHub Secret is sufficient for a single-maintainer project.
+**Publishing model: OIDC Trusted Publisher with a gated environment.** vex publishes to PyPI through an **OIDC Trusted Publisher** — there is no long-lived API token stored as a GitHub Secret. The publish job runs in a `pypi` GitHub Environment that requires a human reviewer to approve each upload, so every release to PyPI is explicitly gated by a person. (An earlier iteration used an `PYPI_API_TOKEN` GitHub Secret "for simplicity"; this was replaced with the tokenless, environment-gated OIDC flow.)
 
 ---
 
@@ -644,6 +641,166 @@ vex investigate evil.com --navigator > layer.json
 
 ---
 
+## v1.2.1 — Concurrency Fix (2026-04-28)
+
+A patch release fixing a real failure in batch mode. Under `ThreadPoolExecutor`, concurrent workers sharing the SQLite `Cache` connection raised `InterfaceError: bad parameter or other API misuse`. A `threading.Lock` was added to `Cache` to serialize concurrent SQLite access. No API or feature changes.
+
+---
+
+## v1.3.0 — Batch Intelligence
+
+**MeetUp:** VEX-2026-008 (8 agents, 2026-05-31)
+
+v1.3.0 turns vex from a per-IOC lookup tool into one that reasons across a *batch* of IOCs. It was never published separately — its work was folded into the v1.4.0 release (see below) — but it represents a distinct theme and a distinct MeetUp scope. The strategic decision made here: **vex commits to being a multi-source threat-intelligence aggregation engine, not just a VirusTotal wrapper.** The plugin registry, until now decorative (only feeding `vex addons`), becomes load-bearing.
+
+### Batch IOC Correlation (`--correlate`)
+
+`--correlate` clusters a multi-IOC run by shared infrastructure — ASN, malware family, contacted IPs/domains, passive DNS. The result is a deterministic cluster table (Rich/console) and a `"clusters"` array in JSON. This is the v1.2.0 miss that DFIR and SOC analysts wanted most: seeing which IOCs in a dump belong to the same campaign. Implemented in `vex/correlate.py`, fully deterministic (no LLM).
+
+### AI Correlation Narratives
+
+With `--correlate` **and** `--explain` on a batch run, vex generates a short per-cluster campaign-correlation narrative. Opt-in, cached, with a template fallback when no LLM is configured. `--correlate` on its own stays deterministic — the AI layer is gated on the explain flag. IOCs are defanged in the prompts.
+
+### Plugin Registry Wired Into the Hot Path
+
+Internally, enrichment now dispatches through the `PluginRegistry` (`EnricherProtocol`) instead of a hardcoded resolver. The VirusTotal plugin owns a single lazily-created, lock-guarded `VTClient` reused across the run and across batch threads — preserving rate-limit continuity (a naive registry wiring would reset the per-IOC `RateLimiter` and trigger 429 storms). This is the foundation for genuine multi-source enrichment. A new `SecondaryEnricherProtocol` lets a plugin augment an `InvestigateResult` in place after the primary source; third-party secondary plugins register via the `vex.secondary_plugins` entry-point group.
+
+### AbuseIPDB and Shodan Enrichers
+
+Two new built-in secondary enrichers, both for IP investigation:
+
+- **AbuseIPDB** — adds confidence score, total reports, and last-reported date when `VEX_ABUSEIPDB_API_KEY` (or `enrichment.abuseipdb_api_key`) is configured.
+- **Shodan** — adds open ports, hostnames, org, and tags when `VEX_SHODAN_API_KEY` (or `enrichment.shodan_api_key`) is configured.
+
+Both are built-in first-party secondaries (like WHOIS), fail-open, key-gated, and add no new dependency. They never block the run.
+
+### HTML Report Export (`--html`)
+
+`--html <path>` on `triage`/`investigate` writes a self-contained HTML report (reusing the Rich rendering with embedded CSS) alongside the normal output. IOC strings are defanged in the report body. `vex/output/html.py`.
+
+### Automated Test Suite
+
+Before v1.3.0, vex had **zero** automated tests. The suite was bootstrapped to 375 unit tests covering cache (including the v1.2.1 concurrency regression), IOC detector, defang, knowledge base, timeline, config, async client, plugin dispatch, correlation, the AbuseIPDB/Shodan enrichers, HTML export, and AI narratives — all deterministic, no network. A `[dev]` optional dependency group (`pytest`, `ruff`) and a GitHub Actions `tests.yml` workflow (ruff + pytest on push/PR) were added at the same time.
+
+### Deferred: Async Batch Executor
+
+The MeetUp originally scoped an async batch executor (P1). It was **deferred to v1.4.0** after analysis showed that at the VT free-tier rate ceiling async ≈ threads, and `AsyncVTClient` cannot drive the sync enrichers without a rewrite. `ThreadPoolExecutor` stays the default; `async_client.py` is kept as a tested seed.
+
+---
+
+## v1.4.0 — Scale & Pipeline
+
+**MeetUp:** VEX-2026-009 (9 agents, 2026-05-31)
+
+v1.4.0 bundles the v1.3.0 "Batch Intelligence" work with the new "Scale & Pipeline" work into a single published release. The test suite grew from 0 → 375 deterministic tests with CI as part of this line of work. The scaling philosophy decided here: **vex is quota-bound, not concurrency-bound** — future-proofing for large pipeline batches means spending less quota and surviving long runs, not running faster. Principle: cache-first, quota-thrifty, rate-limit-aware, streamable; concurrency is second-order.
+
+### Topology: vex as an Enrichment Hub
+
+A topology clarification framed the rest of the release: vex is an enrichment **hub/service**, not a fixed linear pipeline stage. It is called by multiple consumers; the primary real flow is **sift ↔ vex** (sift extracts IOCs from alerts → vex enriches → sift prioritizes/tickets), with barb as an occasional specialized URL feeder. Standalone use stays first-class.
+
+### `--from-sift` Adapter
+
+`--from-sift` reads sift's JSON `TriageReport` from stdin, extracts the IOCs sift found (cluster + alert IOCs, source/dest IPs, deduped), and enriches them — closing the sift ↔ vex enrichment loop. It mirrors the existing `--from-barb` adapter and is mutually exclusive with it. `vex/pipeline/sift_bridge.py`.
+
+### IOC Deduplication
+
+Batch input is de-duplicated (order-preserving) before any query, saving API quota on pipeline-scale runs with repeated IOCs. A `N → M unique (K removed)` notice prints to stderr. `--no-dedup` disables it.
+
+### NDJSON Streaming Output (`-o ndjson`)
+
+`-o ndjson` emits one JSON object per result line, flushed per line (pipeline- and crash-friendly), following the same JSON defang rule (real IOCs unless `--defang`). Under `--correlate`, clusters are emitted as `{"_type":"cluster",...}` lines.
+
+### Rate-Limit-Aware Scheduling
+
+Multi-IOC runs now print an up-front ETA (IOC count · tier · estimated time) to stderr, a post-run `processed (N from API, M cached), K failed` summary (the cached count doubles as a resume signal), and a `--max-quota N` budget guard that caps fresh API lookups — cached results are always served, excess IOCs are skipped with a notice. All notices are stderr-only. `vex/scheduling.py`.
+
+Resume was delivered via the existing SQLite cache (a re-run skips cached IOCs, surfaced by the cache/fresh counter) rather than a separate `--resume` flag. Streaming GB-scale log *input* was dropped as unnecessary — vex ingests IOC strings, which are small; the large logs live upstream.
+
+### `vex doctor`
+
+`vex doctor` reports configuration and connectivity for every service (VirusTotal, AI provider, AbuseIPDB, Shodan, MISP, OpenCTI). Config-only by default (no network); `--probe` tests live connectivity and **surfaces the actual error** instead of the silent fail-open behaviour the enrichers would otherwise hide (e.g. an unreachable MISP/OpenCTI). Secrets are never printed; quota-costing services are not auto-probed. `-o json` for scripting. `vex/doctor.py`.
+
+---
+
+## v1.5.0 — TI Platform Integration
+
+**MeetUp:** VEX-2026-010 (2026-05-31)
+
+v1.5.0 turns vex into a multi-source enrichment hub that connects to the open-source threat-intelligence stack: MISP and OpenCTI lookup, OpenCTI-ready STIX with TLP markings, plus pre-release hardening. The governing principle: **lookup-before-write-back** — reading platforms for context is low-risk/high-value, while write-back carries TLP governance weight (and is deferred). TLP/markings are respected throughout and never leaked into unmarked output; platform secrets are masked and TLS is verified by default; platform SDKs are optional, raw REST is preferred. The MISP (2.5.38) and OpenCTI (demo 7.26) enrichers were live-verified end-to-end, as were the Anthropic and Ollama AI paths.
+
+### MISP IOC Lookup
+
+`investigate` now consults a MISP instance (`/attributes/restSearch`) for every IOC type when `MISP_URL` + `MISP_API_KEY` are configured, attaching `misp_known`, event IDs, tags, a **TLP marking** (most-restrictive wins), and last-seen. It is a built-in secondary enricher using raw httpx (no `pymisp` dependency), fail-open, a no-op without config, with TLS verification on by default (`misp_verify_tls` opts out for lab instances). TLP and markings are carried through and never dropped.
+
+### OpenCTI IOC Lookup
+
+`investigate` also consults an OpenCTI instance (GraphQL `stixCyberObservables`) for every IOC type when `OPENCTI_URL` + `OPENCTI_TOKEN` are configured, attaching `opencti_known`, the observable id, `x_opencti_score`, labels, and a **TLP marking** (most-restrictive). It is a built-in secondary enricher using **raw GraphQL over httpx (no `pycti` dependency)** — defensive parsing tolerates OpenCTI schema/version drift, fail-open, a no-op without config, TLS-verify by default. The token is never logged and is masked in `config --show`. (The MeetUp voted for a `pycti` extra; the implementation deviated to raw httpx — leaner, mockable, and fail-open absorbs version drift, matching the MISP precedent. Live validation against the public demo caught a real bug mocks missed: a GraphQL variable typed `String!` had to become `Any!`.)
+
+### STIX 2.1 Hardened for OpenCTI
+
+The STIX 2.1 export was hardened for OpenCTI ingestion: bundles now include a vex `identity` (`created_by_ref` provenance), STIX **Cyber-observables (SCOs)** with `indicator → based-on → observable` relationships, ATT&CK `external_references` on attack-patterns, and **TLP `marking-definition`s**. When an IOC carries a MISP TLP, the canonical STIX 2.1 TLP marking is attached via `object_marking_refs` — markings are never dropped. IDs remain deterministic (idempotent re-export). A README "Feeding OpenCTI" section was added.
+
+### Pre-Release Hardening
+
+Several hardening items shipped alongside the TI work:
+
+- **AI prompt-injection defense** (adapted from sift): attacker-influenced fields fed to the LLM by `--explain` / `--correlate --explain` (malware-family labels, file names, sandbox process/DNS/mutex/registry strings, tags, categories, WHOIS org) are scanned, and CRITICAL injection attempts (instruction-override, output-manipulation, shell-command) are redacted before prompt submission. NFKC normalization defeats unicode/zero-width bypasses; IOC/hash fields skip the encoded-payload check to avoid false positives. `vex/ai/injection_detector.py`. *(This standalone copy of sift's patterns is what v1.6.0 later replaced with a subclass of the shared engine.)*
+- **AI provider robustness** (adapted from sift): instructions moved into a proper `system` prompt (distinct for `--explain` vs correlation, with an IOC-type glossary) instead of being jammed into the user message; defensive response-content extraction (tolerates non-text blocks); `anthropic.APIError` wrapped with a friendly message; the Anthropic default model refreshed to `claude-sonnet-4-6`. Backward-compatible.
+- **Test coverage round 2**: VT client (rate limiter, 404/429/premium paths), all four VT enrichers (ip/domain/hash/url triage + investigate parsing), and the batch path — 91 new tests, all mocked/no-network. The suite reached **625 tests**.
+
+---
+
+## v1.5.1 — Filename, PE-Hash, and Refang Patch (2026-06-02)
+
+A patch release fixing two real failures found in normal use against live 1.5.0, plus full refang parity. **841 tests, ruff clean, CI green.**
+
+### Filename Misclassified as Domain
+
+IOC detection misread executable/script filenames as domains. `wcdbcrk.dll`, `payload.exe`, and similar matched the domain regex — their extension looked like a TLD — and triggered a bogus VirusTotal domain lookup, returning HTTP 400 / `HTTPStatusError`. Non-TLD file extensions (`exe`/`dll`/`sys`/`scr`/`bat`/`ps1`/`vbs`/…) now detect as `UNKNOWN` and are skipped cleanly. Real TLDs (`.com`, `.app`, `.dev`, `.zip`, `.mov`, `.sh`) are unaffected.
+
+### PE-Hash Investigate Crash
+
+`investigate` on a PE-file hash crashed with a Pydantic `ValidationError`. VirusTotal returns `pe_info.machine_type` as an int (e.g. `332` = `0x14C` i386), but `PEInfo.target_machine` is a string field — the value is now coerced. This affected any PE sample with an integer `machine_type`.
+
+### Full Refang Parity
+
+Refang now covers the full defang spectrum, reaching parity with barb and sift: `(.)`, `{.}`, `(dot)`/`{dot}`, `(at)`/`{at}` (domain-guarded), `[/]`, fullwidth `．＠：／`, and zero-width/BOM stripping — in addition to the existing `hxxp(s)`/`fxp`, `[://]`, `[.]`, `[:]`, `[@]`, `[dot]`, `[at]`. It is idempotent, preserves IPv6 `[::1]`, and `is_defanged()` detection was extended to match. The public API is unchanged.
+
+---
+
+## v1.6.0 — Shipwright Onboarding
+
+**Date:** 2026-06-05
+**Decision:** onboard onto the shared `shipwright-kit` library; publish vex-ioc 1.6.0 to PyPI consuming it from PyPI.
+
+vex, barb, and sift are three security tools that had independently grown overlapping code — most notably each carried its own copy of a prompt-injection pattern set and its own config-loading skeleton. v1.6.0 onboards vex onto **shipwright-kit**, a shared Shipwright library (design tokens, an eval harness, a prompt-injection engine, and a config mechanism) now **published to PyPI**. The payoff is the classic shared-library benefit: **build or fix something once, and it propagates to every tool** that consumes the engine — instead of fixing the same injection bypass three times in three repos.
+
+### Injection Detector Now Subclasses the Shared Engine
+
+vex's prompt-injection detector (`vex/ai/injection_detector.py`) was a standalone copy of sift's patterns (introduced in v1.5.0). It now **subclasses `shipwright_kit.security.injection.PromptInjectionDetector`** and contributes only vex's own prompt-insertion `sanitize()` method on top of the shared `detect()` engine. By inheriting the shared engine, vex **gained** detections it never had:
+
+- **jailbreak / role-override** ("act as an unrestricted assistant", "you are now DAN", …)
+- **system-prompt exfiltration** ("print the contents of your system prompt", …)
+
+These are now flagged in attacker-influenced enrichment data before it is inserted into LLM prompts. Public behaviour is otherwise preserved: the existing patterns, `sanitize()`, and the redaction of CRITICAL findings all still work the same. A drift-guard test asserts the subclass relationship so the inheritance can't silently regress.
+
+### Config Loading Delegates to the Shared Skeleton
+
+`load_config()` now delegates the resolve→load→validate skeleton to `shipwright_kit.config`, eliminating duplicated logic. vex keeps its own `Config` schema, dotenv loading, packaged-default fallback, lazy `@property` env accessors, and `save_config()` verbatim — the config priority hierarchy and all `~/.vex` handling are unchanged.
+
+### Dependency from PyPI
+
+The `shipwright-kit` dependency is now resolved from **PyPI** (`shipwright-kit>=0.6.0,<0.7.0`) instead of a git URL, so `pip install vex-ioc` resolves cleanly without needing a git source. (Publishing the previously git-only library to PyPI is what unblocked using it as a runtime dependency of a published tool.)
+
+### Also in 1.6.0
+
+- **Liberal parsing of VirusTotal responses** — defensive type coercion so malformed or edge-case API payloads no longer raise.
+- Test suite at **898 tests**, ruff clean, CI green. Released to PyPI as **vex-ioc 1.6.0** via the reviewer-gated OIDC publish flow, with a clean-room `pip install` verified.
+
+> **Note:** this v1.6.0 is *not* the originally-planned "write-back" v1.6.0. TI write-back (MISP sightings / OpenCTI observables, opt-in and marking-aware) remains deferred to a later version — see "Current Status and Outlook".
+
+---
+
 *Documentation created on 2026-03-13 based on the complete source code and end-user test session.*
 *Updated 2026-03-16 for v1.0.1 (UX improvements, QM process, config fix).*
 *Updated 2026-03-16 for v1.1.0 (known limitations resolved, MeetUp VEX-2026-003).*
@@ -651,3 +808,9 @@ vex investigate evil.com --navigator > layer.json
 *Updated 2026-03-18 for v1.2.0 (AI integration, config --show, MeetUp VEX-2026-006).*
 *Updated 2026-03-18 for v1.2.0 (barb pipeline, WHOIS enrichment, ATT&CK Navigator export).*
 *Updated 2026-03-21 for v1.2.0 (addon discoverability: vex addons, config --show addon section, first-run hint, explanation labels, python-whois promoted to core, pipx install docs, MeetUp VEX-2026-007).*
+*Updated 2026-04-28 for v1.2.1 (concurrency fix: threading.Lock on Cache for ThreadPoolExecutor batch workers).*
+*Updated 2026-05-31 for v1.3.0 "Batch Intelligence" (--correlate clustering, AI correlation narratives, plugin registry wired into hot path, AbuseIPDB/Shodan secondary enrichers, --html export, 375-test suite + CI, MeetUp VEX-2026-008).*
+*Updated 2026-05-31 for v1.4.0 "Scale & Pipeline" (vex as enrichment hub, --from-sift, IOC dedup, NDJSON streaming, rate-limit-aware scheduling/--max-quota, vex doctor, MeetUp VEX-2026-009).*
+*Updated 2026-06-01 for v1.5.0 "TI Platform Integration" (MISP + OpenCTI lookup, OpenCTI-hardened STIX with TLP markings, AI prompt-injection defense + provider robustness, 625 tests, MeetUp VEX-2026-010).*
+*Updated 2026-06-02 for v1.5.1 (filename≠domain guard, PE-hash investigate ValidationError fix, full refang parity, 841 tests).*
+*Updated 2026-06-05 for v1.6.0 "Shipwright onboarding" (consumes shipwright-kit from PyPI; injection detector subclasses the shared engine — gained jailbreak + system-prompt-exfil detection; config delegates to shipwright_kit.config; 898 tests). Publishing corrected to OIDC Trusted Publisher with reviewer-gated pypi environment; personal email removed from author-metadata bugfix narrative.*
