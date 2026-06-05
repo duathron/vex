@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-06-05
+
+Minor release: shared prompt-injection defense (new detections) + vex now consumes the Shipwright library from PyPI.
+
+### Added
+- Prompt-injection detection now also flags **jailbreak / role-override** ("act as an unrestricted assistant", "you are now DAN", …) and **system-prompt exfiltration** ("print the contents of your system prompt", …) in attacker-influenced enrichment data before it is inserted into LLM prompts. These come from the shared `shipwright_kit.security.injection` engine, so a bypass fixed once is fixed everywhere.
+
+### Changed
+- vex's prompt-injection detector now subclasses the shared `shipwright_kit.security.injection` engine, and config loading delegates to `shipwright_kit.config` — eliminating duplicated logic. Public behaviour is preserved (existing patterns, `sanitize()`, config hierarchy, env overrides, `~/.vex` handling all unchanged).
+- Dependency `shipwright-kit` is now resolved from **PyPI** (`>=0.6.0,<0.7.0`) instead of a git URL, so `pip install vex-ioc` resolves cleanly.
+
+### Fixed
+- Liberal parsing of VirusTotal responses (defensive type coercion) so malformed/edge-case API payloads no longer raise.
+
 ## [1.5.1] - 2026-06-02
 
 Patch release: two real failures on core paths in 1.5.0 (`triage <filename>`, `investigate <PE hash>`) plus full refang parity.
