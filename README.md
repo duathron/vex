@@ -190,6 +190,13 @@ Computed from the highest-severity verdict in the run:
 
 Full manual: [`docs/`](docs/README.md) — getting started, every command/flag, the enrichment model, output formats, the barb/sift pipeline contracts, and configuration. Built-in guide: `vex manual` (and `vex manual ai` / `pipeline` / `config`). Changelog: [`CHANGELOG.md`](CHANGELOG.md).
 
+## Author
+
+**Christian Huhn** — building security tooling for SOC/DFIR workflows.
+
+- GitHub: [@duathron](https://github.com/duathron)
+- LinkedIn: [Christian Huhn](https://www.linkedin.com/in/christian-huhn-76a407114)
+
 ## License
 
 MIT

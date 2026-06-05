@@ -9,9 +9,7 @@ description = "VirusTotal IOC Enrichment Tool for SOC/DFIR workflows"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
-authors = [
-    { name = "Christian Huhn", email = "duathron@gmail.com" },
-]
+authors = [{ name = "Christian Huhn" }]
 keywords = ["virustotal", "ioc", "threat-intelligence", "dfir", "soc", "mitre-attack", "stix"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -54,6 +52,7 @@ vex = "vex.main:main"
 Homepage = "https://github.com/duathron/vex"
 Repository = "https://github.com/duathron/vex"
 "Bug Tracker" = "https://github.com/duathron/vex/issues"
+LinkedIn = "https://www.linkedin.com/in/christian-huhn-76a407114"
 
 [tool.ruff]
 extend = "tooling/ruff-base.toml"
