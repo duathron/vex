@@ -47,12 +47,16 @@ class PromptInjectionDetector(_CoreDetector):
         for w in warnings:
             logger.warning(
                 "Prompt injection WARNING in field %r: pattern=%s preview=%r",
-                field_name or "<unknown>", w.pattern_type, w.value_preview,
+                field_name or "<unknown>",
+                w.pattern_type,
+                w.value_preview,
             )
         if critical:
             logger.warning(
                 "Prompt injection CRITICAL in field %r: pattern=%s — redacting. preview=%r",
-                field_name or "<unknown>", critical[0].pattern_type, critical[0].value_preview,
+                field_name or "<unknown>",
+                critical[0].pattern_type,
+                critical[0].value_preview,
             )
             return critical[0].redaction
         return value

@@ -369,9 +369,7 @@ class TestSharedEnginePatterns:
 
     def test_prompt_exfiltration_no_false_positive_on_onboarding(self) -> None:
         # Benign admin/onboarding phrasing must NOT fire prompt_exfiltration.
-        findings = detector().detect(
-            "Admin will reveal your instructions during onboarding", "test_field"
-        )
+        findings = detector().detect("Admin will reveal your instructions during onboarding", "test_field")
         assert "prompt_exfiltration" not in find_types(findings)
 
 
