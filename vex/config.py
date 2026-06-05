@@ -8,6 +8,7 @@ from typing import Optional
 import yaml
 from dotenv import load_dotenv
 from pydantic import BaseModel
+from shipwright_kit.config import load_config as _resolve_config
 
 _USER_CONFIG_PATH = Path.home() / ".vex" / "config.yaml"
 _DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
@@ -160,21 +161,21 @@ class Config(BaseModel):
         return default
 
 
+def _load_yaml(path: Path) -> dict:
+    with open(path) as f:
+        return yaml.safe_load(f) or {}
+
+
 def load_config(config_path: Optional[Path] = None) -> Config:
     load_dotenv()
-    # Priority: explicit path > user config > default config
-    if config_path:
-        path = config_path
-    elif _USER_CONFIG_PATH.exists():
-        path = _USER_CONFIG_PATH
-    elif _DEFAULT_CONFIG_PATH.exists():
-        path = _DEFAULT_CONFIG_PATH
-    else:
-        return Config()
-
-    with open(path) as f:
-        data = yaml.safe_load(f) or {}
-    return Config.model_validate(data)
+    # Priority: explicit path > user config > packaged default; no file -> Config().
+    # shipwright_kit.config returns validator({}) when no candidate exists, which
+    # equals Config() (verified: Config.model_validate({}) == Config()).
+    return _resolve_config(
+        [config_path, _USER_CONFIG_PATH, _DEFAULT_CONFIG_PATH],
+        loader=_load_yaml,
+        validator=Config.model_validate,
+    )
 
 
 def save_config(config: Config) -> Path:
