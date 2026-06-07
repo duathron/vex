@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1](https://github.com/duathron/vex/compare/v1.6.0...v1.6.1) (2026-06-07)
+
+
+### Documentation
+
+* **changelog:** note attribution metadata change under Unreleased ([60befa0](https://github.com/duathron/vex/commit/60befa0cdd6791e7b10dffcafcc7b69ace3517bf))
+* **meta:** attribution — GitHub + LinkedIn; drop personal email from metadata ([d12a928](https://github.com/duathron/vex/commit/d12a9283d43d7fcec2f555ff54974fdf0ceed899))
+* update project_documentation.md through v1.6.0 ([e14e677](https://github.com/duathron/vex/commit/e14e677c385139aacb83eb016f634a40f947c44a))
+
 ## [Unreleased]
 
 ### Changed
