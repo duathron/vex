@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from vex.tlp import most_restrictive_tlp, normalize_tlp
+from vex.tlp import _tlp_rank, most_restrictive_tlp, normalize_tlp
 
 # ---------------------------------------------------------------------------
 # normalize_tlp — single-string parsing
@@ -159,3 +159,40 @@ class TestMostRestrictiveTlp:
 
     def test_duplicates_no_problem(self) -> None:
         assert most_restrictive_tlp(["tlp:amber", "tlp:amber", "tlp:amber"]) == "amber"
+
+
+# ---------------------------------------------------------------------------
+# _tlp_rank — numeric rank helper for write-back ceiling check
+# ---------------------------------------------------------------------------
+
+
+class TestTlpRank:
+    def test_red_is_rank_0(self) -> None:
+        assert _tlp_rank("red") == 0
+
+    def test_amber_is_rank_1(self) -> None:
+        assert _tlp_rank("amber") == 1
+
+    def test_green_is_rank_2(self) -> None:
+        assert _tlp_rank("green") == 2
+
+    def test_clear_is_rank_3(self) -> None:
+        assert _tlp_rank("clear") == 3
+
+    def test_none_is_rank_99(self) -> None:
+        assert _tlp_rank(None) == 99
+
+    def test_unknown_level_is_rank_99(self) -> None:
+        assert _tlp_rank("purple") == 99
+
+    def test_red_lower_than_amber(self) -> None:
+        assert _tlp_rank("red") < _tlp_rank("amber")
+
+    def test_amber_lower_than_green(self) -> None:
+        assert _tlp_rank("amber") < _tlp_rank("green")
+
+    def test_green_lower_than_clear(self) -> None:
+        assert _tlp_rank("green") < _tlp_rank("clear")
+
+    def test_clear_lower_than_none(self) -> None:
+        assert _tlp_rank("clear") < _tlp_rank(None)

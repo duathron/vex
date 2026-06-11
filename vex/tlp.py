@@ -23,6 +23,23 @@ _TLP_RE = re.compile(r"(?i)^tlp:?\s*(red|amber\+strict|amber|green|clear|white)\
 _TLP_PRECEDENCE = ["red", "amber", "green", "clear"]
 
 
+def _tlp_rank(level: Optional[str]) -> int:
+    """Return numeric rank for a canonical TLP level string.
+
+    ``red`` is most restrictive (rank 0); ``clear`` is least (rank 3).
+    ``None`` or unknown values return 99 (effectively "no TLP").
+
+    Used by write-back writers to enforce the ceiling check:
+    ``rank(source_tlp) < rank(ceiling)`` means source is stricter → skip.
+    """
+    if level is None:
+        return 99
+    try:
+        return _TLP_PRECEDENCE.index(level)
+    except ValueError:
+        return 99
+
+
 def normalize_tlp(raw: str) -> Optional[str]:
     """Return the canonical lowercase TLP level for *raw*, or ``None``.
 
