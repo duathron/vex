@@ -295,3 +295,26 @@ class TestSubModelDefaults:
         rl = RateLimits()
         assert rl.premium.requests_per_minute == 1000
         assert rl.premium.requests_per_day == 50000
+
+
+class TestWritebackConfigDefaults:
+    def test_writeback_enabled_default_false(self) -> None:
+        cfg = EnrichmentConfig()
+        assert cfg.writeback_enabled is False
+
+    def test_writeback_tlp_default_green(self) -> None:
+        cfg = EnrichmentConfig()
+        assert cfg.writeback_tlp == "green"
+
+    def test_writeback_min_verdict_default_suspicious(self) -> None:
+        cfg = EnrichmentConfig()
+        assert cfg.writeback_min_verdict == "SUSPICIOUS"
+
+    def test_writeback_fields_round_trip_yaml(self) -> None:
+        """Fields survive model_dump / model_validate round-trip."""
+        cfg = EnrichmentConfig(writeback_enabled=True, writeback_tlp="amber", writeback_min_verdict="MALICIOUS")
+        dumped = cfg.model_dump()
+        restored = EnrichmentConfig.model_validate(dumped)
+        assert restored.writeback_enabled is True
+        assert restored.writeback_tlp == "amber"
+        assert restored.writeback_min_verdict == "MALICIOUS"

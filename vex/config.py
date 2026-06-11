@@ -79,6 +79,10 @@ class EnrichmentConfig(BaseModel):
     opencti_token: Optional[str] = None
     opencti_verify_tls: bool = True
     stix_tlp_version: str = "1.0"  # "1.0" or "2.0" — controls TLP marking-definition ids in STIX export
+    # Write-back (triple opt-in: config + --sight + --dry-run-sight)
+    writeback_enabled: bool = False
+    writeback_tlp: str = "green"  # TLP ceiling vex applies to data it writes
+    writeback_min_verdict: str = "SUSPICIOUS"  # floor: only write IOCs at/above this
 
 
 def _ensure_dir(path: Path) -> None:
