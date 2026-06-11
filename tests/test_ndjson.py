@@ -148,3 +148,26 @@ class TestNdjsonList:
         # Exactly one JSON object, parseable
         parsed = json.loads(line)
         assert parsed["ioc"] == "single.com"
+
+
+class TestWritebackFields:
+    def test_writeback_fields_default_none(self) -> None:
+        result = _investigate()
+        assert result.writeback_misp is None
+        assert result.writeback_opencti is None
+
+    def test_writeback_fields_in_json_export(self) -> None:
+        result = _investigate()
+        result.writeback_misp = True
+        result.writeback_opencti = False
+        line = to_ndjson(result)
+        parsed = json.loads(line)
+        assert parsed["writeback_misp"] is True
+        assert parsed["writeback_opencti"] is False
+
+    def test_writeback_none_serializes_as_null(self) -> None:
+        result = _investigate()
+        line = to_ndjson(result)
+        parsed = json.loads(line)
+        assert "writeback_misp" in parsed
+        assert parsed["writeback_misp"] is None

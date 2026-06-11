@@ -208,6 +208,10 @@ class InvestigateResult(BaseModel):
     title: Optional[str] = None
     related_files: list[RelatedFile] = Field(default_factory=list)
 
+    # Write-back outcomes (None = not attempted, True = written, False = failed/skipped)
+    writeback_misp: Optional[bool] = None
+    writeback_opencti: Optional[bool] = None
+
 
 # --- Timeline models ---
 
