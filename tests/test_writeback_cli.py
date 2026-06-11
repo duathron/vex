@@ -7,13 +7,8 @@ monkeypatched throughout.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
-
 from vex.config import Config, EnrichmentConfig
 from vex.models import DetectionStats, InvestigateResult, TriageResult, Verdict
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -72,7 +67,6 @@ def _config_writeback_disabled() -> Config:
 
 
 from vex.main import _run_writeback  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # dry-run: no network calls, fields set to None
@@ -191,9 +185,7 @@ class TestSightAboveFloor:
         config = _config_writeback_enabled()
 
         monkeypatch.setattr("vex.plugins.misp.MISPEnricher.add_sighting", lambda self, *a, **kw: True)
-        monkeypatch.setattr(
-            "vex.plugins.opencti.OpenCTIEnricher.add_observable", lambda self, *a, **kw: True
-        )
+        monkeypatch.setattr("vex.plugins.opencti.OpenCTIEnricher.add_observable", lambda self, *a, **kw: True)
 
         _run_writeback([result], config, sight=True, dry_run_sight=False)
 

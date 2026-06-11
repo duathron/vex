@@ -947,9 +947,7 @@ class TestOpenCTIAddObservable:
             return mock_resp
 
         monkeypatch.setattr(httpx, "post", fake_post)
-        enricher.add_observable(
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "sha256", config
-        )
+        enricher.add_observable("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "sha256", config)
         assert captured["json"]["variables"]["type"] == "StixFile"
 
     def test_missing_id_in_response_returns_false(self, monkeypatch):

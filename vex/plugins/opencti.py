@@ -28,7 +28,8 @@ import httpx
 from ..config import Config
 from ..enrichers.protocol import SecondaryEnricherProtocol
 from ..models import InvestigateResult
-from ..tlp import _tlp_rank, most_restrictive_tlp as _shared_most_restrictive_tlp
+from ..tlp import _tlp_rank
+from ..tlp import most_restrictive_tlp as _shared_most_restrictive_tlp
 
 logger = logging.getLogger("vex.plugins.opencti")
 
