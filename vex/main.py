@@ -215,6 +215,23 @@ _MaxQuotaOpt = Annotated[
         help="Cap the number of fresh API lookups this run. Cached IOCs are always served and do not count against the quota.",  # noqa: E501
     ),
 ]
+_SightOpt = Annotated[
+    bool,
+    typer.Option(
+        "--sight",
+        help=(
+            "Write sightings/observables back to MISP + OpenCTI for IOCs at/above "
+            "the write verdict floor (requires enrichment.writeback_enabled in config)."
+        ),
+    ),
+]
+_DryRunSightOpt = Annotated[
+    bool,
+    typer.Option(
+        "--dry-run-sight",
+        help="Show write payloads without sending (no network). Use with --sight for a preview.",
+    ),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -795,6 +812,8 @@ def cmd_investigate(
     html: _HtmlOpt = None,
     no_dedup: _NoDedupOpt = False,
     max_quota: _MaxQuotaOpt = None,
+    sight: _SightOpt = False,
+    dry_run_sight: _DryRunSightOpt = False,
 ) -> None:
     config = load_config(config_path)
     if api_key:
@@ -954,6 +973,9 @@ def cmd_investigate(
 
     # Compute exit code from highest severity BEFORE filtering
     exit_code = _EXIT_CODES.get(max((r.triage.verdict.severity for r in results), default=0), 0)
+
+    # Write-back (opt-in: --sight or --dry-run-sight + enrichment.writeback_enabled)
+    _run_writeback(results, config, sight=sight, dry_run_sight=dry_run_sight)
 
     # Filter by alert threshold
     pre_filter_count = len(results)
@@ -1339,6 +1361,91 @@ def _show_config(config) -> None:
     if config.ai.provider == "none":
         console.print()
         console.print("[dim]Hint: AI explanations not configured. Run 'vex manual ai' for setup instructions.[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# Write-back helper
+# ---------------------------------------------------------------------------
+
+
+def _run_writeback(
+    results: list[InvestigateResult],
+    config,
+    *,
+    sight: bool,
+    dry_run_sight: bool,
+) -> None:
+    """Write sightings/observables back to MISP + OpenCTI.
+
+    Called from cmd_investigate after results are built and exit_code computed.
+
+    Triple opt-in:
+      1. enrichment.writeback_enabled must be True in config.
+      2. --sight flag must be passed.
+      3. Optionally --dry-run-sight for a preview without network.
+
+    The verdict floor (enrichment.writeback_min_verdict) controls which IOCs
+    qualify. The TLP ceiling (enrichment.writeback_tlp) blocks data that would
+    upgrade the classification of what is already known on each platform.
+    """
+    from .tlp import _tlp_rank  # noqa: PLC0415
+
+    if not sight and not dry_run_sight:
+        return
+
+    if sight and not config.enrichment.writeback_enabled:
+        err_console.print(
+            "[yellow]Warning:[/yellow] --sight given but enrichment.writeback_enabled is false "
+            "— enable it in config to write."
+        )
+        return
+
+    # Parse verdict floor
+    try:
+        floor_severity = Verdict[config.enrichment.writeback_min_verdict].severity
+    except KeyError:
+        err_console.print(
+            f"[yellow]Warning:[/yellow] Invalid writeback_min_verdict "
+            f"'{config.enrichment.writeback_min_verdict}', defaulting to SUSPICIOUS."
+        )
+        floor_severity = Verdict.SUSPICIOUS.severity
+
+    for result in results:
+        if result.triage.verdict.severity < floor_severity:
+            continue
+
+        ioc = result.triage.ioc
+        ioc_type = result.triage.ioc_type
+
+        # Build source_tlp from the most-restrictive TLP known for this IOC
+        # misp_tlp and opencti_tlp are stored uppercase (e.g. "AMBER"); _tlp_rank expects lowercase
+        raw_tlps = [t.lower() for t in [result.misp_tlp, result.opencti_tlp] if t]
+        source_tlp: str | None = min(raw_tlps, key=_tlp_rank) if raw_tlps else None
+
+        if dry_run_sight:
+            err_console.print(
+                f"[dim][dry-run-sight] would write: ioc={ioc} type={ioc_type} "
+                f"source_tlp={source_tlp or 'none'} "
+                f"ceiling={config.enrichment.writeback_tlp}[/dim]"
+            )
+            # Fields stay None — not attempted
+            continue
+
+        # MISP sighting
+        from .plugins.misp import MISPEnricher  # noqa: PLC0415
+
+        misp_ok = MISPEnricher().add_sighting(ioc, config, source_tlp=source_tlp)
+        result.writeback_misp = misp_ok
+        status = "ok" if misp_ok else "failed/skipped"
+        err_console.print(f"[dim]sighting → MISP {status}: {ioc}[/dim]")
+
+        # OpenCTI observable
+        from .plugins.opencti import OpenCTIEnricher  # noqa: PLC0415
+
+        opencti_ok = OpenCTIEnricher().add_observable(ioc, ioc_type, config, source_tlp=source_tlp)
+        result.writeback_opencti = opencti_ok
+        status = "ok" if opencti_ok else "failed/skipped"
+        err_console.print(f"[dim]observable → OpenCTI {status}: {ioc}[/dim]")
 
 
 # ---------------------------------------------------------------------------
