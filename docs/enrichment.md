@@ -139,3 +139,79 @@ resolved `misp_tlp` flows into the STIX export's TLP marking (see
 
 See [output formats](output-formats.md) for a full `InvestigateResult` JSON with
 these fields populated.
+
+---
+
+## Write-back (opt-in)
+
+vex can write **MISP sightings** and **OpenCTI observables** for IOCs that
+exceed a configurable verdict floor. This is an advanced feature with three
+explicit opt-in gates:
+
+1. `enrichment.writeback_enabled: true` in config (default `false`).
+2. `--sight` flag on `vex investigate`.
+3. `--dry-run-sight` for a network-free preview.
+
+### Verdict floor
+
+Only IOCs at or above `enrichment.writeback_min_verdict` (default `SUSPICIOUS`)
+are written. IOCs below the floor are silently skipped.
+
+### TLP marking-check
+
+Before each write, vex compares the source IOC's most-restrictive known TLP
+(from the enrichment result's `misp_tlp` / `opencti_tlp`) against the
+configured ceiling (`enrichment.writeback_tlp`, default `"green"`).
+
+If the source TLP is **more restrictive** than the ceiling, the write is
+**blocked**. This prevents publishing RED-marked data from one platform to
+another platform that only accepts GREEN.
+
+Rank order: `red` (0, most restrictive) → `amber` (1) → `green` (2) → `clear` (3, least restrictive).
+
+### Fail-open
+
+A write failure (network error, HTTP error, GraphQL error) is logged at DEBUG
+and sets the result field to `false`. It never crashes the run.
+
+### OpenCTI mutation (operator must verify)
+
+The GraphQL mutation used is:
+
+```graphql
+mutation AddObservable($type: String!, $value: String!) {
+  stixCyberObservableAdd(type: $type, observableData: { value: $value }) {
+    id
+  }
+}
+```
+
+IOC type mapping: `ipv4` → `IPv4-Addr`, `ipv6` → `IPv6-Addr`, `domain` →
+`Domain-Name`, `url` → `Url`, `md5`/`sha1`/`sha256` → `StixFile`.
+
+The `observableData { value: $value }` shape works for network observables on
+OpenCTI >= 5.x. For file-hash observables some versions require
+`hashes: { MD5: $value }` — verify against your instance before relying on
+hash write-back.
+
+### Config example
+
+```yaml
+enrichment:
+  writeback_enabled: true
+  writeback_tlp: "green"
+  writeback_min_verdict: "SUSPICIOUS"
+  misp_url: https://misp.corp.example
+  misp_api_key: ${MISP_API_KEY}
+  opencti_url: https://opencti.corp.example
+  opencti_token: ${OPENCTI_TOKEN}
+```
+
+### New result fields
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `writeback_misp` | `bool \| null` | `null` = not attempted, `true` = written, `false` = failed/skipped |
+| `writeback_opencti` | `bool \| null` | same |
+
+Run `vex manual writeback` for the full guide.

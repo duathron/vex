@@ -1695,6 +1695,63 @@ STIX 2.1, barb pipeline). Optional extras enable additional capabilities.
   [green]vex addons[/green]          List all addons and installation status
   [green]vex config --show[/green]   Full config + addon status overview
 """,
+    "writeback": """\
+[bold cyan]TI WRITE-BACK — MISP sightings + OpenCTI observables[/bold cyan]
+
+vex can write sightings back to MISP and create observables in OpenCTI for
+IOCs that meet a configurable verdict floor. This is strictly opt-in — three
+separate gates must all be open before any write occurs.
+
+[bold]TRIPLE OPT-IN GATES:[/bold]
+  1. [cyan]enrichment.writeback_enabled: true[/cyan] in config (default false)
+  2. [bold]--sight[/bold] flag passed to [bold]vex investigate[/bold]
+  3. Alternatively: [bold]--dry-run-sight[/bold] for a preview (no network)
+
+[bold]VERDICT FLOOR:[/bold]
+  Only IOCs at or above [cyan]enrichment.writeback_min_verdict[/cyan] are written.
+  Default: [bold]SUSPICIOUS[/bold]. Valid values: CLEAN, UNKNOWN, SUSPICIOUS, MALICIOUS.
+  IOCs below the floor are silently skipped.
+
+[bold]TLP MARKING-CHECK (cross-platform leak protection):[/bold]
+  Before each write, vex compares the source IOC's most-restrictive known TLP
+  (from MISP and OpenCTI enrichment) against [cyan]enrichment.writeback_tlp[/cyan] (the ceiling).
+  If the source TLP is MORE restrictive than the ceiling the write is SKIPPED.
+
+  Example: IOC was enriched with TLP:RED from MISP.
+    writeback_tlp = "green" → rank(red)=0 < rank(green)=2 → SKIP.
+    writeback_tlp = "red"   → rank(red)=0 < rank(red)=0 is False → ALLOW.
+
+  This prevents accidentally pushing RED-marked data from one platform to another.
+
+[bold]FAIL-OPEN:[/bold]
+  A write failure (network error, HTTP non-200, GraphQL error) never crashes the
+  run or blocks other output. It logs at DEBUG and sets the field to False.
+
+[bold]OPENCTI MUTATION NOTE (OPERATOR MUST VERIFY):[/bold]
+  The mutation used is:
+    mutation AddObservable($type: String!, $value: String!) {
+      stixCyberObservableAdd(type: $type, observableData: { value: $value }) { id }
+    }
+  For network observables (IPv4, domain, URL) this works on OpenCTI >= 5.x.
+  For file hashes (StixFile), some versions require {hashes: {MD5: ...}}.
+  Verify against your instance before relying on hash write-back.
+
+[bold]CONFIGURATION (~/.vex/config.yaml):[/bold]
+  enrichment:
+    writeback_enabled: true        # master switch
+    writeback_tlp: "green"         # TLP ceiling for writes
+    writeback_min_verdict: "SUSPICIOUS"  # floor (CLEAN/UNKNOWN/SUSPICIOUS/MALICIOUS)
+    # MISP and OpenCTI credentials also required (see 'vex manual config')
+
+[bold]USAGE:[/bold]
+  [green]vex investigate 1.2.3.4 --dry-run-sight[/green]    # preview, no network
+  [green]vex investigate 1.2.3.4 --sight[/green]            # write if enabled
+  [green]vex investigate -f iocs.txt --sight[/green]        # batch write-back
+
+[bold]RESULT FIELDS:[/bold]
+  writeback_misp:    null (not attempted) | true (written) | false (failed/skipped)
+  writeback_opencti: null (not attempted) | true (written) | false (failed/skipped)
+""",
 }
 
 
@@ -1729,6 +1786,7 @@ def cmd_manual(
     console.print("  [green]vex manual examples[/green]   Usage examples")
     console.print("  [green]vex manual pipeline[/green]   barb → vex pipeline integration")
     console.print("  [green]vex manual addons[/green]     Optional extras and installation")
+    console.print("  [green]vex manual writeback[/green]  TI write-back (MISP sightings + OpenCTI observables)")
     console.print()
     console.print("[bold]Quick start:[/bold]")
     console.print("  [green]vex config --set-api-key YOUR_VT_KEY[/green]")
