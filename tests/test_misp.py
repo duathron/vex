@@ -695,3 +695,140 @@ class TestConfigEnvOverride:
         enricher.enrich(result, "1.2.3.4", "ipv4", config)
 
         assert "env-misp.example.com" in captured["url"]
+
+
+# ---------------------------------------------------------------------------
+# Write-back: add_sighting
+# ---------------------------------------------------------------------------
+
+
+class TestMISPAddSighting:
+    """Tests for MISPEnricher.add_sighting()."""
+
+    def _config_with_writeback(
+        self,
+        writeback_tlp: str = "green",
+        writeback_enabled: bool = True,
+    ) -> Config:
+        cfg = Config()
+        cfg.enrichment = EnrichmentConfig(
+            misp_url="https://misp.example.com",
+            misp_api_key="test-key",
+            misp_verify_tls=True,
+            writeback_enabled=writeback_enabled,
+            writeback_tlp=writeback_tlp,
+        )
+        return cfg
+
+    def test_success_200_returns_true(self, monkeypatch):
+        enricher = MISPEnricher()
+        config = self._config_with_writeback()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: mock_resp)
+        result = enricher.add_sighting("1.2.3.4", config)
+        assert result is True
+
+    def test_non_200_returns_false(self, monkeypatch):
+        enricher = MISPEnricher()
+        config = self._config_with_writeback()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 403
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: mock_resp)
+        result = enricher.add_sighting("1.2.3.4", config)
+        assert result is False
+
+    def test_no_url_no_network_returns_false(self, monkeypatch):
+        enricher = MISPEnricher()
+        cfg = Config()
+        cfg.enrichment = EnrichmentConfig(misp_url=None, misp_api_key="key")
+        called = []
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: called.append(1))
+        result = enricher.add_sighting("1.2.3.4", cfg)
+        assert result is False
+        assert len(called) == 0
+
+    def test_no_key_no_network_returns_false(self, monkeypatch):
+        enricher = MISPEnricher()
+        cfg = Config()
+        cfg.enrichment = EnrichmentConfig(misp_url="https://misp.example.com", misp_api_key=None)
+        called = []
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: called.append(1))
+        result = enricher.add_sighting("1.2.3.4", cfg)
+        assert result is False
+        assert len(called) == 0
+
+    def test_exception_fail_open_returns_false(self, monkeypatch):
+        enricher = MISPEnricher()
+        config = self._config_with_writeback()
+
+        def raise_err(*a, **kw):
+            raise RuntimeError("network error")
+
+        monkeypatch.setattr(httpx, "post", raise_err)
+        result = enricher.add_sighting("1.2.3.4", config)
+        assert result is False
+
+    def test_marking_check_source_stricter_than_ceiling_skips_no_post(self, monkeypatch):
+        """source_tlp=red is more restrictive than writeback_tlp=green → skip, no POST."""
+        enricher = MISPEnricher()
+        config = self._config_with_writeback(writeback_tlp="green")
+        called = []
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: called.append(1))
+        result = enricher.add_sighting("1.2.3.4", config, source_tlp="red")
+        assert result is False
+        assert len(called) == 0  # no POST made
+
+    def test_marking_check_source_same_as_ceiling_allows(self, monkeypatch):
+        """source_tlp=green == writeback_tlp=green → allow."""
+        enricher = MISPEnricher()
+        config = self._config_with_writeback(writeback_tlp="green")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: mock_resp)
+        result = enricher.add_sighting("1.2.3.4", config, source_tlp="green")
+        assert result is True
+
+    def test_marking_check_source_less_restrictive_allows(self, monkeypatch):
+        """source_tlp=clear (rank 3) vs writeback_tlp=green (rank 2) → clear > green → allow."""
+        enricher = MISPEnricher()
+        config = self._config_with_writeback(writeback_tlp="green")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: mock_resp)
+        result = enricher.add_sighting("1.2.3.4", config, source_tlp="clear")
+        assert result is True
+
+    def test_marking_check_amber_source_against_amber_ceiling_allows(self, monkeypatch):
+        """source_tlp=amber == writeback_tlp=amber → allow."""
+        enricher = MISPEnricher()
+        config = self._config_with_writeback(writeback_tlp="amber")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: mock_resp)
+        result = enricher.add_sighting("1.2.3.4", config, source_tlp="amber")
+        assert result is True
+
+    def test_correct_endpoint_and_payload(self, monkeypatch):
+        """POST must go to /sightings/add with correct JSON body."""
+        enricher = MISPEnricher()
+        config = self._config_with_writeback()
+        captured: dict = {}
+
+        def fake_post(url, *, json=None, headers=None, timeout=None, verify=None):
+            captured["url"] = url
+            captured["json"] = json
+            captured["headers"] = headers
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            return mock_resp
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+        enricher.add_sighting("1.2.3.4", config, source="vex-test")
+
+        assert captured["url"].endswith("/sightings/add")
+        assert captured["json"]["value"] == "1.2.3.4"
+        assert captured["json"]["source"] == "vex-test"
+        assert captured["headers"]["Authorization"] == "test-key"
+        assert captured["headers"]["Accept"] == "application/json"
+        assert captured["headers"]["Content-Type"] == "application/json"

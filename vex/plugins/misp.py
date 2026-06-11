@@ -21,7 +21,7 @@ import httpx
 from ..config import Config
 from ..enrichers.protocol import SecondaryEnricherProtocol
 from ..models import InvestigateResult
-from ..tlp import most_restrictive_tlp as _shared_most_restrictive_tlp
+from ..tlp import _tlp_rank, most_restrictive_tlp as _shared_most_restrictive_tlp
 
 logger = logging.getLogger("vex.plugins.misp")
 
@@ -141,6 +141,66 @@ class MISPEnricher:
 
         except Exception as exc:
             logger.debug("MISP enrichment failed for IOC lookup: %s", exc)
+
+    def add_sighting(
+        self,
+        ioc: str,
+        config: Config,
+        *,
+        source: str = "vex",
+        source_tlp: str | None = None,
+    ) -> bool:
+        """Write a sighting for *ioc* back to MISP.
+
+        Returns True on HTTP 200, False for any other outcome (no-config,
+        marking-check blocked, HTTP error, network error).
+
+        Marking-check: if ``source_tlp`` is more restrictive than
+        ``config.enrichment.writeback_tlp`` (i.e. its rank is lower),
+        the write is skipped to prevent cross-platform TLP-level leaks.
+
+        The MISP API key is never written to logs.
+        Fail-open: any exception returns False, never raises.
+        """
+        url = config.misp_url
+        key = config.misp_api_key
+        if not url or not key:
+            return False
+
+        # Marking-check: source stricter than ceiling → skip
+        if source_tlp is not None:
+            ceiling = config.enrichment.writeback_tlp
+            if _tlp_rank(source_tlp) < _tlp_rank(ceiling):
+                logger.debug(
+                    "MISP sighting skipped: source TLP %s more restrictive than ceiling %s",
+                    source_tlp,
+                    ceiling,
+                )
+                return False
+
+        try:
+            sighting_url = url.rstrip("/") + "/sightings/add"
+            response = httpx.post(
+                sighting_url,
+                json={"value": ioc, "source": source},
+                headers={
+                    "Authorization": key,
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
+                timeout=8.0,
+                verify=config.enrichment.misp_verify_tls,
+            )
+
+            if response.status_code != 200:
+                logger.debug("MISP sighting returned HTTP %d", response.status_code)
+                return False
+
+            return True
+
+        except Exception as exc:
+            logger.debug("MISP add_sighting failed: %s", exc)
+            return False
 
 
 # Verify protocol compliance at import time
