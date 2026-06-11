@@ -28,9 +28,34 @@ import httpx
 from ..config import Config
 from ..enrichers.protocol import SecondaryEnricherProtocol
 from ..models import InvestigateResult
-from ..tlp import most_restrictive_tlp as _shared_most_restrictive_tlp
+from ..tlp import _tlp_rank, most_restrictive_tlp as _shared_most_restrictive_tlp
 
 logger = logging.getLogger("vex.plugins.opencti")
+
+# Write-back mutation.
+# OPERATOR NOTE: observableData sub-field shape varies by OpenCTI version.
+# For IP/domain/URL, {value: $value} works on OpenCTI >= 5.x.
+# For file hashes (StixFile), some versions require {hashes: {MD5: $value}} etc.
+# Confirm against your instance before relying on hash write-back.
+# This implementation sends {value: $value} as a safe baseline and fails-open.
+_GRAPHQL_MUTATION = """
+mutation AddObservable($type: String!, $value: String!) {
+  stixCyberObservableAdd(type: $type, observableData: { value: $value }) {
+    id
+  }
+}
+"""
+
+# IOC type → OpenCTI STIX observable type
+_IOC_TYPE_MAP: dict[str, str] = {
+    "ipv4": "IPv4-Addr",
+    "ipv6": "IPv6-Addr",
+    "domain": "Domain-Name",
+    "url": "Url",
+    "md5": "StixFile",
+    "sha1": "StixFile",
+    "sha256": "StixFile",
+}
 
 _GRAPHQL_QUERY = """
 query SearchObservable($value: Any!) {
@@ -175,6 +200,98 @@ class OpenCTIEnricher:
 
         except Exception as exc:
             logger.debug("OpenCTI enrichment failed for IOC lookup: %s", exc)
+
+    def add_observable(
+        self,
+        ioc: str,
+        ioc_type: str,
+        config: Config,
+        *,
+        verdict_score: int | None = None,
+        source_tlp: str | None = None,
+    ) -> bool:
+        """Create a STIX cyber observable for *ioc* in OpenCTI.
+
+        Returns True when the mutation succeeds (HTTP 200, no errors, id present).
+        Returns False for any other outcome (no-config, unsupported type,
+        marking-check blocked, HTTP error, GraphQL errors, network error).
+
+        IOC type mapping:
+          ipv4 -> IPv4-Addr, ipv6 -> IPv6-Addr, domain -> Domain-Name,
+          url -> Url, md5/sha1/sha256 -> StixFile.
+        Unknown types -> False (no-op).
+
+        Marking-check: if source_tlp is more restrictive than
+        config.enrichment.writeback_tlp, the write is skipped to prevent
+        cross-platform TLP-level leaks.
+
+        OPERATOR NOTE: the observableData {value: $value} shape is a safe
+        baseline that works for network observables in OpenCTI >= 5.x.
+        For file-hash observables some versions need {hashes: {MD5: ...}}.
+        Verify against your instance. Fail-open: any mismatch returns False.
+
+        The API token is never written to logs.
+        """
+        url = config.opencti_url
+        token = config.opencti_token
+        if not url or not token:
+            return False
+
+        # IOC type → OpenCTI observable type
+        observable_type = _IOC_TYPE_MAP.get(ioc_type)
+        if observable_type is None:
+            logger.debug("OpenCTI add_observable: unsupported ioc_type %s", ioc_type)
+            return False
+
+        # Marking-check: source stricter than ceiling → skip
+        if source_tlp is not None:
+            ceiling = config.enrichment.writeback_tlp
+            if _tlp_rank(source_tlp) < _tlp_rank(ceiling):
+                logger.debug(
+                    "OpenCTI observable skipped: source TLP %s more restrictive than ceiling %s",
+                    source_tlp,
+                    ceiling,
+                )
+                return False
+
+        try:
+            graphql_url = url.rstrip("/") + "/graphql"
+            response = httpx.post(
+                graphql_url,
+                json={
+                    "query": _GRAPHQL_MUTATION,
+                    "variables": {"type": observable_type, "value": ioc},
+                },
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
+                timeout=8.0,
+                verify=config.enrichment.opencti_verify_tls,
+            )
+
+            if response.status_code != 200:
+                logger.debug("OpenCTI add_observable returned HTTP %d", response.status_code)
+                return False
+
+            data = response.json()
+
+            # GraphQL-level errors
+            if data.get("errors"):
+                logger.debug("OpenCTI add_observable GraphQL errors: %s", data["errors"])
+                return False
+
+            # Check that the id was returned
+            obs_id = data.get("data", {}).get("stixCyberObservableAdd", {}).get("id")
+            if not obs_id:
+                logger.debug("OpenCTI add_observable: no id in response")
+                return False
+
+            return True
+
+        except Exception as exc:
+            logger.debug("OpenCTI add_observable failed: %s", exc)
+            return False
 
 
 # Verify protocol compliance at import time

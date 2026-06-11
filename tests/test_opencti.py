@@ -791,3 +791,194 @@ class TestConfigEnvOverride:
         enricher.enrich(result, "evil.com", "domain", config)
 
         assert "env-opencti.example.com" in captured["url"]
+
+
+# ---------------------------------------------------------------------------
+# Write-back: add_observable
+# ---------------------------------------------------------------------------
+
+
+class TestOpenCTIAddObservable:
+    """Tests for OpenCTIEnricher.add_observable()."""
+
+    def _config_with_writeback(
+        self,
+        writeback_tlp: str = "green",
+        writeback_enabled: bool = True,
+    ) -> Config:
+        cfg = Config()
+        cfg.enrichment = EnrichmentConfig(
+            opencti_url="https://opencti.example.com",
+            opencti_token="test-token",
+            opencti_verify_tls=True,
+            writeback_enabled=writeback_enabled,
+            writeback_tlp=writeback_tlp,
+        )
+        return cfg
+
+    def _success_response(self, obs_id: str = "observable--new-12345") -> dict:
+        return {"data": {"stixCyberObservableAdd": {"id": obs_id}}}
+
+    def test_success_200_valid_body_returns_true(self, monkeypatch):
+        enricher = OpenCTIEnricher()
+        config = self._config_with_writeback()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = self._success_response()
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: mock_resp)
+        result = enricher.add_observable("evil.com", "domain", config)
+        assert result is True
+
+    def test_graphql_errors_in_body_returns_false(self, monkeypatch):
+        enricher = OpenCTIEnricher()
+        config = self._config_with_writeback()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"errors": [{"message": "access denied"}], "data": None}
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: mock_resp)
+        result = enricher.add_observable("evil.com", "domain", config)
+        assert result is False
+
+    def test_unknown_ioc_type_returns_false_no_network(self, monkeypatch):
+        enricher = OpenCTIEnricher()
+        config = self._config_with_writeback()
+        called = []
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: called.append(1))
+        result = enricher.add_observable("something", "certificate", config)
+        assert result is False
+        assert len(called) == 0
+
+    def test_no_url_no_network_returns_false(self, monkeypatch):
+        enricher = OpenCTIEnricher()
+        cfg = Config()
+        cfg.enrichment = EnrichmentConfig(opencti_url=None, opencti_token="tok")
+        called = []
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: called.append(1))
+        result = enricher.add_observable("evil.com", "domain", cfg)
+        assert result is False
+        assert len(called) == 0
+
+    def test_no_token_no_network_returns_false(self, monkeypatch):
+        enricher = OpenCTIEnricher()
+        cfg = Config()
+        cfg.enrichment = EnrichmentConfig(opencti_url="https://opencti.example.com", opencti_token=None)
+        called = []
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: called.append(1))
+        result = enricher.add_observable("evil.com", "domain", cfg)
+        assert result is False
+        assert len(called) == 0
+
+    def test_exception_fail_open_returns_false(self, monkeypatch):
+        enricher = OpenCTIEnricher()
+        config = self._config_with_writeback()
+
+        def raise_err(*a, **kw):
+            raise RuntimeError("network error")
+
+        monkeypatch.setattr(httpx, "post", raise_err)
+        result = enricher.add_observable("evil.com", "domain", config)
+        assert result is False
+
+    def test_marking_check_source_stricter_skips_no_post(self, monkeypatch):
+        """source_tlp=red more restrictive than writeback_tlp=green → skip."""
+        enricher = OpenCTIEnricher()
+        config = self._config_with_writeback(writeback_tlp="green")
+        called = []
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: called.append(1))
+        result = enricher.add_observable("evil.com", "domain", config, source_tlp="red")
+        assert result is False
+        assert len(called) == 0
+
+    def test_marking_check_source_same_as_ceiling_allows(self, monkeypatch):
+        """source_tlp=green == writeback_tlp=green → allow."""
+        enricher = OpenCTIEnricher()
+        config = self._config_with_writeback(writeback_tlp="green")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = self._success_response()
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: mock_resp)
+        result = enricher.add_observable("evil.com", "domain", config, source_tlp="green")
+        assert result is True
+
+    def test_type_mapping_domain_uses_domain_name(self, monkeypatch):
+        """domain IOC type → 'Domain-Name' in GraphQL variables."""
+        enricher = OpenCTIEnricher()
+        config = self._config_with_writeback()
+        captured: dict = {}
+
+        def fake_post(url, *, json=None, headers=None, timeout=None, verify=None):
+            captured["json"] = json
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = {"data": {"stixCyberObservableAdd": {"id": "x"}}}
+            return mock_resp
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+        enricher.add_observable("evil.com", "domain", config)
+        assert captured["json"]["variables"]["type"] == "Domain-Name"
+        assert captured["json"]["variables"]["value"] == "evil.com"
+
+    def test_type_mapping_ipv4_uses_ipv4_addr(self, monkeypatch):
+        enricher = OpenCTIEnricher()
+        config = self._config_with_writeback()
+        captured: dict = {}
+
+        def fake_post(url, *, json=None, headers=None, timeout=None, verify=None):
+            captured["json"] = json
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = {"data": {"stixCyberObservableAdd": {"id": "x"}}}
+            return mock_resp
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+        enricher.add_observable("1.2.3.4", "ipv4", config)
+        assert captured["json"]["variables"]["type"] == "IPv4-Addr"
+
+    def test_type_mapping_sha256_uses_stixfile(self, monkeypatch):
+        enricher = OpenCTIEnricher()
+        config = self._config_with_writeback()
+        captured: dict = {}
+
+        def fake_post(url, *, json=None, headers=None, timeout=None, verify=None):
+            captured["json"] = json
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = {"data": {"stixCyberObservableAdd": {"id": "x"}}}
+            return mock_resp
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+        enricher.add_observable(
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "sha256", config
+        )
+        assert captured["json"]["variables"]["type"] == "StixFile"
+
+    def test_missing_id_in_response_returns_false(self, monkeypatch):
+        """Response with data.stixCyberObservableAdd but no id → False."""
+        enricher = OpenCTIEnricher()
+        config = self._config_with_writeback()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"data": {"stixCyberObservableAdd": {}}}
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: mock_resp)
+        result = enricher.add_observable("evil.com", "domain", config)
+        assert result is False
+
+    def test_correct_graphql_endpoint(self, monkeypatch):
+        """Must POST to /graphql."""
+        enricher = OpenCTIEnricher()
+        config = self._config_with_writeback()
+        captured: dict = {}
+
+        def fake_post(url, *, json=None, headers=None, timeout=None, verify=None):
+            captured["url"] = url
+            captured["headers"] = headers
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = {"data": {"stixCyberObservableAdd": {"id": "x"}}}
+            return mock_resp
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+        enricher.add_observable("evil.com", "domain", config)
+        assert captured["url"].endswith("/graphql")
+        assert captured["headers"]["Authorization"] == "Bearer test-token"
+        assert captured["headers"]["Content-Type"] == "application/json"
