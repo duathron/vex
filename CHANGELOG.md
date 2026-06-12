@@ -16,8 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **V2 — Watchlist re-triage:** `vex watchlist run <name>` re-triages every IOC in a named watchlist one-shot, compares fresh verdicts against the cached prior verdict, and reports worsening diffs (e.g. CLEAN → MALICIOUS) as a Rich table or `-o json`. Exits non-zero if any IOC worsened. Quota-thrifty: only the watchlist-sized set is re-looked-up. `vex/watchlist_runner.py`.
+- **V3 — Daily VT quota tracking:** A persistent daily counter (`vex/quota_tracker.py`, stored at `~/.vex/quota.json`, keyed by **UTC date** via `datetime.now(timezone.utc).date()`) now tracks actual fresh-lookup consumption. `batch_triage` and `vex watchlist run` both accept an optional `quota_tracker=` arg and print a stderr status line (used / remaining vs `requests_per_day`) after each run, with a `WARNING` when near exhaustion. Resets automatically on a new UTC day. Fail-open: counter errors never block triage.
+- **S2 — `--version` eager flag:** `vex --version` now prints the version and exits 0, matching barb's pattern. The existing `vex version` subcommand is preserved.
+
 ### Changed
 - Project metadata: added a LinkedIn link to the package URLs (shown in the PyPI sidebar) and a README **Author** section; removed the personal email from `authors` — contact is via GitHub issues / LinkedIn.
+- **CLI shape (V2):** `vex watchlist <name> [--add IOC] [--remove IOC] [--list]` retains its original flat shape — no breaking change. `vex watchlist run <name>` is added as a new sibling subcommand. The `manage` subcommand is kept as a hidden alias for backward compatibility.
 
 ## [1.6.0] - 2026-06-05
 

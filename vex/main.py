@@ -43,10 +43,59 @@ from .output.formatter import (
 from .output.html import write_html_report
 from .output.stix import to_stix_bundle
 from .plugins.loader import load_plugins
+from .quota_tracker import QuotaTracker
 from .timeline import build_timeline
 
 # Exit code mapping (highest severity wins)
 _EXIT_CODES = {0: 0, 1: 0, 2: 1, 3: 2}  # severity → exit code
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"vex {__version__}")
+        raise typer.Exit(0)
+
+
+# ---------------------------------------------------------------------------
+# Quota-tracker helpers (V3) — fail-open throughout
+# ---------------------------------------------------------------------------
+
+
+def _build_quota_tracker(config) -> Optional[QuotaTracker]:
+    """Create a QuotaTracker from config.  Returns None on any error (fail-open)."""
+    try:
+        daily_limit = config.rate_limit.requests_per_day
+        return QuotaTracker(daily_limit=daily_limit)
+    except Exception:
+        return None
+
+
+def _quota_record(tracker: Optional[QuotaTracker]) -> None:
+    """Increment the tracker for one fresh lookup.  Fail-open."""
+    if tracker is None:
+        return
+    try:
+        tracker.record_fresh_lookup()
+    except Exception:
+        pass
+
+
+def _quota_emit(tracker: Optional[QuotaTracker]) -> None:
+    """Print quota status + optional warning to stderr.  Fail-open."""
+    if tracker is None:
+        return
+    try:
+        from .output.formatter import err_console
+
+        err_console.print(f"[dim]{tracker.status_line()}[/dim]")
+        if tracker.is_near_exhaustion():
+            err_console.print(
+                "[yellow]WARNING:[/yellow] VT quota is nearly exhausted — "
+                f"{tracker.remaining_today()} lookups remaining today."
+            )
+    except Exception:
+        pass
+
 
 app = typer.Typer(
     name="vex",
@@ -66,6 +115,10 @@ app = typer.Typer(
 @app.callback()
 def _app_callback(
     ctx: typer.Context,
+    version: Annotated[
+        Optional[bool],
+        typer.Option("--version", callback=_version_callback, is_eager=True, help="Show version and exit."),
+    ] = None,
 ) -> None:
     """VirusTotal IOC Enrichment Tool — query VT API v3 for malware analysis."""
     if ctx.invoked_subcommand is None:
@@ -636,12 +689,19 @@ def cmd_triage(
             )
 
         show_progress = output in (OutputFormat.rich, OutputFormat.console)
-        results, failed_count = batch_triage(batch_iocs, config, no_cache=no_cache, show_progress=show_progress)
+        results, failed_count = batch_triage(
+            batch_iocs,
+            config,
+            no_cache=no_cache,
+            show_progress=show_progress,
+            quota_tracker=_build_quota_tracker(config),
+        )
 
         # Part B: cache/fresh counters in the post-batch summary
         from_api, from_cache_count = count_cache_hits(results)
         err_console.print(f"[dim]{format_batch_summary(len(results), failed_count, from_api, from_cache_count)}[/dim]")
     else:
+        _qt = _build_quota_tracker(config)
         with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
             with load_plugins() as registry:
                 for raw_ioc in iocs:
@@ -673,12 +733,14 @@ def cmd_triage(
                         try:
                             result = plugin.triage(normalised_ioc, ioc_type.value, config)
                             cache.set(cache_key, result.model_dump(mode="json"))
+                            _quota_record(_qt)
                         except Exception as e:
                             err_console.print(f"[red]Error enriching {normalised_ioc}:[/red] {type(e).__name__}")
                             failed_count += 1
                             continue
 
                     results.append(result)
+        _quota_emit(_qt)
 
     if failed_count and len(iocs) <= 1:
         err_console.print(f"[yellow]{len(results)} processed, {failed_count} failed (see errors above)[/yellow]")
@@ -1850,25 +1912,77 @@ def cmd_note(
             console.print(f"[dim]No notes for {ioc}[/dim]")
 
 
-@app.command(name="watchlist", help="[bold green]Manage watchlists[/bold green] in the local knowledge base.")
-def cmd_watchlist(
-    name: Annotated[str, typer.Argument(help="Watchlist name.")],
-    add: Annotated[Optional[list[str]], typer.Option("--add", "-a", help="IOC(s) to add.")] = None,
-    remove: Annotated[Optional[list[str]], typer.Option("--remove", "-r", help="IOC(s) to remove.")] = None,
-    show: Annotated[bool, typer.Option("--list", "-l", help="List all IOCs in this watchlist.")] = False,
-) -> None:
-    from .knowledge.db import KnowledgeDB
+# ---------------------------------------------------------------------------
+# Watchlist sub-app  (V2: adds `vex watchlist run <name>`)
+# ---------------------------------------------------------------------------
+
+from .knowledge.db import KnowledgeDB  # noqa: E402
+from .watchlist_runner import WatchlistRunResult, retriage_watchlist  # noqa: E402
+
+
+class _WatchlistGroup(typer.core.TyperGroup):
+    """Custom TyperGroup that routes unknown positional args to the callback.
+
+    Typer/Click normally treats the first positional arg after group options as
+    a required subcommand name.  This subclass intercepts ``parse_args`` and,
+    when the first positional is NOT a registered subcommand, clears the
+    ``_protected_args`` slot so Click takes the ``invoke_without_command`` path
+    and lets the callback handle all remaining args via ``ctx.args``.
+    """
+
+    def parse_args(self, ctx: typer.Context, args: list[str]) -> list[str]:  # type: ignore[override]
+        # Scan for the first non-option token to see if it's a known command.
+        i = 0
+        while i < len(args):
+            token = args[i]
+            if token == "--":
+                break
+            if token.startswith("-"):
+                i += 1  # skip option flag; value (if any) is the next token
+                continue
+            # First positional found.
+            if token not in self.commands:
+                # Not a known subcommand — run parent parser then route to callback.
+                result = super().parse_args(ctx, args)
+                if ctx._protected_args:  # type: ignore[attr-defined]
+                    ctx.args = ctx._protected_args + list(ctx.args)  # type: ignore[attr-defined]
+                    ctx._protected_args = []  # type: ignore[attr-defined]
+                return result
+            break  # noqa: SIM105 — unreachable i += 1 removed intentionally
+        return super().parse_args(ctx, args)
+
+
+def _run_watchlist_manage(name: str, args: list[str]) -> None:
+    """Shared manage logic used by both the flat callback and `manage` alias."""
+    add_iocs: list[str] = []
+    remove_iocs: list[str] = []
+    show = False
+
+    i = 0
+    while i < len(args):
+        tok = args[i]
+        if tok in ("--add", "-a"):
+            i += 1
+            if i < len(args):
+                add_iocs.append(args[i])
+        elif tok in ("--remove", "-r"):
+            i += 1
+            if i < len(args):
+                remove_iocs.append(args[i])
+        elif tok in ("--list", "-l"):
+            show = True
+        i += 1
 
     with KnowledgeDB() as db:
-        if add:
-            for ioc in add:
+        if add_iocs:
+            for ioc in add_iocs:
                 db.add_to_watchlist(name, ioc)
                 console.print(f"[green]+[/green] Added [bold]{ioc}[/bold] to watchlist [cyan]{name}[/cyan]")
-        if remove:
-            for ioc in remove:
+        if remove_iocs:
+            for ioc in remove_iocs:
                 db.remove_from_watchlist(name, ioc)
                 console.print(f"[red]-[/red] Removed [bold]{ioc}[/bold] from watchlist [cyan]{name}[/cyan]")
-        if show or (not add and not remove):
+        if show or (not add_iocs and not remove_iocs):
             iocs = db.get_watchlist(name)
             if iocs:
                 console.print(f"[dim]Watchlist '{name}' ({len(iocs)} IOCs):[/dim]")
@@ -1876,6 +1990,163 @@ def cmd_watchlist(
                     console.print(f"  {i}")
             else:
                 console.print(f"[dim]Watchlist '{name}' is empty.[/dim]")
+
+
+watchlist_app = typer.Typer(
+    name="watchlist",
+    help="[bold green]Manage watchlists[/bold green] in the local knowledge base.",
+    invoke_without_command=True,
+    no_args_is_help=False,
+    cls=_WatchlistGroup,
+)
+app.add_typer(watchlist_app, name="watchlist")
+
+
+@watchlist_app.callback()
+def cmd_watchlist(
+    ctx: typer.Context,
+) -> None:
+    """Manage watchlists in the local knowledge base.
+
+    Usage (manage):   vex watchlist <name> [--add IOC] [--remove IOC] [--list]
+    Usage (re-triage): vex watchlist run <name>
+    """
+    # Sub-commands (e.g. 'run') are handled by their own command below.
+    if ctx.invoked_subcommand is not None:
+        return
+    # ctx.args holds all unparsed tokens (name + options) because
+    # _WatchlistGroup moved them out of _protected_args.
+    args = list(ctx.args)
+    if not args:
+        console.print(ctx.get_help())
+        raise typer.Exit()
+    # First positional token is the watchlist name; the rest are options.
+    name = args[0]
+    remaining = args[1:]
+    _run_watchlist_manage(name, remaining)
+
+
+@watchlist_app.command(
+    name="manage",
+    help="[bold]Manage[/bold] IOCs in a watchlist (add / remove / list).",
+    hidden=True,
+)
+def cmd_watchlist_manage(
+    name: Annotated[str, typer.Argument(help="Watchlist name.")],
+    add: Annotated[Optional[list[str]], typer.Option("--add", "-a", help="IOC(s) to add.")] = None,
+    remove: Annotated[Optional[list[str]], typer.Option("--remove", "-r", help="IOC(s) to remove.")] = None,
+    show: Annotated[bool, typer.Option("--list", "-l", help="List all IOCs in this watchlist.")] = False,
+) -> None:
+    """Add, remove, or list IOCs in a named watchlist (hidden alias — prefer flat shape).
+
+    The canonical shape is ``vex watchlist <name> [--add IOC] [--remove IOC] [--list]``.
+    """
+    # Build a synthetic args list and delegate to the shared helper.
+    synthetic: list[str] = []
+    if add:
+        for ioc in add:
+            synthetic += ["--add", ioc]
+    if remove:
+        for ioc in remove:
+            synthetic += ["--remove", ioc]
+    if show:
+        synthetic.append("--list")
+    _run_watchlist_manage(name, synthetic)
+
+
+@watchlist_app.command(name="run", help="Re-triage every IOC in a watchlist and report verdict changes.")
+def cmd_watchlist_run(
+    name: Annotated[str, typer.Argument(help="Watchlist name to re-triage.")],
+    output: Annotated[
+        str,
+        typer.Option("--output", "-o", help="Output format: rich (default) | console | json"),
+    ] = "rich",
+    config_path: _ConfigOpt = None,
+    no_cache: _NoCacheOpt = False,
+    quiet: _QuietOpt = False,
+) -> None:
+    """Re-triage all IOCs in a named watchlist and report verdict diffs.
+
+    Compares each fresh verdict against the cached prior verdict and reports
+    worsening changes (e.g. CLEAN → MALICIOUS).  Exits non-zero if any IOC
+    worsened.  Quota-thrifty: only the watchlist-sized set is re-looked-up.
+    """
+    import json as _json
+
+    from rich import box
+    from rich.table import Table
+
+    config = load_config(config_path)
+    print_banner(
+        quiet=quiet or config.output.quiet,
+        update_check_enabled=config.update_check.enabled,
+        check_interval_hours=config.update_check.check_interval_hours,
+    )
+
+    qt = _build_quota_tracker(config)
+    try:
+        with KnowledgeDB() as db:
+            with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
+                run_result: WatchlistRunResult = retriage_watchlist(name, db, cache, config, quota_tracker=qt)
+    except Exception as exc:
+        err_console.print(f"[red]Error running watchlist re-triage:[/red] {exc}")
+        raise typer.Exit(code=1)
+    _quota_emit(qt)
+
+    # Build serialisable diffs list
+    diffs_out = [
+        {
+            "ioc": d["ioc"],
+            "old_verdict": d["old_verdict"].value if hasattr(d["old_verdict"], "value") else str(d["old_verdict"]),
+            "new_verdict": d["new_verdict"].value if hasattr(d["new_verdict"], "value") else str(d["new_verdict"]),
+        }
+        for d in run_result.diffs
+    ]
+
+    summary = {
+        "watchlist": name,
+        "total": run_result.total,
+        "worsened": run_result.worsened,
+        "unchanged": run_result.unchanged,
+        "improved": run_result.improved,
+        "cache_misses": run_result.cache_misses,
+        "errors": run_result.errors,
+        "diffs": diffs_out,
+    }
+
+    if output.lower() == "json":
+        print(_json.dumps(summary, indent=2))
+    else:
+        # Rich / console table
+        if run_result.total == 0:
+            console.print(f"[dim]Watchlist '[cyan]{name}[/cyan]' is empty or unknown — nothing to re-triage.[/dim]")
+        elif run_result.diffs:
+            t = Table(
+                title=f"Watchlist '{name}' — verdict changes",
+                box=box.ROUNDED,
+            )
+            t.add_column("IOC", style="cyan", no_wrap=True)
+            t.add_column("Prior verdict", style="dim", no_wrap=True)
+            t.add_column("New verdict", no_wrap=True)
+            for d in run_result.diffs:
+                new_v = d["new_verdict"].value if hasattr(d["new_verdict"], "value") else str(d["new_verdict"])
+                old_v = d["old_verdict"].value if hasattr(d["old_verdict"], "value") else str(d["old_verdict"])
+                colour = "red" if new_v == "MALICIOUS" else "yellow"
+                t.add_row(d["ioc"], old_v, f"[{colour}]{new_v}[/{colour}]")
+            console.print(t)
+        else:
+            console.print(f"[green]✓[/green] Watchlist '[cyan]{name}[/cyan]': no verdict changes detected.")
+
+        # Summary line
+        console.print(
+            f"[dim]Checked {run_result.total} IOC(s) — "
+            f"{run_result.worsened} worsened, {run_result.unchanged} unchanged, "
+            f"{run_result.improved} improved, {run_result.cache_misses} new, "
+            f"{run_result.errors} error(s)[/dim]"
+        )
+
+    exit_code = 1 if run_result.has_worsening else 0
+    raise typer.Exit(code=exit_code)
 
 
 def main() -> None:

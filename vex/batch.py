@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import concurrent.futures
 import logging
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Optional, TypeVar
 
 if TYPE_CHECKING:
     from .enrichers.protocol import SecondaryEnricherProtocol
+    from .quota_tracker import QuotaTracker
 
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
@@ -165,11 +166,22 @@ def batch_triage(
     no_cache: bool = False,
     max_workers: int = 4,
     show_progress: bool = True,
+    quota_tracker: Optional["QuotaTracker"] = None,
 ) -> tuple[list[TriageResult], int]:
     """Run triage on multiple IOCs with optional parallelism + progress bar.
 
     Returns (results, failed_count).
+
+    Parameters
+    ----------
+    quota_tracker:
+        Optional :class:`~vex.quota_tracker.QuotaTracker` instance.  When
+        provided, each **fresh** (non-cached) VT lookup is recorded so that
+        ``quota_tracker.used_today()`` tracks actual daily API consumption.
+        Tracker errors are swallowed (fail-open) — they never block triage.
     """
+    from .output.formatter import err_console
+
     results: list[TriageResult] = []
 
     with Cache(config.cache_db_path, config.cache.ttl_hours, config.cache.enabled and not no_cache) as cache:
@@ -192,14 +204,40 @@ def batch_triage(
                             result = future.result()
                             if result is not None:
                                 results.append(result)
+                                _record_quota(result, quota_tracker)
                             progress.advance(task)
             else:
                 for ioc in iocs:
                     result = _process_single_triage(ioc, registry, config, cache, no_cache)
                     if result is not None:
                         results.append(result)
+                        _record_quota(result, quota_tracker)
+
+    # Emit quota status line + warning to stderr (fail-open)
+    if quota_tracker is not None:
+        try:
+            err_console.print(f"[dim]{quota_tracker.status_line()}[/dim]")
+            if quota_tracker.is_near_exhaustion():
+                err_console.print(
+                    "[yellow]WARNING:[/yellow] VT quota is nearly exhausted — "
+                    f"{quota_tracker.remaining_today()} lookups remaining today."
+                )
+        except Exception:
+            pass
 
     return results, len(iocs) - len(results)
+
+
+def _record_quota(result: TriageResult, tracker: Optional["QuotaTracker"]) -> None:
+    """Increment the quota tracker for a fresh (non-cached) lookup.  Fail-open."""
+    if tracker is None:
+        return
+    if result.from_cache:
+        return
+    try:
+        tracker.record_fresh_lookup()
+    except Exception:
+        pass
 
 
 def batch_investigate(
