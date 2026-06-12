@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0](https://github.com/duathron/vex/compare/v1.6.1...v1.7.0) (2026-06-12)
+
+
+### Features
+
+* watchlist re-triage + daily quota tracking + --version (Tier-2) ([84eb7c6](https://github.com/duathron/vex/commit/84eb7c60d33b8a6ba28023d3d505aa5b21c4a7bd))
+* **writeback:** add _tlp_rank helper to vex/tlp.py with tests ([08722a4](https://github.com/duathron/vex/commit/08722a4b1043b7befde7b4d9bcf8e3541872551b))
+* **writeback:** add MISPEnricher.add_sighting with marking-check ([27d93c9](https://github.com/duathron/vex/commit/27d93c965ee7d8789c9ada5fa9c868385a9042e6))
+* **writeback:** add OpenCTIEnricher.add_observable with marking-check ([427ac37](https://github.com/duathron/vex/commit/427ac3707e23a3939439446e842d9ddd221327dc))
+* **writeback:** add writeback_enabled/tlp/min_verdict to EnrichmentConfig ([b79c4d2](https://github.com/duathron/vex/commit/b79c4d24ec962a1414b0dd41404d965f958431fc))
+* **writeback:** add writeback_misp/opencti fields to InvestigateResult ([72d0258](https://github.com/duathron/vex/commit/72d02589c584fb2fe397a93029cc08cb181a58ab))
+* **writeback:** wire --sight/--dry-run-sight CLI flags + _run_writeback helper ([6ea7c51](https://github.com/duathron/vex/commit/6ea7c51082d4f59f4291883f6d2b574865ce6980))
+
+
+### Documentation
+
+* document on-main 1.7.0 features (write-back, watchlist, quota, --version) ([2183dba](https://github.com/duathron/vex/commit/2183dba7ddea263d3511949b5409150c53228567))
+* **writeback:** add writeback manual topic and enrichment.md section ([13761dd](https://github.com/duathron/vex/commit/13761dd5134e91b9fb0d655a7b7c91d3198d57d5))
+
 ## [1.6.1](https://github.com/duathron/vex/compare/v1.6.0...v1.6.1) (2026-06-07)
 
 
