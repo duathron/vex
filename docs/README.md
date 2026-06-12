@@ -14,7 +14,7 @@ metadata, sandbox behavior, passive DNS, infrastructure, and MITRE ATT&CK mappin
 [barb](https://github.com/duathron/vex) URL pre-scan or a `sift` alert report,
 enrich them, and hand the results back.
 
-**Installed version this manual describes: `vex 1.5.0`.**
+**Released version: `vex 1.6.1`.** **On main (pending 1.7.0):** TI write-back (`--sight` / `--dry-run-sight`), `vex watchlist run`, daily VT-quota counter, `--version` flag.
 
 ## Who this is for
 
@@ -28,7 +28,7 @@ enrich them, and hand the results back.
 |------|----------------|
 | [Getting started](getting-started.md) | Install, set the VirusTotal key, your first `triage`, reading the output, `triage` vs `investigate`. |
 | [Commands](commands.md) | Every command and every flag, taken from `--help`, with one example each. |
-| [Enrichment](enrichment.md) | How verdicts are formed: VirusTotal (primary) vs the secondary enrichers (AbuseIPDB, Shodan, WHOIS, MISP, OpenCTI) and exactly which result fields each adds. |
+| [Enrichment](enrichment.md) | How verdicts are formed: VirusTotal (primary) vs the secondary enrichers (AbuseIPDB, Shodan, WHOIS, MISP, OpenCTI) and exactly which result fields each adds. TI write-back (`--sight`). |
 | [Output formats](output-formats.md) | Every output format with a real example: console/rich, JSON, NDJSON, CSV, STIX 2.1, ATT&CK Navigator, HTML. Defang rules. |
 | [Pipeline](pipeline.md) | The precise contracts for `barb → vex`, `sift → vex`, and the `sift --enrich vex` round-trip. Input shapes, extraction rules, outputs. |
 | [Configuration](configuration.md) | Config priority, the full environment-variable table, the `~/.vex/` files and their permissions, and `vex doctor`. |

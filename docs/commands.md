@@ -3,11 +3,18 @@
 [← Docs index](README.md)
 
 Every command and flag below is taken verbatim from `vex <cmd> --help` on
-`vex 1.5.0`. Nothing here is invented.
+`vex 1.6.1` (released) plus the on-main flags pending 1.7.0 (`--sight`, `--dry-run-sight`, `watchlist run`). On-main items are marked *(on main — pending 1.7.0)*. Nothing here is invented.
 
 ```
 vex [OPTIONS] COMMAND [ARGS]...
 ```
+
+**Global options:**
+
+| Option | Description |
+|--------|-------------|
+| `--version` | Print version and exit (eager flag — runs before any command). *(on main — pending 1.7.0)* |
+| `--help` | Show this help and exit. |
 
 | Command | Purpose |
 |---------|---------|
@@ -87,12 +94,14 @@ vex investigate [OPTIONS] [IOC]
 ```
 
 Deep DFIR investigation. Shares all `triage` input/output/analysis flags **except
-`--csv`** (triage-only), and adds two investigate-only flags:
+`--csv`** (triage-only), and adds these investigate-only flags:
 
 | Flag | Type | Description |
 |------|------|-------------|
 | `--timeline` | flag | Show a chronological event timeline (investigate only). |
 | `--navigator` | flag | Export an ATT&CK Navigator layer JSON to stdout (investigate only). Redirect to a file: `vex investigate <ioc> --navigator > layer.json`. |
+| `--sight` | flag | Write sightings/observables back to MISP + OpenCTI for IOCs at or above the verdict floor. Requires `enrichment.writeback_enabled: true` in config. *(on main — pending 1.7.0)* |
+| `--dry-run-sight` | flag | Show write payloads without sending (no network). Use with `--sight` for a preview. *(on main — pending 1.7.0)* |
 
 All other flags (`--file`, `--no-dedup`, `--max-quota`, `--no-cache`, `--api-key`,
 `--config`, `--output`, `--stix`, `--html`, `--defang`, `--alert`, `--summary`,
@@ -106,10 +115,12 @@ All other flags (`--file`, `--no-dedup`, `--max-quota`, `--no-cache`, `--api-key
 **Examples**
 
 ```bash
-vex investigate 203.0.113.10                       # deep dive on an IP
-vex investigate evil.com --timeline                # add the event timeline
-vex investigate <sha256> --navigator > layer.json  # ATT&CK Navigator layer
-vex investigate 203.0.113.10 --stix > ioc.json     # STIX 2.1 bundle
+vex investigate 203.0.113.10                          # deep dive on an IP
+vex investigate evil.com --timeline                   # add the event timeline
+vex investigate <sha256> --navigator > layer.json     # ATT&CK Navigator layer
+vex investigate 203.0.113.10 --stix > ioc.json        # STIX 2.1 bundle
+vex investigate 1.2.3.4 --dry-run-sight               # preview write-back payloads (on main)
+vex investigate -f iocs.txt --sight                   # batch write-back (on main)
 ```
 
 ---
@@ -186,12 +197,13 @@ vex manual [OPTIONS] [TOPIC]
 ```
 
 Show the built-in usage guide. `TOPIC` is one of: `ai`, `config`, `examples`,
-`pipeline`, `addons`. Omit it for the overview.
+`pipeline`, `addons`, `writeback`. Omit it for the overview.
 
 ```bash
 vex manual
 vex manual pipeline
 vex manual ai
+vex manual writeback    # TI write-back guide (on main — pending 1.7.0)
 ```
 
 ---
@@ -243,15 +255,17 @@ Notes appear in the `local_notes` field of a result.
 
 ## watchlist
 
-```
-vex watchlist [OPTIONS] NAME
-```
+`vex watchlist` has two shapes: a flat manage form for adding/removing IOCs, and a `run` subcommand for one-shot re-triage.
 
-Manage watchlists in the local knowledge base. `NAME` is **required**.
+### Manage (add / remove / list)
+
+```
+vex watchlist NAME [--add IOC] [--remove IOC] [--list]
+```
 
 | Flag | Type | Description |
 |------|------|-------------|
-| `--add`, `-a` | text | IOC(s) to add. |
+| `--add`, `-a` | text | IOC(s) to add to the watchlist. |
 | `--remove`, `-r` | text | IOC(s) to remove. |
 | `--list`, `-l` | flag | List all IOCs in this watchlist. |
 
@@ -261,6 +275,37 @@ vex watchlist priority --list
 ```
 
 Watchlist membership appears in the `watchlists` field of a result.
+
+### watchlist run *(on main — pending 1.7.0)*
+
+```
+vex watchlist run [OPTIONS] NAME
+```
+
+Re-triage every IOC in a watchlist and report verdict changes. Compares each fresh verdict against the cached prior verdict. Exits non-zero (code `1`) if any IOC worsened.
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `NAME` (arg) | text | Watchlist name to re-triage. **Required.** |
+| `--output`, `-o` | `rich` \| `console` \| `json` | Output format (default: `rich`). |
+| `--no-cache` | flag | Bypass cache and force a fresh API lookup. |
+| `--config`, `-c` | path | Path to a `config.yaml`. |
+| `--quiet`, `-q` | flag | Suppress the ASCII banner. |
+
+```bash
+vex watchlist run priority                    # re-triage the 'priority' watchlist
+vex watchlist run priority -o json           # machine-readable diff output
+vex watchlist run priority --no-cache        # force fresh lookups for all IOCs
+```
+
+**Exit codes for `watchlist run`:**
+
+| Code | Meaning |
+|------|---------|
+| `0` | No verdicts worsened. |
+| `1` | One or more IOCs worsened (or a runtime error). |
+
+The daily VT-quota counter applies — the stderr quota status line is printed after the run.
 
 ---
 
@@ -292,6 +337,9 @@ Show the version and the loaded plugins.
 
 ```bash
 vex version
-# vex 1.5.0
+# vex 1.6.1
 # Plugins: VirusTotal
 ```
+
+> [!NOTE]
+> **On main (pending 1.7.0):** `vex --version` is also available as an eager global flag that prints the version and exits immediately, before any subcommand is evaluated. Both forms produce the same version output; the flag form (`--version`) is more convenient for scripts.

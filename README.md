@@ -30,7 +30,7 @@
 `vex` takes an indicator (a hash, IP, domain, or URL) and turns it into a verdict with context. It started as a VirusTotal CLI and grew into an enrichment hub: one primary source (VirusTotal) plus optional secondary sources that add reputation and your own threat-intel. It runs standalone, and it slots into a pipeline (**barb → vex → sift**) over stdin/stdout.
 
 > [!NOTE]
-> Current release: **`vex 1.5.0`** (on PyPI). Full manual: [`docs/`](docs/README.md).
+> Current release: **`vex 1.6.1`** (on PyPI). **On main (pending 1.7.0):** TI write-back, `watchlist run`, daily VT-quota counter, `--version` flag. Full manual: [`docs/`](docs/README.md).
 
 ## Install
 
@@ -62,8 +62,9 @@ Reputation: 0
 - **Batch correlation** — `--correlate` clusters a batch of IOCs by shared infrastructure (ASN, malware family, contacted IPs/domains).
 - **AI explanations** — opt-in `--explain` narratives (Claude / OpenAI / local Ollama / deterministic template), with prompt-injection defense on the untrusted data fed to the model.
 - **Pipeline-ready output** — JSON, NDJSON (streaming), CSV, STIX 2.1, ATT&CK Navigator, self-contained HTML; verdict-mapped exit codes.
-- **Quota-aware batches** — IOC dedup, an up-front ETA, and a `--max-quota` budget guard.
-- **Local knowledge base** — `vex tag` / `note` / `watchlist` annotate IOCs in `~/.vex/`.
+- **Quota-aware batches** — IOC dedup, an up-front ETA, a `--max-quota` budget guard, and a persistent daily VT-quota counter with a stderr status line *(on main, pending 1.7.0)*.
+- **Local knowledge base** — `vex tag` / `note` / `watchlist` annotate IOCs in `~/.vex/`. Re-triage an entire watchlist in one shot with `vex watchlist run <name>` *(on main, pending 1.7.0)*.
+- **TI write-back** *(on main, pending 1.7.0)* — `vex investigate --sight` writes MISP sightings and OpenCTI observables for IOCs above a configurable verdict floor; triple opt-in (config killswitch + flag + dry-run preview).
 
 ## Verdicts
 
@@ -159,6 +160,31 @@ vex doctor --probe       # + live connectivity, surfaces the actual error
 
 `enrichment.stix_tlp_version` (`1.0` default, `2.0`) selects which STIX TLP marking ids the export emits.
 
+## TI write-back *(on main — pending 1.7.0)*
+
+`vex investigate --sight` writes MISP sightings and OpenCTI observables back for IOCs that meet a configurable verdict floor. Three gates must all be open before any write occurs:
+
+1. `enrichment.writeback_enabled: true` in `~/.vex/config.yaml` (default `false`).
+2. `--sight` flag on `vex investigate`.
+3. Use `--dry-run-sight` first to preview the payloads without sending.
+
+```bash
+vex investigate 1.2.3.4 --dry-run-sight     # preview payloads, no network
+vex investigate 1.2.3.4 --sight             # write if enabled and above floor
+vex investigate -f iocs.txt --sight         # batch write-back
+```
+
+> [!IMPORTANT]
+> Before using `--sight` against a real OpenCTI instance, run `--dry-run-sight`, review the payload, then confirm one MISP sighting and one OpenCTI observable in the UI. The GraphQL mutation (`stixCyberObservableAdd`) works for network observables on OpenCTI ≥ 5.x; file-hash observables may need a different shape on some versions. Verify against your instance. See `vex manual writeback`.
+
+Key config keys (in `enrichment:` section):
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `writeback_enabled` | `false` | Master switch — must be `true` or `--sight` is a no-op. |
+| `writeback_tlp` | `"green"` | TLP ceiling. Writes are blocked when the IOC's source TLP is more restrictive. |
+| `writeback_min_verdict` | `"SUSPICIOUS"` | Verdict floor — IOCs below this are silently skipped. |
+
 ## Security
 
 > [!WARNING]
@@ -166,6 +192,7 @@ vex doctor --probe       # + live connectivity, surfaces the actual error
 > - The VT API key is **never hard-coded** — env var, config, or `--api-key`.
 > - Premium calls are **gated behind `config.is_premium`**; the free tier is never broken.
 > - **Restricted TI: TLP/markings are carried through; marked intel is never emitted unmarked.**
+> - **Write-back is inert by default** (`writeback_enabled: false`). Credentials for MISP and OpenCTI are stored only in `~/.vex/config.yaml` (0o600) or environment variables — never in CLI arguments or logs.
 > - Machine output stays clean — all notices go to **stderr**, not stdout.
 
 ## Exit codes

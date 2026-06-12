@@ -1,8 +1,8 @@
 # vex — Project History and Documentation
 
 **Author:** Christian Huhn (GitHub: [duathron](https://github.com/duathron))
-**Version:** 1.6.0
-**Date:** 2026-06-05
+**Version:** 1.6.1 (released) — see [On main (pending 1.7.0)](#on-main-pending-170) for unreleased features
+**Date:** 2026-06-12
 **Repository:** https://github.com/duathron/vex
 
 ---
@@ -302,9 +302,9 @@ Those who need JSON output (automation, pipelines) pass `-o json` explicitly. Th
 
 ## Current Status and Outlook
 
-### Status v1.6.0
+### Status v1.6.1
 
-vex 1.6.0 is a mature, multi-source IOC enrichment hub for SOC/DFIR use, live on PyPI as **`vex-ioc`** (`pip install vex-ioc`). It is covered by **898 automated tests** (deterministic, no network) with a green CI pipeline (ruff + pytest). The state of the tool:
+vex 1.6.1 is a mature, multi-source IOC enrichment hub for SOC/DFIR use, live on PyPI as **`vex-ioc`** (`pip install vex-ioc`). It is covered by **996 automated tests** (deterministic, no network) with a green CI pipeline (ruff + pytest). On main (pending 1.7.0): TI write-back, `watchlist run`, daily quota counter, `--version` flag. The state of the tool:
 
 - All IOC types are supported (MD5/SHA1/SHA256/IPv4/IPv6/Domain/URL), with full refang parity to barb/sift and a guard against misclassifying executable/script filenames as domains.
 - `triage` and `investigate` work with rate limiting, caching, IOC deduplication, NDJSON streaming, rate-limit-aware scheduling (`--max-quota`, ETA), and a `vex doctor` diagnostic.
@@ -313,18 +313,77 @@ vex 1.6.0 is a mature, multi-source IOC enrichment hub for SOC/DFIR use, live on
 - MITRE ATT&CK mapping, STIX 2.1 export (OpenCTI-hardened, with TLP markings), and ATT&CK Navigator layer export.
 - Knowledge base (tags, notes, watchlists) is operational.
 - v1.6.0 onboards vex onto the shared **shipwright-kit** library: the injection detector subclasses the shared engine and the config loader delegates to `shipwright_kit.config`.
+- v1.6.1 bundles attribution metadata and the `__version__` literal fix (version consistency guarded by CI).
+
+### On main (pending 1.7.0)
+
+The following features are merged on main and pending the 1.7.0 release. They are present in the editable install but not yet in the PyPI package.
+
+#### TI write-back (`--sight` / `--dry-run-sight`)
+
+`vex investigate --sight` writes MISP sightings and OpenCTI observables for IOCs at or above a configurable verdict floor. Three explicit gates must all be open:
+
+1. `enrichment.writeback_enabled: true` in `~/.vex/config.yaml` (default `false`).
+2. `--sight` on `vex investigate`.
+3. Use `--dry-run-sight` first to preview payloads without sending.
+
+Key design properties:
+- **Verdict floor** (`enrichment.writeback_min_verdict`, default `SUSPICIOUS`) — IOCs below the floor are silently skipped.
+- **TLP marking-check** — before each write, the source IOC's most-restrictive known TLP (from `misp_tlp` / `opencti_tlp`) is compared against the ceiling (`enrichment.writeback_tlp`, default `"green"`). If the source is more restrictive, the write is blocked. This prevents pushing `TLP:RED`-marked data to a platform that only accepts `TLP:GREEN`.
+- **Fail-open** — a write failure (network error, HTTP error, GraphQL error) is logged at DEBUG and sets the result field to `false`. It never crashes the run.
+- **No credential leaks** — MISP and OpenCTI tokens are stored only in `~/.vex/config.yaml` (0o600) or environment variables; they never appear in CLI arguments, logs, or output.
+
+The GraphQL mutation used for OpenCTI is:
+
+```graphql
+mutation AddObservable($type: String!, $value: String!) {
+  stixCyberObservableAdd(type: $type, observableData: { value: $value }) {
+    id
+  }
+}
+```
+
+For network observables this works on OpenCTI ≥ 5.x. File-hash observables may require `hashes: { MD5: $value }` on some versions — verify against your instance before relying on hash write-back. The operator must run `--dry-run-sight` → review the payload → confirm one real sighting (MISP) and one observable (OpenCTI) in the lab UI before enabling in production.
+
+New result fields: `writeback_misp` (`null` = not attempted, `true` = written, `false` = failed/skipped) and `writeback_opencti` (same).
+
+#### Watchlist re-triage (`vex watchlist run`)
+
+`vex watchlist run <name>` re-triages every IOC in a named watchlist, compares each fresh verdict against the cached prior verdict, prints a diff table, and exits non-zero (code 1) if any IOC worsened. The daily VT-quota counter applies; the quota status line is printed to stderr after the run.
+
+```bash
+vex watchlist run priority              # rich diff table
+vex watchlist run priority -o json      # machine-readable summary
+```
+
+JSON output fields: `watchlist`, `total`, `worsened`, `unchanged`, `improved`, `cache_misses`, `errors`, `diffs` (array of `{ioc, old_verdict, new_verdict}`).
+
+The flat `vex watchlist <name> --add/--remove/--list` manage shape is preserved unchanged.
+
+#### Daily VT-quota counter
+
+Fresh VT lookups are counted in a persistent UTC-keyed JSON file (`~/.vex/quota.json`) that resets at midnight UTC. After every batch or `watchlist run`, a status line is printed to stderr:
+
+```
+VT quota: 38/500 used today, 462 remaining
+```
+
+When fewer than 10 % of the daily limit remain, an additional warning is printed. The counter is fail-open and never blocks triage. The daily limit comes from `api.rate_limit.requests_per_day` (default 500 for free tier).
+
+#### `--version` eager flag
+
+`vex --version` is now available as a global eager flag that prints the version and exits before any subcommand is evaluated. The `vex version` subcommand continues to work as before.
 
 ### Known Limitations
 
 - **Sandbox behaviour** (`get_file_behaviors`) is restricted to the premium tier of the VT API. With free-tier keys, the corresponding calls return empty results without errors (graceful degradation, resolved in v1.1.0).
 - **Async high-throughput mode** is deliberately deferred: at the VT free-tier rate ceiling, async ≈ threads (vex's throughput is quota-bound, not concurrency-bound). The `ThreadPoolExecutor` batch path stays the default; `async_client.py` is retained as a tested seed for a future premium-gated mode.
-- **TI write-back is not yet implemented.** vex currently reads MISP/OpenCTI for context (lookup-before-write-back); pushing data back (MISP sightings, OpenCTI observables) is the notable deferred feature.
+- **OpenCTI write-back mutation shape** — the `stixCyberObservableAdd` mutation works for network observables on OpenCTI ≥ 5.x. File-hash observables may need a different shape on some versions. Always run `--dry-run-sight` and verify against your instance before production use.
 
-*(Earlier limitations — sequential batch processing, entry-point plugin discovery, and full RFC 4291 IPv6 handling — were resolved in v1.1.0.)*
+*(Earlier limitations — sequential batch processing, entry-point plugin discovery, and full RFC 4291 IPv6 handling — were resolved in v1.1.0. TI write-back shipped on main and is pending 1.7.0.)*
 
 ### Possible Next Steps
 
-- **TI write-back** (the notable next item): MISP sightings → attributes and OpenCTI observables, opt-in and marking-aware, with explicit TLP governance for data leaving vex.
 - Optional `pymisp`/`pycti` extras if raw-REST/GraphQL version-resilience ever demands them.
 - Premium-gated async high-throughput batch mode (wiring `AsyncVTClient`), only if high-volume/premium demand appears.
 - Integration of community scores and VT graph relationships.
@@ -814,3 +873,4 @@ The `shipwright-kit` dependency is now resolved from **PyPI** (`shipwright-kit>=
 *Updated 2026-06-01 for v1.5.0 "TI Platform Integration" (MISP + OpenCTI lookup, OpenCTI-hardened STIX with TLP markings, AI prompt-injection defense + provider robustness, 625 tests, MeetUp VEX-2026-010).*
 *Updated 2026-06-02 for v1.5.1 (filename≠domain guard, PE-hash investigate ValidationError fix, full refang parity, 841 tests).*
 *Updated 2026-06-05 for v1.6.0 "Shipwright onboarding" (consumes shipwright-kit from PyPI; injection detector subclasses the shared engine — gained jailbreak + system-prompt-exfil detection; config delegates to shipwright_kit.config; 898 tests). Publishing corrected to OIDC Trusted Publisher with reviewer-gated pypi environment; personal email removed from author-metadata bugfix narrative.*
+*Updated 2026-06-12 for v1.6.1 (attribution metadata + __version__ literal fix, 996 tests) and on-main / pending-1.7.0 features: TI write-back (--sight / --dry-run-sight), vex watchlist run, daily VT-quota counter, --version eager flag.*

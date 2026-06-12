@@ -100,6 +100,9 @@ Rate limits per tier — free: 4 req/min, 500/day; premium: 1000 req/min,
 | `enrichment.opencti_token` | `null` | OpenCTI API token. |
 | `enrichment.opencti_verify_tls` | `true` | Verify OpenCTI TLS certs. |
 | `enrichment.stix_tlp_version` | `"1.0"` | TLP marking-definition id set for STIX export: `"1.0"` or `"2.0"`. |
+| `enrichment.writeback_enabled` | `false` | Master switch for TI write-back. Must be `true` before `--sight` does anything. *(on main — pending 1.7.0)* |
+| `enrichment.writeback_tlp` | `"green"` | TLP ceiling for writes. A write is blocked when the source IOC's TLP is more restrictive than this value. Rank: `red` (most restrictive) → `amber` → `green` → `clear`. *(on main — pending 1.7.0)* |
+| `enrichment.writeback_min_verdict` | `"SUSPICIOUS"` | Verdict floor — IOCs below this verdict are silently skipped. Valid: `CLEAN`, `UNKNOWN`, `SUSPICIOUS`, `MALICIOUS`. *(on main — pending 1.7.0)* |
 
 > [!NOTE]
 > `stix_tlp_version` controls which canonical TLP marking-definition IDs the STIX
@@ -116,6 +119,16 @@ Rate limits per tier — free: 4 req/min, 500/day; premium: 1000 req/min,
 | `update_check.enabled` | `true` | Passive PyPI version check. |
 | `update_check.check_interval_hours` | `24` | How often to check. |
 
+### Daily VT-quota counter *(on main — pending 1.7.0)*
+
+`vex` tracks actual fresh-lookup consumption in a persistent UTC-keyed JSON file (`~/.vex/quota.json`). It resets automatically at midnight UTC. After every batch or `watchlist run`, the quota status is printed to stderr:
+
+```
+VT quota: 38/500 used today, 462 remaining
+```
+
+When fewer than 10 % of the daily limit remain, an additional warning line is printed. The counter is fail-open — any read/write error is swallowed silently. The daily limit comes from `api.rate_limit.requests_per_day` in config (default 500 for free tier). The `--max-quota` flag caps fresh lookups per *run*; the quota counter tracks cumulative usage across *all* runs in the day.
+
 ## The `~/.vex/` directory
 
 | File | Purpose | Permissions |
@@ -124,6 +137,7 @@ Rate limits per tier — free: 4 req/min, 500/day; premium: 1000 req/min,
 | `config.yaml` | Saved configuration (keys, AI provider) | `0o600` (owner read/write) on save |
 | `cache.db` | SQLite VirusTotal result cache | inside the `0o700` dir |
 | `knowledge.db` | SQLite local knowledge base (tags / notes / watchlists) | inside the `0o700` dir |
+| `quota.json` | Daily VT-quota counter (resets at midnight UTC) *(on main — pending 1.7.0)* | inside the `0o700` dir |
 
 > [!WARNING]
 > The `~/.vex/` directory is created with `0o700` and `config.yaml` is saved with
