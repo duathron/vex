@@ -296,4 +296,5 @@ class OpenCTIEnricher:
 
 
 # Verify protocol compliance at import time
-assert isinstance(OpenCTIEnricher(), SecondaryEnricherProtocol)
+if not isinstance(OpenCTIEnricher(), SecondaryEnricherProtocol):
+    raise TypeError("OpenCTIEnricher does not satisfy SecondaryEnricherProtocol")

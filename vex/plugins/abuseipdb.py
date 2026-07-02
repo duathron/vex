@@ -75,4 +75,5 @@ class AbuseIPDBPlugin:
 
 
 # Verify protocol compliance at import time
-assert isinstance(AbuseIPDBPlugin(), SecondaryEnricherProtocol)
+if not isinstance(AbuseIPDBPlugin(), SecondaryEnricherProtocol):
+    raise TypeError("AbuseIPDBPlugin does not satisfy SecondaryEnricherProtocol")

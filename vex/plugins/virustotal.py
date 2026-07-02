@@ -91,4 +91,5 @@ class VirusTotalPlugin:
 
 
 # Verify protocol compliance at import time
-assert isinstance(VirusTotalPlugin(), EnricherProtocol)
+if not isinstance(VirusTotalPlugin(), EnricherProtocol):
+    raise TypeError("VirusTotalPlugin does not satisfy EnricherProtocol")

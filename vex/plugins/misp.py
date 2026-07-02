@@ -205,4 +205,5 @@ class MISPEnricher:
 
 
 # Verify protocol compliance at import time
-assert isinstance(MISPEnricher(), SecondaryEnricherProtocol)
+if not isinstance(MISPEnricher(), SecondaryEnricherProtocol):
+    raise TypeError("MISPEnricher does not satisfy SecondaryEnricherProtocol")

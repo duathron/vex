@@ -72,4 +72,5 @@ class ShodanPlugin:
 
 
 # Verify protocol compliance at import time
-assert isinstance(ShodanPlugin(), SecondaryEnricherProtocol)
+if not isinstance(ShodanPlugin(), SecondaryEnricherProtocol):
+    raise TypeError("ShodanPlugin does not satisfy SecondaryEnricherProtocol")
