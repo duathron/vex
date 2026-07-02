@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1](https://github.com/duathron/vex/compare/v1.7.0...v1.7.1) (2026-07-02)
+
+
+### Bug Fixes
+
+* harden workflows + protocol asserts against aikido findings ([f49b38f](https://github.com/duathron/vex/commit/f49b38f8fb3fb465488c4353a7972820a99e2192))
+
 ## [1.7.0](https://github.com/duathron/vex/compare/v1.6.1...v1.7.0) (2026-06-12)
 
 
