@@ -31,6 +31,8 @@ from .output.formatter import (
     print_clusters_console,
     print_clusters_rich,
     print_explanation_console,
+    print_explanation_degraded_console,
+    print_explanation_degraded_rich,
     print_explanation_rich,
     print_investigate_console,
     print_investigate_rich,
@@ -48,6 +50,11 @@ from .timeline import build_timeline
 
 # Exit code mapping (highest severity wins)
 _EXIT_CODES = {0: 0, 1: 0, 2: 1, 3: 2}  # severity → exit code
+# F2 cut-1 (2026-07-03 MeetUp — 2026-07-03-f2-llm-failure-posture.md): reserved
+# exit code for a degraded explanation (a REQUESTED LLM provider failed).
+# Distinct from the verdict codes (0/1/2) and any future CLI-usage code (3
+# is unused/reserved, matching sift/barb's identical taxonomy note).
+_EXIT_EXPLANATION_DEGRADED = 4
 
 
 def _version_callback(value: bool) -> None:
@@ -419,7 +426,17 @@ def _run_explain(
     model_override: Optional[str],
     output_fmt: OutputFormat,
 ) -> None:
-    """Generate and display AI explanations for results."""
+    """Generate and display AI explanations for results.
+
+    F2 cut-1 (2026-07-03 MeetUp — 2026-07-03-f2-llm-failure-posture.md): a
+    REQUESTED LLM provider (config.ai.provider != "none") that fails must
+    NEVER silently substitute template_explain() — the analyst would read a
+    rule-based template believing it was an LLM explanation. Mutates each
+    result's explanation/explanation_degraded/explanation_provider fields in
+    place (mirrors barb's _explain(result, config) -> None). The caller
+    (cmd_triage/cmd_investigate) inspects `any(r.explanation_degraded ...)`
+    afterward to decide the exit code (Task 7).
+    """
     from .ai import get_provider
     from .ai.cache import AICache
     from .ai.prompt import build_explain_prompt, get_system_prompt
@@ -428,24 +445,37 @@ def _run_explain(
     if model_override:
         config.ai.model = model_override
 
-    # Get provider (None = use template fallback)
+    # A real LLM was requested iff config.ai.provider != "none" (get_provider
+    # returns None only for the deliberate "none" choice). ValueError/
+    # ImportError from get_provider() itself (bad key, unknown provider,
+    # missing SDK, local_only violation) is ALSO a requested-provider
+    # failure under F2 — it must degrade loud+marked+exit-4, not silently
+    # fall back to a template as before.
+    llm_requested = config.ai.provider.lower().strip() != "none"
     provider = None
-    try:
-        provider = get_provider(config)
-    except (ValueError, ImportError) as e:
-        err_console.print(f"[yellow]AI:[/yellow] {e}")
-        err_console.print("[dim]Falling back to template-based explanation.[/dim]")
+    provider_setup_error: Optional[Exception] = None
+    if llm_requested:
+        try:
+            provider = get_provider(config)
+        except (ValueError, ImportError) as e:
+            provider_setup_error = e
 
     for result in results:
+        target = result.triage if isinstance(result, InvestigateResult) else result
         prompt = build_explain_prompt(result)
 
-        if provider:
+        if provider_setup_error is not None:
+            _mark_explanation_degraded(target, config.ai.provider, provider_setup_error)
+            explanation = None
+            provider_name = "template"  # unused for JSON; kept for rich/console below
+        elif provider:
             model_name = config.ai.model or "default"
             with AICache(config.ai.cache_ttl_hours) as cache:
                 cached = cache.get(provider.name, model_name, prompt)
                 if cached:
                     explanation = cached
                     err_console.print(f"[dim]AI explanation from cache ({provider.name})[/dim]")
+                    target.explanation = explanation
                 else:
                     try:
                         err_console.print(f"[dim]→ Generating AI explanation ({provider.name})...[/dim]")
@@ -456,22 +486,42 @@ def _run_explain(
                             temperature=config.ai.temperature,
                         )
                         cache.set(provider.name, model_name, prompt, explanation)
+                        target.explanation = explanation
                     except Exception as e:
-                        err_console.print(f"[yellow]AI error ({provider.name}):[/yellow] {e}")
-                        err_console.print("[dim]Falling back to template-based explanation.[/dim]")
-                        explanation = template_explain(result)
-                        provider = None  # mark as fallback for display
-            provider_name = provider.name if provider else "template"
+                        _mark_explanation_degraded(target, provider.name, e)
+                        explanation = None
+            provider_name = provider.name if target.explanation_provider is None else "template"
         else:
             explanation = template_explain(result)
+            target.explanation = explanation
             provider_name = "template"
 
         # Output explanation
         if output_fmt == OutputFormat.rich:
-            print_explanation_rich(explanation, provider_name)
+            if target.explanation_degraded:
+                print_explanation_degraded_rich(target.explanation_provider or config.ai.provider)
+            else:
+                print_explanation_rich(explanation, provider_name)
         elif output_fmt == OutputFormat.console:
-            print_explanation_console(explanation, provider_name)
-        # JSON: explanation is added to the result dict (handled separately)
+            if target.explanation_degraded:
+                print_explanation_degraded_console(target.explanation_provider or config.ai.provider)
+            else:
+                print_explanation_console(explanation, provider_name)
+        # JSON: explanation/explanation_degraded/explanation_provider are
+        # already set on `target` above — model_dump() picks them up.
+
+
+def _mark_explanation_degraded(target, provider_name: str, exc: Exception) -> None:
+    """Set the F2 degraded marker + print the loud stderr-only notice.
+
+    Shared by _run_explain and _run_correlation_explain. Never touches
+    stdout (F2 BLOCK condition: a -o json run's stdout must stay
+    json.loads-parseable).
+    """
+    err_console.print(f"⚠ EXPLANATION UNAVAILABLE — provider '{provider_name}' failed: {exc}")
+    target.explanation = None
+    target.explanation_degraded = True
+    target.explanation_provider = provider_name
 
 
 def _run_correlation_explain(
@@ -484,6 +534,10 @@ def _run_correlation_explain(
 
     Mirrors _run_explain but operates on Cluster objects.  Called only when
     both --correlate and --explain are active on a batch run.
+
+    F2 cut-1 (2026-07-03 MeetUp — 2026-07-03-f2-llm-failure-posture.md): same
+    degrade-loud-and-marked posture as _run_explain — a REQUESTED LLM
+    provider that fails must never silently substitute template_correlation().
     """
     from .ai import get_provider
     from .ai.cache import AICache
@@ -493,24 +547,29 @@ def _run_correlation_explain(
     if model_override:
         config.ai.model = model_override
 
-    # Get provider (None = use template fallback)
+    llm_requested = config.ai.provider.lower().strip() != "none"
     provider = None
-    try:
-        provider = get_provider(config)
-    except (ValueError, ImportError) as e:
-        err_console.print(f"[yellow]AI:[/yellow] {e}")
-        err_console.print("[dim]Falling back to template-based cluster narrative.[/dim]")
+    provider_setup_error: Optional[Exception] = None
+    if llm_requested:
+        try:
+            provider = get_provider(config)
+        except (ValueError, ImportError) as e:
+            provider_setup_error = e
 
     for cluster in clusters:
         prompt = build_correlation_prompt(cluster)
 
-        if provider:
+        if provider_setup_error is not None:
+            _mark_explanation_degraded(cluster, config.ai.provider, provider_setup_error)
+            narrative = None
+        elif provider:
             model_name = config.ai.model or "default"
             with AICache(config.ai.cache_ttl_hours) as cache:
                 cached = cache.get(provider.name, model_name, prompt)
                 if cached:
                     narrative = cached
                     err_console.print(f"[dim]AI cluster narrative from cache ({provider.name})[/dim]")
+                    cluster.explanation = narrative
                 else:
                     try:
                         err_console.print(f"[dim]→ Generating AI cluster narrative ({provider.name})...[/dim]")
@@ -521,48 +580,54 @@ def _run_correlation_explain(
                             temperature=config.ai.temperature,
                         )
                         cache.set(provider.name, model_name, prompt, narrative)
+                        cluster.explanation = narrative
                     except Exception as e:
-                        err_console.print(f"[yellow]AI error ({provider.name}):[/yellow] {e}")
-                        err_console.print("[dim]Falling back to template-based cluster narrative.[/dim]")
-                        narrative = template_correlation(cluster)
-                        provider = None  # mark as fallback for display
-            provider_name = provider.name if provider else "template"
+                        _mark_explanation_degraded(cluster, provider.name, e)
+                        narrative = None
+            provider_name = provider.name if cluster.explanation_provider is None else "template"
         else:
             narrative = template_correlation(cluster)
+            cluster.explanation = narrative
             provider_name = "template"
-
-        # Store on the cluster object so JSON export picks it up
-        cluster.explanation = narrative
 
         # Render as "AI Analysis" panel per cluster, reusing print_explanation_*
         cluster_label = f"{cluster.cluster_id}: {cluster.shared_attribute}"
         if output_fmt == OutputFormat.rich:
-            if provider_name == "template":
-                title = f"[bold]Template Analysis[/bold] [dim]— {cluster_label}[/dim]"
+            if cluster.explanation_degraded:
+                print_explanation_degraded_rich(cluster.explanation_provider or config.ai.provider, label=cluster_label)
             else:
-                title = f"[bold]AI Analysis[/bold] [dim]({provider_name}) — {cluster_label}[/dim]"
-            from rich.panel import Panel
+                if provider_name == "template":
+                    title = f"[bold]Template Analysis[/bold] [dim]— {cluster_label}[/dim]"
+                else:
+                    title = f"[bold]AI Analysis[/bold] [dim]({provider_name}) — {cluster_label}[/dim]"
+                from rich.panel import Panel
 
-            console.print(
-                Panel(
-                    narrative,
-                    title=title,
-                    border_style="cyan",
-                    padding=(1, 2),
+                console.print(
+                    Panel(
+                        narrative,
+                        title=title,
+                        border_style="cyan",
+                        padding=(1, 2),
+                    )
                 )
-            )
         elif output_fmt == OutputFormat.console:
-            label = (
-                f"Template Analysis — {cluster_label}"
-                if provider_name == "template"
-                else f"AI Analysis ({provider_name}) — {cluster_label}"
-            )
-            console.print(f"\n{'─' * 60}")
-            console.print(f"{label}:")
-            console.print(f"{'─' * 60}")
-            console.print(narrative)
-            console.print(f"{'─' * 60}")
-        # JSON: cluster.explanation is already set; export handles serialisation
+            if cluster.explanation_degraded:
+                print_explanation_degraded_console(
+                    cluster.explanation_provider or config.ai.provider, label=cluster_label
+                )
+            else:
+                label = (
+                    f"Template Analysis — {cluster_label}"
+                    if provider_name == "template"
+                    else f"AI Analysis ({provider_name}) — {cluster_label}"
+                )
+                console.print(f"\n{'─' * 60}")
+                console.print(f"{label}:")
+                console.print(f"{'─' * 60}")
+                console.print(narrative)
+                console.print(f"{'─' * 60}")
+        # JSON: cluster.explanation/explanation_degraded/explanation_provider
+        # are already set above; export handles serialisation (_cluster_to_dict).
 
 
 # ---------------------------------------------------------------------------
@@ -803,6 +868,12 @@ def cmd_triage(
                 _run_correlation_explain(triage_clusters, config, explain_model, output)
             print(to_json_list_with_clusters(results, triage_clusters))
         elif from_barb and barb_map:
+            # Generate explanations first so they're included in JSON (F2 cut-1,
+            # 2026-07-03: matches the --correlate branch above — explain must run
+            # before the JSON print, not after, or the marker/explanation never
+            # reaches the output).
+            if explain and results:
+                _run_explain(results, config, explain_model, output)
             # Inject barb_context into JSON output
             import json as _json
 
@@ -815,6 +886,13 @@ def cmd_triage(
                 out.append(d)
             print(_json.dumps(out if len(out) > 1 else out[0] if out else [], indent=2, ensure_ascii=False))
         else:
+            # Generate explanations first so they're included in JSON (F2 cut-1,
+            # 2026-07-03) — was previously generated AFTER this print and
+            # silently discarded (a pre-existing gap found while implementing
+            # F2: --explain -o json never surfaced the explanation at all for
+            # a non-correlate run).
+            if explain and results:
+                _run_explain(results, config, explain_model, output)
             print(to_json_list(results) if len(results) > 1 else to_json(results[0]) if results else "[]")
     else:
         for r in results:
@@ -825,13 +903,16 @@ def cmd_triage(
             else:
                 print_clusters_console(triage_clusters)
 
-    # AI explanation (opt-in)
-    if explain and results:
-        if triage_clusters and output not in (OutputFormat.json, OutputFormat.ndjson):
+    # AI explanation (opt-in). F2 cut-1 (2026-07-03): the OutputFormat.json
+    # case is now handled entirely inside the `elif output == OutputFormat.json:`
+    # block above (Step 1) — skip here to avoid calling _run_explain twice
+    # (which would double the LLM API cost and double-append cache writes).
+    if explain and results and output != OutputFormat.json:
+        if triage_clusters and output != OutputFormat.ndjson:
             # Narratives per cluster (--correlate + --explain, non-JSON/ndjson path)
             _run_correlation_explain(triage_clusters, config, explain_model, output)
         else:
-            # Per-result explain (--explain without --correlate, or JSON already handled above)
+            # Per-result explain (--explain without --correlate)
             if not (correlate and len(results) > 1):
                 _run_explain(results, config, explain_model, output)
 
@@ -839,6 +920,17 @@ def cmd_triage(
     if html:
         write_html_report(html, results, mode="triage")
         console.print(f"[green]HTML report written to {html}[/green]")
+
+    # F2 cut-1 (2026-07-03 MeetUp — 2026-07-03-f2-llm-failure-posture.md):
+    # a degraded explanation (a REQUESTED LLM provider failed) exits with the
+    # reserved code 4, taking PRIORITY over the severity-based exit code
+    # computed above (_EXIT_CODES) — a degraded run always needs operator
+    # attention regardless of the underlying verdict severity, mirroring
+    # sift's TriageReport.exit_code property and barb's pre-verdict-exit
+    # check in cmd analyze(). The verdict/triage output itself (vex's primary
+    # output) is unaffected — it already printed/rendered above.
+    if any(r.explanation_degraded for r in results) or any(c.explanation_degraded for c in triage_clusters):
+        raise typer.Exit(code=_EXIT_EXPLANATION_DEGRADED)
 
     raise typer.Exit(code=exit_code)
 
@@ -1096,6 +1188,10 @@ def cmd_investigate(
                 _run_correlation_explain(inv_clusters, config, explain_model, output)
             print(to_json_list_with_clusters(results, inv_clusters))
         else:
+            # Generate explanations first so they're included in JSON (F2 cut-1,
+            # 2026-07-03) — see cmd_triage's identical fix for the full rationale.
+            if explain and results:
+                _run_explain(results, config, explain_model, output)
             print(to_json_list(results) if len(results) > 1 else to_json(results[0]) if results else "[]")
     else:
         for r in results:
@@ -1115,13 +1211,14 @@ def cmd_investigate(
             else:
                 print_timeline_console(tl)
 
-    # AI explanation (opt-in)
-    if explain and results:
-        if inv_clusters and output not in (OutputFormat.json, OutputFormat.ndjson):
+    # AI explanation (opt-in). F2 cut-1 (2026-07-03): see cmd_triage's
+    # identical guard — the OutputFormat.json case is handled above.
+    if explain and results and output != OutputFormat.json:
+        if inv_clusters and output != OutputFormat.ndjson:
             # Narratives per cluster (--correlate + --explain, non-JSON/ndjson path)
             _run_correlation_explain(inv_clusters, config, explain_model, output)
         else:
-            # Per-result explain (--explain without --correlate, or JSON already handled above)
+            # Per-result explain (--explain without --correlate)
             if not (correlate and len(results) > 1):
                 _run_explain(results, config, explain_model, output)
 
@@ -1129,6 +1226,10 @@ def cmd_investigate(
     if html:
         write_html_report(html, results, mode="investigate")
         console.print(f"[green]HTML report written to {html}[/green]")
+
+    # F2 cut-1 (2026-07-03 MeetUp): see cmd_triage's identical check.
+    if any(r.triage.explanation_degraded for r in results) or any(c.explanation_degraded for c in inv_clusters):
+        raise typer.Exit(code=_EXIT_EXPLANATION_DEGRADED)
 
     raise typer.Exit(code=exit_code)
 
@@ -1571,9 +1672,20 @@ The [bold]--explain[/bold] flag is strictly opt-in — it is never active by def
   • IOCs are defanged in prompts for safety.
 
 [bold]TEMPLATE FALLBACK:[/bold]
-  If no AI provider is configured, --explain produces a deterministic
-  template-based explanation from enrichment data. No external calls.
-  This ensures --explain always produces useful output.
+  If no AI provider is configured (ai.provider: none, the default),
+  --explain produces a deterministic template-based explanation from
+  enrichment data. No external calls.
+
+[bold]LLM FAILURE POSTURE:[/bold]
+  If a provider IS configured (anthropic/openai/ollama) and it fails,
+  vex does NOT silently fall back to a template. The verdict/enrichment
+  output still completes; the explanation is left unavailable
+  (JSON: "explanation": null, "explanation_degraded": true,
+  "explanation_provider": "<name>"), a loud warning is printed to
+  stderr, and vex exits with code 4 (distinct from the verdict codes
+  0/1/2). This is deliberate: an explicitly configured provider that
+  fails should never be silently masked by a template the analyst
+  might mistake for a real LLM explanation.
 """,
     "config": """\
 [bold cyan]CONFIGURATION REFERENCE[/bold cyan]

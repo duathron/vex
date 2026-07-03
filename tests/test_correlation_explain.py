@@ -289,7 +289,11 @@ def test_provider_present_fills_explanation() -> None:
 
 
 def test_no_provider_uses_template_fallback() -> None:
-    """When provider returns None (ai.provider='none'), template fills explanation."""
+    """When provider returns None (ai.provider='none'), template fills explanation.
+
+    UNCHANGED by F2 cut-1: ai.provider="none" is a DELIBERATE non-LLM choice,
+    never degraded, regardless of the F2 posture change to the error-path
+    sibling test above."""
     from vex.config import Config
     from vex.main import OutputFormat, _run_correlation_explain
 
@@ -303,32 +307,54 @@ def test_no_provider_uses_template_fallback() -> None:
     cl = clusters[0]
     assert cl.explanation is not None
     assert len(cl.explanation) > 10
+    assert cl.explanation_degraded is False
+    assert cl.explanation_provider is None
 
 
 # ---------------------------------------------------------------------------
-# 7. Provider error → template fallback (fail-safe)
+# 7. Provider error → degraded marker, NOT template fallback (F2 cut-1)
+#
+# FLIPPED for F2 cut-1 (2026-07-03 MeetUp — 2026-07-03-f2-llm-failure-posture.md).
+#   OLD posture (pinned here before the flip): when provider.explain() raised,
+#     _run_correlation_explain SILENTLY substituted template_correlation()'s
+#     output as cluster.explanation — the analyst received a rule-based
+#     template believing it was an LLM narrative.
+#   NEW posture (asserted below): cluster.explanation stays None,
+#     cluster.explanation_degraded is set True, cluster.explanation_provider
+#     records which provider failed, and the loud stderr notice is printed.
+#     _run_correlation_explain still does not raise (the caller,
+#     cmd_triage/cmd_investigate, decides the exit code — see Task 7).
+#   WHY: BLOCK condition (2026-07-03 F2 MeetUp) — "any output where a
+#     template reaches the analyst without a machine degraded/provider
+#     marker" must be flipped with documented before/after.
 # ---------------------------------------------------------------------------
 
 
-def test_provider_error_falls_back_to_template() -> None:
-    """If provider.explain raises, template fallback is used; run does not crash."""
+def test_provider_error_sets_degraded_marker_not_template(capsys) -> None:
+    """If provider.explain raises, the cluster is marked degraded — no
+    template substitution, no crash."""
     from vex.main import OutputFormat, _run_correlation_explain
 
     config = _default_config()
     clusters = [_make_cluster("C1")]
     mock_cache = _make_aicache_mock(cached_value=None)
+    expected_template = template_correlation(clusters[0])
 
     with (
         patch("vex.ai.get_provider", return_value=ErrorProvider()),
         patch("vex.ai.cache.AICache", return_value=mock_cache),
     ):
-        # Must not raise
+        # Must not raise — the error is caught and marked, not propagated.
         _run_correlation_explain(clusters, config, None, OutputFormat.console)
 
     cl = clusters[0]
-    assert cl.explanation is not None
-    # Template output is deterministic — must be non-empty
-    assert len(cl.explanation) > 10
+    assert cl.explanation is None
+    assert cl.explanation != expected_template  # no silent template substitution
+    assert cl.explanation_degraded is True
+    assert cl.explanation_provider == "error_provider"
+
+    captured = capsys.readouterr()
+    assert "EXPLANATION UNAVAILABLE" in captured.out or "EXPLANATION UNAVAILABLE" in captured.err
 
 
 # ---------------------------------------------------------------------------

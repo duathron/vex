@@ -1,8 +1,11 @@
 """Ollama local LLM provider for vex AI explanations.
 
-Uses httpx (already a core dependency) to call the Ollama REST API.
-No additional packages required — works out of the box for air-gapped
-and privacy-sensitive environments.
+The /api/generate call is migrated onto the shared shipwright_kit.llm
+transport (W3 retrofit, 2026-07-03), which uses stdlib urllib instead of
+httpx — a deliberate transport change (same wire request: POST
+/api/generate with the same JSON body) shared with sift/barb. vex keeps
+httpx for its health-check (/api/tags below) and for its other 9
+non-AI files (VirusTotal client, enrichers) — only the generate call moves.
 """
 
 from __future__ import annotations
@@ -10,6 +13,7 @@ from __future__ import annotations
 from typing import Optional
 
 import httpx
+from shipwright_kit.llm import ollama_generate
 
 
 class OllamaProvider:
@@ -40,36 +44,35 @@ class OllamaProvider:
     ) -> str:
         """Send prompt to local Ollama and return explanation.
 
-        When *system* is provided it is forwarded to Ollama via the top-level
-        ``system`` field of the ``/api/generate`` request body.
+        Delegates the /api/generate call to
+        ``shipwright_kit.llm.ollama_generate`` (urllib transport,
+        ``system_mode="field"`` — system as its own top-level payload key,
+        matching vex's pre-retrofit shape). ``options`` carries vex's
+        existing num_predict/temperature mapping, preserved unconditionally
+        (unchanged from pre-retrofit). ``system`` is coerced to ``""`` when
+        ``None`` (the shared transport has no omission support — see
+        tests/test_ai_providers.py for the characterization). No try/except
+        here (preserved from pre-retrofit behavior: vex never wrapped
+        Ollama transport/parse errors) — any exception (urllib.error.URLError,
+        urllib.error.HTTPError, json.JSONDecodeError, KeyError) propagates
+        unchanged.
         """
-        payload: dict = {
-            "model": self._model,
-            "prompt": prompt,
-            "stream": False,
-            "options": {
-                "num_predict": max_tokens,
-                "temperature": temperature,
-            },
-        }
-        if system is not None:
-            payload["system"] = system
-
-        resp = httpx.post(
-            f"{self._base_url}/api/generate",
-            json=payload,
+        return ollama_generate(
+            base_url=self._base_url,
+            model=self._model,
+            system=system if system is not None else "",
+            user=prompt,
             timeout=120.0,
+            system_mode="field",
+            options={"num_predict": max_tokens, "temperature": temperature},
         )
-        resp.raise_for_status()
-
-        # Defensive parse
-        try:
-            return resp.json().get("response", "")
-        except Exception:
-            return ""
 
     def is_available(self) -> bool:
-        """Check if Ollama is running and reachable."""
+        """Check if Ollama is running and reachable.
+
+        Unchanged by the W3 retrofit — the health-check stays on httpx
+        (only the /api/generate call migrated to the shared urllib transport).
+        """
         try:
             r = httpx.get(f"{self._base_url}/api/tags", timeout=3.0)
             return r.status_code == 200

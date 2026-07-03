@@ -170,8 +170,21 @@ def test_anthropic_system_forwarded_when_provided() -> None:
     assert call_kwargs["system"] == "my system prompt"
 
 
-def test_anthropic_system_omitted_when_none() -> None:
-    """When system=None, the system key must NOT appear in messages.create."""
+# FLIPPED for the W3 retrofit (2026-07-03) onto shipwright_kit.llm.
+#   OLD posture (pinned here before the flip): system=None -> "system" key
+#     is OMITTED entirely from messages.create kwargs (vex's old hand-rolled
+#     `if system is not None: kwargs["system"] = system`).
+#   NEW posture (asserted below): shipwright_kit.llm.anthropic_complete
+#     requires `system: str` and unconditionally includes it in the request
+#     (no None-check inside the shared function) — so vex's retrofit passes
+#     `system if system is not None else ""`. "system" is now ALWAYS present.
+#   WHY: forced by the shared transport's shape, not a vex design choice. In
+#     PRODUCTION vex never calls explain(system=None) — _run_explain and
+#     _run_correlation_explain always pass get_system_prompt(...), which is
+#     never None — so this flip has zero production impact; it only updates
+#     a defensive/theoretical branch of the Optional[str] contract.
+def test_anthropic_system_becomes_empty_string_when_none() -> None:
+    """When system=None, the shared transport still sends "system": "" (never omitted)."""
     fake_anthropic = _make_fake_anthropic_module()
 
     text_block = MagicMock()
@@ -184,7 +197,7 @@ def test_anthropic_system_omitted_when_none() -> None:
     provider.explain("data block", system=None)
 
     call_kwargs = fake_anthropic.Anthropic.return_value.messages.create.call_args[1]
-    assert "system" not in call_kwargs
+    assert call_kwargs["system"] == ""
 
 
 def test_anthropic_defensive_extraction_skips_non_text_block() -> None:
@@ -265,8 +278,18 @@ def test_openai_system_message_prepended_when_provided() -> None:
     assert messages[1] == {"role": "user", "content": "user prompt"}
 
 
-def test_openai_no_system_message_when_none() -> None:
-    """When system=None, only the user message is in the list."""
+# FLIPPED for the W3 retrofit (2026-07-03) onto shipwright_kit.llm.
+#   OLD posture (pinned here before the flip): system=None -> only ONE
+#     message (the user turn) is sent; no system-role message at all.
+#   NEW posture (asserted below): shipwright_kit.llm.openai_complete always
+#     builds BOTH a system-role and a user-role message (no None-check
+#     inside the shared function) — so vex's retrofit passes
+#     `system if system is not None else ""`. TWO messages are now ALWAYS
+#     sent, with an empty-string system content when the caller passed None.
+#   WHY: same forced-by-shared-transport reasoning as the Anthropic sibling
+#     above — vex's production call sites never pass system=None.
+def test_openai_system_message_is_empty_string_when_none() -> None:
+    """When system=None, two messages are still sent: system="" then the user turn."""
     fake_openai = MagicMock()
 
     choice = MagicMock()
@@ -278,19 +301,37 @@ def test_openai_no_system_message_when_none() -> None:
 
     call_kwargs = fake_openai.OpenAI.return_value.chat.completions.create.call_args[1]
     messages = call_kwargs["messages"]
-    assert len(messages) == 1
-    assert messages[0]["role"] == "user"
+    assert len(messages) == 2
+    assert messages[0] == {"role": "system", "content": ""}
+    assert messages[1] == {"role": "user", "content": "user prompt"}
 
 
-def test_openai_defensive_extraction_returns_empty_on_bad_response() -> None:
-    """When choices is empty, defensive extraction returns empty string."""
+# FLIPPED for the W3 retrofit (2026-07-03) onto shipwright_kit.llm.
+#   OLD posture (pinned here before the flip): an empty `choices` list ->
+#     vex's old hand-rolled `try: ... except (AttributeError, IndexError):
+#     return ""` caught the IndexError from `resp.choices[0]` and returned "".
+#   NEW posture (asserted below): shipwright_kit.llm.openai_complete has NO
+#     try/except around `response.choices[0].message.content` (exception-
+#     transparent by design) — an empty choices list now raises IndexError,
+#     uncaught, propagating to the caller.
+#   WHY: forced by the shared transport being exception-transparent. This is
+#     a net-positive side effect for F2: an empty-choices response used to
+#     silently masquerade as a successful-but-blank explanation; now it
+#     surfaces as a real failure that F2's outer handler (vex/main.py
+#     _run_explain) turns into a loud, marked, exit-4 degrade instead of a
+#     silent blank string.
+def test_openai_empty_choices_raises_index_error() -> None:
+    """When choices is empty, the shared transport's unguarded choices[0] raises."""
     fake_openai = MagicMock()
 
     fake_openai.OpenAI.return_value.chat.completions.create.return_value = MagicMock(choices=[])
 
     provider = _make_openai_provider(fake_openai)
-    result = provider.explain("data block")
-    assert result == ""
+
+    import pytest
+
+    with pytest.raises(IndexError):
+        provider.explain("data block")
 
 
 # ---------------------------------------------------------------------------
@@ -299,58 +340,84 @@ def test_openai_defensive_extraction_returns_empty_on_bad_response() -> None:
 
 
 def test_ollama_system_field_forwarded_when_provided() -> None:
-    """When system= is set, Ollama /api/generate payload includes system field."""
-    from unittest.mock import patch as _patch
+    """When system= is set, Ollama /api/generate payload includes system field.
 
-    fake_response = MagicMock()
-    fake_response.raise_for_status = MagicMock()
-    fake_response.json.return_value = {"response": "ollama answer"}
+    Mechanically updated for the W3 retrofit (2026-07-03): mocks the shared
+    transport's urllib seam (shipwright_kit.llm.urllib.request.urlopen)
+    instead of httpx.post. Assertion is unchanged in spirit — system still
+    reaches the payload when provided."""
+    import json as _json
 
-    with _patch("httpx.post", return_value=fake_response) as mock_post:
+    from _ollama_transport import make_fake_urlopen
+
+    captured, fake_urlopen = make_fake_urlopen({"response": "ollama answer"})
+
+    with patch("shipwright_kit.llm.urllib.request.urlopen", fake_urlopen):
         from vex.ai.ollama import OllamaProvider
 
         provider = OllamaProvider()
         result = provider.explain("user prompt", system="my system")
 
-    call_kwargs = mock_post.call_args[1]
-    payload = call_kwargs["json"]
+    payload = _json.loads(captured["request"].data.decode())
     assert payload.get("system") == "my system"
     assert result == "ollama answer"
 
 
-def test_ollama_system_field_omitted_when_none() -> None:
-    """When system=None, system key must not appear in the payload."""
-    from unittest.mock import patch as _patch
+# FLIPPED for the W3 retrofit (2026-07-03) onto shipwright_kit.llm.
+#   OLD posture (pinned here before the flip): system=None -> "system" key
+#     is OMITTED entirely from the /api/generate JSON payload.
+#   NEW posture (asserted below): shipwright_kit.llm.ollama_generate's
+#     system_mode="field" unconditionally includes "system" as a top-level
+#     payload key (no None-check) — vex's retrofit passes
+#     `system if system is not None else ""`. "system" is now ALWAYS
+#     present (empty string when the caller passed None).
+#   WHY: forced by the shared transport's shape, matching the identical
+#     Anthropic/OpenAI divergence in Task 3. vex's production call sites
+#     never pass system=None.
+def test_ollama_system_field_is_empty_string_when_none() -> None:
+    """When system=None, "system" is still present in the payload, as ""."""
+    import json as _json
 
-    fake_response = MagicMock()
-    fake_response.raise_for_status = MagicMock()
-    fake_response.json.return_value = {"response": "ok"}
+    from _ollama_transport import make_fake_urlopen
 
-    with _patch("httpx.post", return_value=fake_response) as mock_post:
+    captured, fake_urlopen = make_fake_urlopen({"response": "ok"})
+
+    with patch("shipwright_kit.llm.urllib.request.urlopen", fake_urlopen):
         from vex.ai.ollama import OllamaProvider
 
         provider = OllamaProvider()
         provider.explain("user prompt", system=None)
 
-    payload = mock_post.call_args[1]["json"]
-    assert "system" not in payload
+    payload = _json.loads(captured["request"].data.decode())
+    assert payload["system"] == ""
 
 
-def test_ollama_defensive_parse_on_missing_response_key() -> None:
-    """When 'response' key is missing, defensive parse returns empty string."""
-    from unittest.mock import patch as _patch
+# FLIPPED for the W3 retrofit (2026-07-03) onto shipwright_kit.llm.
+#   OLD posture (pinned here before the flip): a missing "response" key in
+#     the outer JSON body -> vex's old hand-rolled `resp.json().get(
+#     "response", "")` returned "" (no exception).
+#   NEW posture (asserted below): shipwright_kit.llm.ollama_generate does
+#     `outer["response"]` (a bare dict subscript, no .get default) -> a
+#     missing key now raises KeyError, uncaught, propagating to the caller.
+#   WHY: forced by the shared transport being exception-transparent by
+#     design (no try/except inside it). Net-positive for F2, same reasoning
+#     as the OpenAI empty-choices flip in Task 3: a malformed/unexpected
+#     Ollama response used to silently masquerade as a successful-but-blank
+#     explanation; now it surfaces as a real failure for F2's outer handler
+#     to mark degraded instead of silently returning "".
+def test_ollama_missing_response_key_raises_key_error() -> None:
+    """When the outer JSON body has no "response" key, KeyError propagates."""
+    import pytest
+    from _ollama_transport import make_fake_urlopen
 
-    fake_response = MagicMock()
-    fake_response.raise_for_status = MagicMock()
-    fake_response.json.return_value = {}  # no 'response' key
+    captured, fake_urlopen = make_fake_urlopen({"done": True, "model": "llama3"})  # no "response"
 
-    with _patch("httpx.post", return_value=fake_response):
+    with patch("shipwright_kit.llm.urllib.request.urlopen", fake_urlopen):
         from vex.ai.ollama import OllamaProvider
 
         provider = OllamaProvider()
-        result = provider.explain("data block")
-
-    assert result == ""
+        with pytest.raises(KeyError):
+            provider.explain("data block")
 
 
 # ---------------------------------------------------------------------------

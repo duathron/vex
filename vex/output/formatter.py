@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from rich import box
 from rich.console import Console
@@ -467,6 +467,36 @@ def print_explanation_console(explanation: str, provider: str = "template") -> N
     console.print(f"{label}:")
     console.print(f"{'─' * 60}")
     console.print(explanation)
+    console.print(f"{'─' * 60}")
+
+
+def print_explanation_degraded_rich(provider: str, *, label: Optional[str] = None) -> None:
+    """Print the F2 loud degraded-explanation banner as a red-bordered Rich panel.
+
+    Mirrors barb's output/formatter.py Panel treatment (border_style="red").
+    Never called for a deliberate `template` choice (config.ai.provider ==
+    "none") — only for a REQUESTED LLM provider that failed.
+    """
+    title = f"Explanation — {label}" if label else "Explanation"
+    console.print(
+        Panel(
+            f"[bold red]⚠ EXPLANATION UNAVAILABLE[/bold red] — provider "
+            f"'{provider}' failed. The verdict above is unaffected; "
+            "no explanation was generated.",
+            title=title,
+            border_style="red",
+        )
+    )
+
+
+def print_explanation_degraded_console(provider: str, *, label: Optional[str] = None) -> None:
+    """Print the F2 loud degraded-explanation banner in plain console text."""
+    prefix = f"[{label}] " if label else ""
+    console.print(f"\n{'─' * 60}")
+    console.print(
+        f"{prefix}⚠ EXPLANATION UNAVAILABLE — provider '{provider}' failed. "
+        "The verdict above is unaffected; no explanation was generated."
+    )
     console.print(f"{'─' * 60}")
 
 

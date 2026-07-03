@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Optional
 
+from shipwright_kit.llm import openai_complete
+
 
 class OpenAIProvider:
     """LLM provider using the OpenAI API."""
@@ -32,26 +34,22 @@ class OpenAIProvider:
     ) -> str:
         """Send prompt to OpenAI and return explanation.
 
-        When *system* is provided a ``{"role": "system", "content": system}``
-        message is prepended before the user message.
+        Delegates request construction + extraction to
+        ``shipwright_kit.llm.openai_complete`` (W3 retrofit, 2026-07-03).
+        The shared transport always sends BOTH a system-role and a user-role
+        message (no omission support) — ``system`` is coerced to ``""`` when
+        ``None``. No try/except here (preserved from pre-retrofit behavior:
+        vex never wrapped OpenAI exceptions) — any exception, including an
+        ``IndexError`` from an empty ``choices`` list, propagates unchanged.
         """
-        messages: list[dict] = []
-        if system is not None:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
-
-        resp = self._client.chat.completions.create(
+        return openai_complete(
+            client=self._client,
             model=self._model,
             max_tokens=max_tokens,
+            system=system if system is not None else "",
+            user=prompt,
             temperature=temperature,
-            messages=messages,
         )
-
-        # Defensive extraction
-        try:
-            return resp.choices[0].message.content or ""
-        except (AttributeError, IndexError):
-            return ""
 
     def is_available(self) -> bool:
         """Check if openai SDK is installed."""

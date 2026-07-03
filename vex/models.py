@@ -87,6 +87,18 @@ class TriageResult(BaseModel):
     local_tags: list[str] = Field(default_factory=list)
     local_notes: list[str] = Field(default_factory=list)
     watchlists: list[str] = Field(default_factory=list)
+    # F2 cut-1 (2026-07-03 MeetUp — 2026-07-03-f2-llm-failure-posture.md):
+    # machine-legible degraded marker for a REQUESTED LLM explanation
+    # (--explain with ai.provider != "none") that failed. When a real
+    # provider (anthropic/openai/ollama) errors, `explanation` stays None
+    # and these two additive siblings are set instead — never a silent
+    # template_explain() substitution. Additive fields, so existing JSON
+    # consumers of a populated `explanation` are unaffected. A deliberately
+    # chosen `ai.provider: none` (template) run never sets these, even
+    # though it DOES populate `explanation`.
+    explanation: Optional[str] = None
+    explanation_degraded: bool = False
+    explanation_provider: Optional[str] = None
 
 
 # --- Investigate results (extended, per IOC type) ---

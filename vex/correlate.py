@@ -26,6 +26,10 @@ class Cluster(BaseModel):
     member_count: int
     max_verdict: Verdict
     explanation: Optional[str] = None  # AI/template narrative (populated by --explain+--correlate)
+    # F2 cut-1 (2026-07-03 MeetUp — 2026-07-03-f2-llm-failure-posture.md):
+    # additive degraded marker, mirrors TriageResult's fields (vex/models.py).
+    explanation_degraded: bool = False
+    explanation_provider: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

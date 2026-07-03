@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Optional
 
+from shipwright_kit.llm import anthropic_complete
+
 
 class ClaudeProvider:
     """LLM provider using the Anthropic Claude API."""
@@ -33,39 +35,32 @@ class ClaudeProvider:
     ) -> str:
         """Send prompt to Claude and return explanation.
 
-        Args:
-            prompt: User-turn content (data block).
-            system: Optional system prompt. When set, forwarded to the
-                ``system`` parameter of the Messages API. Omitted when None.
-            max_tokens: Maximum tokens to generate.
-            temperature: Sampling temperature.
+        Delegates request construction + extraction to
+        ``shipwright_kit.llm.anthropic_complete`` (W3 retrofit, 2026-07-03).
+        ``extract="first_text_block"`` matches vex's pre-retrofit defensive
+        extraction (scan for the first content block exposing ``.text``,
+        return ``""`` if none is found). ``system`` is coerced to ``""``
+        when ``None`` — the shared transport always sends a ``system`` key
+        (no omission support); vex's own call sites never pass ``system=None``
+        in practice (see tests/test_ai_providers.py for the characterization).
 
         Raises:
             RuntimeError: Wraps any :class:`anthropic.APIError` with a
-                user-friendly message.
+                user-friendly message. Any other exception type propagates
+                unchanged (preserved from pre-retrofit behavior).
         """
-        kwargs: dict = {
-            "model": self._model,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-        if system is not None:
-            kwargs["system"] = system
-
         try:
-            message = self._client.messages.create(**kwargs)
+            return anthropic_complete(
+                client=self._client,
+                model=self._model,
+                max_tokens=max_tokens,
+                system=system if system is not None else "",
+                user=prompt,
+                temperature=temperature,
+                extract="first_text_block",
+            )
         except self._anthropic.APIError as exc:
             raise RuntimeError(f"Anthropic API error while generating explanation: {exc}") from exc
-
-        # Defensive extraction: iterate content blocks, take first with .text
-        response_text = ""
-        for block in message.content:
-            if hasattr(block, "text"):
-                response_text = block.text
-                break
-
-        return response_text
 
     def is_available(self) -> bool:
         """Check if anthropic SDK is installed."""

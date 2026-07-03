@@ -32,6 +32,12 @@ def _cluster_to_dict(cluster: "Cluster") -> dict[str, Any]:
     }
     if cluster.explanation is not None:
         d["explanation"] = cluster.explanation
+    # F2 cut-1 (2026-07-03 MeetUp): additive degraded marker, always present
+    # (unlike `explanation`, which is only added when populated) so a JSON
+    # consumer can detect "no explanation AND no marker" (--explain not
+    # requested) vs "no explanation BUT degraded=true" (LLM failed).
+    d["explanation_degraded"] = cluster.explanation_degraded
+    d["explanation_provider"] = cluster.explanation_provider
     return d
 
 
