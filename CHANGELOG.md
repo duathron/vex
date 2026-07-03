@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.2](https://github.com/duathron/vex/compare/v1.7.1...v1.7.2) (2026-07-03)
+
+
+### Bug Fixes
+
+* retrofit LLM providers onto shipwright_kit.llm + never silently template a failed explanation (W3 + F2) ([c2695c7](https://github.com/duathron/vex/commit/c2695c74d5a81f8f1219ec3f360a08b00e548b87))
+
 ## [1.7.1](https://github.com/duathron/vex/compare/v1.7.0...v1.7.1) (2026-07-02)
 
 
