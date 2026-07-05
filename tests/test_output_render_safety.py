@@ -55,3 +55,20 @@ def test_barb_context_explanation_escaped_but_severity_preserved(monkeypatch):
     # is the style name, so it never appears either way).
     assert "[red]CRITICAL[/red]" not in out
     assert "CRITICAL" in out
+
+
+def test_barb_context_console_escapes_explanation(monkeypatch):
+    # 4th sink: print_barb_context_console's Note line (formatter.py:581). Without
+    # this the sink ships wrong-reason-green (no test drives it).
+    con = _rec(monkeypatch)
+    ctx = SimpleNamespace(
+        verdict="phishing",
+        risk_score=15.0,
+        defanged_url="hxxp://evil[.]example",
+        top_signals=[SimpleNamespace(severity="CRITICAL", analyzer="vt", label="malicious")],
+        explanation="[red]spoof[/] \x1b[31mx\x1b[0m",
+    )
+    formatter.print_barb_context_console(ctx)
+    out = con.export_text()
+    assert "[red]spoof" in out  # explanation escaped to literal
+    assert "\x1b[31m" not in out  # ANSI stripped
