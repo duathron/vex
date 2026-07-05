@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+from shipwright_kit.security.render import safe_render
 
 from ..models import (
     InvestigateResult,
@@ -452,7 +453,7 @@ def print_explanation_rich(explanation: str, provider: str = "template") -> None
         title = f"[bold]AI Explanation[/bold] [dim]({provider})[/dim]"
     console.print(
         Panel(
-            explanation,
+            safe_render(explanation) if provider != "template" else explanation,
             title=title,
             border_style="blue",
             padding=(1, 2),
@@ -466,7 +467,7 @@ def print_explanation_console(explanation: str, provider: str = "template") -> N
     console.print(f"\n{'─' * 60}")
     console.print(f"{label}:")
     console.print(f"{'─' * 60}")
-    console.print(explanation)
+    console.print(safe_render(explanation) if provider != "template" else explanation)
     console.print(f"{'─' * 60}")
 
 
@@ -552,7 +553,8 @@ def print_barb_context_rich(ctx) -> None:  # ctx: BarbContext (lazy import to av
         grid.add_row("Signals", sig_table)
 
     if ctx.explanation:
-        grid.add_row("Explanation", ctx.explanation[:200] + ("…" if len(ctx.explanation) > 200 else ""))
+        _expl = safe_render(ctx.explanation)
+        grid.add_row("Explanation", _expl[:200] + ("…" if len(_expl) > 200 else ""))
 
     border_style = "dark_orange"
     console.print(
@@ -578,7 +580,7 @@ def print_barb_context_console(ctx) -> None:  # ctx: BarbContext
     for s in ctx.top_signals:
         console.print(f"  [{s.severity}] {s.analyzer}: {s.label}")
     if ctx.explanation:
-        console.print(f"Note      : {ctx.explanation[:200]}")
+        console.print(f"Note      : {safe_render(ctx.explanation)[:200]}")
     console.print(f"{'─' * 60}")
 
 
