@@ -30,7 +30,7 @@
 `vex` takes an indicator (a hash, IP, domain, or URL) and turns it into a verdict with context. It started as a VirusTotal CLI and grew into an enrichment hub: one primary source (VirusTotal) plus optional secondary sources that add reputation and your own threat-intel. It runs standalone, and it slots into a pipeline (**barb → vex → sift**) over stdin/stdout.
 
 > [!NOTE]
-> Current release: **`vex 1.6.1`** (on PyPI). **On main (pending 1.7.0):** TI write-back, `watchlist run`, daily VT-quota counter, `--version` flag. Full manual: [`docs/`](docs/README.md).
+> Current release: **`vex 1.8.0`** (on PyPI). Full manual: [`docs/`](docs/README.md).
 
 ## Install
 
@@ -60,7 +60,7 @@ Reputation: 0
 - **Two modes** — `triage` (fast verdict, minimal API calls) and `investigate` (deep DFIR: PE info, sandbox behavior, passive DNS, relationships, MITRE ATT&CK, timeline).
 - **Multi-source enrichment** — VirusTotal primary; AbuseIPDB, Shodan, WHOIS, MISP, and OpenCTI as secondary enrichers (key-gated, fail-open).
 - **Batch correlation** — `--correlate` clusters a batch of IOCs by shared infrastructure (ASN, malware family, contacted IPs/domains).
-- **AI explanations** — opt-in `--explain` narratives (Claude / OpenAI / local Ollama / deterministic template), with prompt-injection defense on the untrusted data fed to the model.
+- **AI explanations** — opt-in `--explain` narratives (Claude / OpenAI / local Ollama / deterministic template), with prompt-injection defense on the untrusted data fed to the model and terminal-safe rendering of the model's output.
 - **Pipeline-ready output** — JSON, NDJSON (streaming), CSV, STIX 2.1, ATT&CK Navigator, self-contained HTML; verdict-mapped exit codes.
 - **Quota-aware batches** — IOC dedup, an up-front ETA, a `--max-quota` budget guard, and a persistent daily VT-quota counter with a stderr status line *(on main, pending 1.7.0)*.
 - **Local knowledge base** — `vex tag` / `note` / `watchlist` annotate IOCs in `~/.vex/`. Re-triage an entire watchlist in one shot with `vex watchlist run <name>` *(on main, pending 1.7.0)*.
@@ -111,6 +111,9 @@ vex investigate evil.com --explain
 
 > [!WARNING]
 > Enrichment data (sandbox strings, file names, family labels) is attacker-influenceable. Before it reaches an LLM, `vex` scans it for prompt-injection patterns and redacts critical attempts, and the system prompt instructs the model to treat the data as untrusted. This is defense-in-depth, not a guarantee.
+
+> [!NOTE]
+> The model's explanation is escaped again on the way out: Rich console markup and ANSI/control sequences in the returned text are neutralized before it's printed, so the model can't repaint or otherwise manipulate the terminal (OWASP LLM05, Improper Output Handling). This applies only to the LLM-generated explanation — the deterministic template fallback and vex's own severity-color markup render as before.
 
 ## Output formats
 
@@ -193,6 +196,7 @@ Key config keys (in `enrichment:` section):
 > - Premium calls are **gated behind `config.is_premium`**; the free tier is never broken.
 > - **Restricted TI: TLP/markings are carried through; marked intel is never emitted unmarked.**
 > - **Write-back is inert by default** (`writeback_enabled: false`). Credentials for MISP and OpenCTI are stored only in `~/.vex/config.yaml` (0o600) or environment variables — never in CLI arguments or logs.
+> - **The LLM explanation is escaped at every render sink** — `triage --explain`, `investigate --explain`, and the barb pre-scan echo all neutralize Rich markup and ANSI/control sequences in the model's returned text before printing it, so a manipulated response can't hijack the terminal display. Scoped to the LLM-sourced explanation only; the deterministic template fallback and vex's own severity-color markup are unaffected.
 > - Machine output stays clean — all notices go to **stderr**, not stdout.
 
 ## Exit codes
