@@ -30,7 +30,7 @@
 `vex` takes an indicator (a hash, IP, domain, or URL) and turns it into a verdict with context. It started as a VirusTotal CLI and grew into an enrichment hub: one primary source (VirusTotal) plus optional secondary sources that add reputation and your own threat-intel. It runs standalone, and it slots into a pipeline (**barb → vex → sift**) over stdin/stdout.
 
 > [!NOTE]
-> Current release: **`vex 1.6.1`** (on PyPI). **On main (pending 1.7.0):** TI write-back, `watchlist run`, daily VT-quota counter, `--version` flag. Full manual: [`docs/`](docs/README.md).
+> Current release: **`vex 1.8.0`** (on PyPI). Full manual: [`docs/`](docs/README.md).
 
 ## Install
 
