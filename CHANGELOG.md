@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0](https://github.com/duathron/vex/compare/v1.7.2...v1.8.0) (2026-07-05)
+
+
+### Features
+
+* escape LLM explanation at all four render sinks (LLM05) ([#17](https://github.com/duathron/vex/issues/17)) ([2929786](https://github.com/duathron/vex/commit/2929786604f82f0f8a30967f9525a1e6324661ec))
+
 ## [1.7.2](https://github.com/duathron/vex/compare/v1.7.1...v1.7.2) (2026-07-03)
 
 
