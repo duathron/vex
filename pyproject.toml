@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vex-ioc"
-version = "1.7.2"
+version = "1.8.0"
 description = "VirusTotal IOC Enrichment Tool for SOC/DFIR workflows"
 readme = "README.md"
 license = "MIT"
