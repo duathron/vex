@@ -582,11 +582,11 @@ wheels = [
 
 [[package]]
 name = "shipwright-kit"
-version = "0.11.0"
+version = "0.12.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/4c/a7/0c904c725e74a14fd30d90705948f65b632da1f89be6c6ebacbbfff8a1c7/shipwright_kit-0.11.0.tar.gz", hash = "sha256:b0bd8b93528d4266e3c51cfe1df43adcb7539a8f830c69387d9065e5d91ba938", size = 31115, upload-time = "2026-07-03T14:39:24.744Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/57/75/86a9fb86bd2f5912fdb76a13aec151906d13dca4a07f86e6ccd9f27f89f6/shipwright_kit-0.12.0.tar.gz", hash = "sha256:2b1ba00849527651ba9609ff9c77fc8328ede77ba7b1d8c5cb5ad829295fab3c", size = 32357, upload-time = "2026-07-05T09:36:18.564Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/80/7b/92236a22bf7549f666a86636704eddd8416c492d47f777a09a95fc006187/shipwright_kit-0.11.0-py3-none-any.whl", hash = "sha256:eceefea9a13af2e7581b9e553b21f4bd55c53e3bf54ee53188a70cdd55367900", size = 26554, upload-time = "2026-07-03T14:39:23.53Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/59/392c9fffe9d4d5a0f13454af6fe0d95972113846174db55b4e0819cdbd05/shipwright_kit-0.12.0-py3-none-any.whl", hash = "sha256:28e5c1a7aadfdabc852635ad5e52d1ce11117ea8c42b7eb9d4ad4be1989d0fe2", size = 28199, upload-time = "2026-07-05T09:36:17.448Z" },
 ]
 
 [[package]]
@@ -630,7 +630,7 @@ wheels = [
 
 [[package]]
 name = "typer"
-version = "0.26.7"
+version = "0.26.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -638,9 +638,9 @@ dependencies = [
     { name = "rich" },
     { name = "shellingham" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5e/ed/ef06584ccdd5c410df0837951ecd7e15d9a6144ea1bd4c73cecab1a89891/typer-0.26.7.tar.gz", hash = "sha256:e314a34c617e419c091b2830dda3ea1f257134ff593061a8f5b9717ab8dddb3a", size = 201709, upload-time = "2026-06-03T07:18:06.843Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7c/f7/68adc395201b20b872d68e975386832e8005ffeacedd43a1d837a32815be/typer-0.26.8.tar.gz", hash = "sha256:c244a6bd558886fe3f8780efb6bdd28bb9aff005a94eedebaa5cb32926fe2f7e", size = 202097, upload-time = "2026-06-26T09:22:45.705Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/24/25/2201973529af2c954de0bb725323c3aaed6d7f0ceee8f550dec9185df013/typer-0.26.7-py3-none-any.whl", hash = "sha256:5c87cfbc5d34491c5346ebf49c23e18d56ccb863268d3a8d592b26087c2f5e58", size = 122456, upload-time = "2026-06-03T07:18:05.732Z" },
+    { url = "https://files.pythonhosted.org/packages/80/87/b9fd69c92c6102a066e1b86a35243f53e70bd4c709f2a26d9f4fee4f4dc0/typer-0.26.8-py3-none-any.whl", hash = "sha256:3512ca79ac5c11113414b36e80281b872884477722440691c89d1112e321a49c", size = 122564, upload-time = "2026-06-26T09:22:44.72Z" },
 ]
 
 [[package]]
@@ -666,7 +666,7 @@ wheels = [
 
 [[package]]
 name = "vex-ioc"
-version = "1.7.1"
+version = "1.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
@@ -708,7 +708,7 @@ requires-dist = [
     { name = "python-whois", specifier = ">=0.9.0" },
     { name = "pyyaml", specifier = ">=6.0.1" },
     { name = "rich", specifier = ">=13.7.0" },
-    { name = "shipwright-kit", specifier = ">=0.11.0" },
+    { name = "shipwright-kit", specifier = ">=0.12.0,<0.13.0" },
     { name = "typer", specifier = ">=0.12.0" },
 ]
 provides-extras = ["ai", "ai-local", "ai-all", "whois"]
