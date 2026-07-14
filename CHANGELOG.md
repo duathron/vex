@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.1](https://github.com/duathron/vex/compare/v1.8.0...v1.8.1) (2026-07-14)
+
+
+### Features
+
+* **config:** provider-named key setters; rename --set-api-key -&gt; --set-virustotal ([#25](https://github.com/duathron/vex/issues/25)) ([c9ee983](https://github.com/duathron/vex/commit/c9ee983361aef45d64ad75f22eea068265b2e23b))
+
 ## [1.8.0](https://github.com/duathron/vex/compare/v1.7.2...v1.8.0) (2026-07-05)
 
 
