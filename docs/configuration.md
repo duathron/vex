@@ -36,8 +36,8 @@ A `.env` file in the working directory is loaded automatically (`python-dotenv`)
 
 ## Config file: `~/.vex/config.yaml`
 
-Written by `vex config --set-api-key / --set-ai-provider / --set-ai-key`, or
-edited by hand. The model (`vex/config.py`):
+Written by the `vex config --set-*` flags (VirusTotal, AI, and the AbuseIPDB /
+Shodan / MISP / OpenCTI enrichers), or edited by hand. The model (`vex/config.py`):
 
 ### `api`
 

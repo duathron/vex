@@ -58,7 +58,7 @@ priority order (highest wins):
 3. **Saved config** — written to `~/.vex/config.yaml`:
 
    ```bash
-   vex config --set-api-key YOUR_VT_KEY
+   vex config --set-virustotal YOUR_VT_KEY
    ```
 
 > [!NOTE]

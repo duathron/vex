@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from typer.testing import CliRunner
 
 from vex.config import (
     AIConfig,
@@ -24,6 +25,7 @@ from vex.config import (
     UpdateCheckConfig,
     load_config,
 )
+from vex.main import app
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -318,3 +320,87 @@ class TestWritebackConfigDefaults:
         assert restored.writeback_enabled is True
         assert restored.writeback_tlp == "amber"
         assert restored.writeback_min_verdict == "MALICIOUS"
+
+
+class TestConfigCLIEnrichmentSetters:
+    """CLI setters for enrichment-provider credentials (--set-abuseipdb etc.)."""
+
+    runner = CliRunner()
+
+    def _isolate(self, tmp_path: Path, monkeypatch) -> Path:
+        """Point vex.config at a throwaway user config so we never touch ~/.vex/config.yaml."""
+        user_cfg = tmp_path / "config.yaml"
+        monkeypatch.setattr("vex.config._USER_CONFIG_PATH", user_cfg)
+        monkeypatch.setattr("vex.config._DEFAULT_CONFIG_PATH", tmp_path / "missing_default.yaml")
+        return user_cfg
+
+    def test_set_abuseipdb_writes_field(self, tmp_path: Path, monkeypatch) -> None:
+        user_cfg = self._isolate(tmp_path, monkeypatch)
+        result = self.runner.invoke(app, ["config", "--set-abuseipdb", "abuse-key-123"])
+        assert result.exit_code == 0
+        saved = Config.model_validate(yaml.safe_load(user_cfg.read_text()))
+        assert saved.enrichment.abuseipdb_api_key == "abuse-key-123"
+
+    def test_set_shodan_writes_field(self, tmp_path: Path, monkeypatch) -> None:
+        user_cfg = self._isolate(tmp_path, monkeypatch)
+        result = self.runner.invoke(app, ["config", "--set-shodan", "shodan-key-456"])
+        assert result.exit_code == 0
+        saved = Config.model_validate(yaml.safe_load(user_cfg.read_text()))
+        assert saved.enrichment.shodan_api_key == "shodan-key-456"
+
+    def test_set_misp_url_writes_field(self, tmp_path: Path, monkeypatch) -> None:
+        user_cfg = self._isolate(tmp_path, monkeypatch)
+        result = self.runner.invoke(app, ["config", "--set-misp-url", "https://misp.example.org"])
+        assert result.exit_code == 0
+        saved = Config.model_validate(yaml.safe_load(user_cfg.read_text()))
+        assert saved.enrichment.misp_url == "https://misp.example.org"
+
+    def test_set_misp_key_writes_field(self, tmp_path: Path, monkeypatch) -> None:
+        user_cfg = self._isolate(tmp_path, monkeypatch)
+        result = self.runner.invoke(app, ["config", "--set-misp-key", "misp-key-789"])
+        assert result.exit_code == 0
+        saved = Config.model_validate(yaml.safe_load(user_cfg.read_text()))
+        assert saved.enrichment.misp_api_key == "misp-key-789"
+
+    def test_set_opencti_url_writes_field(self, tmp_path: Path, monkeypatch) -> None:
+        user_cfg = self._isolate(tmp_path, monkeypatch)
+        result = self.runner.invoke(app, ["config", "--set-opencti-url", "https://opencti.example.org"])
+        assert result.exit_code == 0
+        saved = Config.model_validate(yaml.safe_load(user_cfg.read_text()))
+        assert saved.enrichment.opencti_url == "https://opencti.example.org"
+
+    def test_set_opencti_token_writes_field(self, tmp_path: Path, monkeypatch) -> None:
+        user_cfg = self._isolate(tmp_path, monkeypatch)
+        result = self.runner.invoke(app, ["config", "--set-opencti-token", "opencti-token-abc"])
+        assert result.exit_code == 0
+        saved = Config.model_validate(yaml.safe_load(user_cfg.read_text()))
+        assert saved.enrichment.opencti_token == "opencti-token-abc"
+
+    def test_secret_confirmation_does_not_echo_value(self, tmp_path: Path, monkeypatch) -> None:
+        """Confirmation for a KEY/TOKEN field must not leak the secret into the console output."""
+        self._isolate(tmp_path, monkeypatch)
+        secret = "super-secret-abuseipdb-key"
+        result = self.runner.invoke(app, ["config", "--set-abuseipdb", secret])
+        assert result.exit_code == 0
+        assert secret not in result.output
+
+    def test_misp_url_only_emits_pairing_note(self, tmp_path: Path, monkeypatch) -> None:
+        """Setting only the MISP URL (no key yet) should nudge the user to also set the key."""
+        self._isolate(tmp_path, monkeypatch)
+        result = self.runner.invoke(app, ["config", "--set-misp-url", "https://misp.example.org"])
+        assert result.exit_code == 0
+        assert "Note:" in result.output
+        assert "--set-misp-key" in result.output
+
+    def test_set_virustotal_writes_field(self, tmp_path: Path, monkeypatch) -> None:
+        user_cfg = self._isolate(tmp_path, monkeypatch)
+        result = self.runner.invoke(app, ["config", "--set-virustotal", "vt-key-xyz"])
+        assert result.exit_code == 0
+        saved = Config.model_validate(yaml.safe_load(user_cfg.read_text()))
+        assert saved.api.key == "vt-key-xyz"
+
+    def test_old_set_api_key_flag_is_rejected(self, tmp_path: Path, monkeypatch) -> None:
+        """Regression lock: the hard rename removes --set-api-key entirely, no back-compat alias."""
+        self._isolate(tmp_path, monkeypatch)
+        result = self.runner.invoke(app, ["config", "--set-api-key", "x"])
+        assert result.exit_code != 0

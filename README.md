@@ -42,10 +42,18 @@ pip install vex-ioc[ai]      # + Anthropic / OpenAI explanations (Ollama needs n
 ## Quickstart
 
 ```bash
-vex config --set-api-key YOUR_VT_KEY     # or set VT_API_KEY
+vex config --set-virustotal YOUR_VT_KEY  # or set VT_API_KEY
 vex triage 8.8.8.8
 vex triage evil.com --explain            # add an AI narrative
 vex investigate <sha256> -o rich         # deep dive
+```
+
+Secondary enrichers (optional, saved to `~/.vex/config.yaml`):
+
+```bash
+vex config --set-abuseipdb YOUR_KEY --set-shodan YOUR_KEY
+vex config --set-misp-url URL --set-misp-key YOUR_KEY
+vex config --set-opencti-url URL --set-opencti-token YOUR_TOKEN
 ```
 
 ```text
