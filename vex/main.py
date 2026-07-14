@@ -110,7 +110,7 @@ app = typer.Typer(
     add_completion=False,
     rich_markup_mode="rich",
     invoke_without_command=True,
-    epilog="[dim]Quick start:  vex config --set-api-key YOUR_VT_KEY  |  vex triage <ioc>  |  vex triage <ioc> --explain[/dim]",  # noqa: E501
+    epilog="[dim]Quick start:  vex config --set-virustotal YOUR_VT_KEY  |  vex triage <ioc>  |  vex triage <ioc> --explain[/dim]",  # noqa: E501
 )
 
 
@@ -1372,9 +1372,9 @@ def cmd_doctor(
     name="config", help="[bold blue]Manage configuration[/bold blue] - save API key, AI provider, show settings."
 )
 def cmd_config(
-    set_api_key: Annotated[
+    set_virustotal: Annotated[
         Optional[str],
-        typer.Option("--set-api-key", help="Save VirusTotal API key to ~/.vex/config.yaml"),
+        typer.Option("--set-virustotal", help="Save VirusTotal API key to ~/.vex/config.yaml"),
     ] = None,
     set_ai_provider: Annotated[
         Optional[str],
@@ -1384,6 +1384,30 @@ def cmd_config(
         Optional[str],
         typer.Option("--set-ai-key", help="Save AI provider API key to ~/.vex/config.yaml."),
     ] = None,
+    set_abuseipdb: Annotated[
+        Optional[str],
+        typer.Option("--set-abuseipdb", help="Save AbuseIPDB API key to ~/.vex/config.yaml"),
+    ] = None,
+    set_shodan: Annotated[
+        Optional[str],
+        typer.Option("--set-shodan", help="Save Shodan API key to ~/.vex/config.yaml"),
+    ] = None,
+    set_misp_url: Annotated[
+        Optional[str],
+        typer.Option("--set-misp-url", help="Save MISP base URL to ~/.vex/config.yaml"),
+    ] = None,
+    set_misp_key: Annotated[
+        Optional[str],
+        typer.Option("--set-misp-key", help="Save MISP API key to ~/.vex/config.yaml"),
+    ] = None,
+    set_opencti_url: Annotated[
+        Optional[str],
+        typer.Option("--set-opencti-url", help="Save OpenCTI base URL to ~/.vex/config.yaml"),
+    ] = None,
+    set_opencti_token: Annotated[
+        Optional[str],
+        typer.Option("--set-opencti-token", help="Save OpenCTI API token to ~/.vex/config.yaml"),
+    ] = None,
     show: Annotated[
         bool,
         typer.Option("--show", help="Display active configuration with masked secrets."),
@@ -1392,8 +1416,8 @@ def cmd_config(
     config = load_config()
     changed = False
 
-    if set_api_key:
-        config.api.key = set_api_key
+    if set_virustotal:
+        config.api.key = set_virustotal
         changed = True
         path = save_config(config)
         console.print(f"[green]✓[/green] VT API key saved to [bold]{path}[/bold]")
@@ -1420,13 +1444,72 @@ def cmd_config(
         path = save_config(config)
         console.print(f"[green]✓[/green] AI API key saved to [bold]{path}[/bold]")
 
+    if set_abuseipdb:
+        config.enrichment.abuseipdb_api_key = set_abuseipdb
+        changed = True
+        path = save_config(config)
+        console.print(f"[green]✓[/green] AbuseIPDB API key saved to [bold]{path}[/bold]")
+
+    if set_shodan:
+        config.enrichment.shodan_api_key = set_shodan
+        changed = True
+        path = save_config(config)
+        console.print(f"[green]✓[/green] Shodan API key saved to [bold]{path}[/bold]")
+
+    if set_misp_url:
+        config.enrichment.misp_url = set_misp_url
+        changed = True
+        path = save_config(config)
+        console.print(f"[green]✓[/green] MISP URL saved to [bold]{path}[/bold]: {set_misp_url}")
+        if not config.enrichment.misp_api_key:
+            console.print(
+                "[yellow]Note:[/yellow] MISP also needs an API key — set it with [bold]--set-misp-key[/bold]."
+            )
+
+    if set_misp_key:
+        config.enrichment.misp_api_key = set_misp_key
+        changed = True
+        path = save_config(config)
+        console.print(f"[green]✓[/green] MISP API key saved to [bold]{path}[/bold]")
+        if not config.enrichment.misp_url:
+            console.print(
+                "[yellow]Note:[/yellow] MISP also needs a base URL — set it with [bold]--set-misp-url[/bold]."
+            )
+
+    if set_opencti_url:
+        config.enrichment.opencti_url = set_opencti_url
+        changed = True
+        path = save_config(config)
+        console.print(f"[green]✓[/green] OpenCTI URL saved to [bold]{path}[/bold]: {set_opencti_url}")
+        if not config.enrichment.opencti_token:
+            console.print(
+                "[yellow]Note:[/yellow] OpenCTI also needs an API token — set it with [bold]--set-opencti-token[/bold]."
+            )
+
+    if set_opencti_token:
+        config.enrichment.opencti_token = set_opencti_token
+        changed = True
+        path = save_config(config)
+        console.print(f"[green]✓[/green] OpenCTI API token saved to [bold]{path}[/bold]")
+        if not config.enrichment.opencti_url:
+            console.print(
+                "[yellow]Note:[/yellow] OpenCTI also needs a base URL — set it with [bold]--set-opencti-url[/bold]."
+            )
+
     if show:
         _show_config(config)
     elif not changed:
         console.print("[cyan]vex config[/cyan] — Manage configuration")
-        console.print("  [bold]--set-api-key KEY[/bold]      Save VirusTotal API key permanently")
+        console.print("  [bold]--set-virustotal KEY[/bold]  Save VirusTotal API key permanently")
         console.print("  [bold]--set-ai-provider NAME[/bold] Set AI provider (anthropic | openai | ollama | none)")
         console.print("  [bold]--set-ai-key KEY[/bold]       Save AI provider API key")
+        console.print("  Enrichment:")
+        console.print("    [bold]--set-abuseipdb KEY[/bold]      Save AbuseIPDB API key")
+        console.print("    [bold]--set-shodan KEY[/bold]         Save Shodan API key")
+        console.print("    [bold]--set-misp-url URL[/bold]       Save MISP base URL")
+        console.print("    [bold]--set-misp-key KEY[/bold]       Save MISP API key")
+        console.print("    [bold]--set-opencti-url URL[/bold]    Save OpenCTI base URL")
+        console.print("    [bold]--set-opencti-token TOKEN[/bold] Save OpenCTI API token")
         console.print("  [bold]--show[/bold]                 Display active configuration")
         console.print()
         console.print("[dim]AI setup: run 'vex manual ai' for a step-by-step guide.[/dim]")
@@ -1698,9 +1781,15 @@ vex reads configuration from multiple sources (priority order):
   4. [bold]Default values[/bold] from Pydantic models        [lowest priority]
 
 [bold]QUICK SETUP:[/bold]
-  [green]vex config --set-api-key YOUR_VT_KEY[/green]       Save VirusTotal API key
+  [green]vex config --set-virustotal YOUR_VT_KEY[/green]    Save VirusTotal API key
   [green]vex config --set-ai-provider anthropic[/green]     Set AI provider
   [green]vex config --set-ai-key sk-ant-...[/green]         Save AI API key
+  [green]vex config --set-abuseipdb YOUR_KEY[/green]     Save AbuseIPDB API key
+  [green]vex config --set-shodan YOUR_KEY[/green]        Save Shodan API key
+  [green]vex config --set-misp-url URL[/green]           Save MISP base URL
+  [green]vex config --set-misp-key YOUR_KEY[/green]      Save MISP API key
+  [green]vex config --set-opencti-url URL[/green]        Save OpenCTI base URL
+  [green]vex config --set-opencti-token TOKEN[/green]    Save OpenCTI API token
   [green]vex config --show[/green]                          Show active configuration
 
 [bold]CONFIG FILE LOCATION:[/bold]
@@ -1714,11 +1803,16 @@ vex reads configuration from multiple sources (priority order):
   plugins:       Plugin loading settings
   update_check:  PyPI version check interval
   ai:            AI provider, model, API key, privacy settings
+  enrichment:    AbuseIPDB, Shodan, MISP, OpenCTI creds; WHOIS; write-back
 
 [bold]ENVIRONMENT VARIABLES:[/bold]
   VT_API_KEY         VirusTotal API key
   VEX_AI_API_KEY     AI provider API key
   VEX_AI_PROVIDER    AI provider name
+  VEX_ABUSEIPDB_API_KEY   AbuseIPDB API key
+  VEX_SHODAN_API_KEY      Shodan API key
+  MISP_URL / MISP_API_KEY      MISP base URL + API key
+  OPENCTI_URL / OPENCTI_TOKEN  OpenCTI base URL + token
 """,
     "examples": """\
 [bold cyan]USAGE EXAMPLES[/bold cyan]
@@ -1753,7 +1847,7 @@ vex reads configuration from multiple sources (priority order):
   [green]vex watchlist priority --add 8.8.8.8 --list[/green]
 
 [bold]Configuration:[/bold]
-  [green]vex config --set-api-key YOUR_KEY[/green]
+  [green]vex config --set-virustotal YOUR_KEY[/green]
   [green]vex config --set-ai-provider ollama[/green]
   [green]vex config --show[/green]
 
@@ -1963,7 +2057,7 @@ def cmd_manual(
     console.print("  [green]vex manual writeback[/green]  TI write-back (MISP sightings + OpenCTI observables)")
     console.print()
     console.print("[bold]Quick start:[/bold]")
-    console.print("  [green]vex config --set-api-key YOUR_VT_KEY[/green]")
+    console.print("  [green]vex config --set-virustotal YOUR_VT_KEY[/green]")
     console.print("  [green]vex triage <ioc>[/green]")
     console.print("  [green]vex investigate <domain> -o rich --explain[/green]")
     console.print()

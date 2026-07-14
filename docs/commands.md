@@ -163,18 +163,28 @@ Manage configuration — save API key, AI provider, show settings. Writes to
 
 | Flag | Type | Description |
 |------|------|-------------|
-| `--set-api-key` | text | Save the VirusTotal API key to `~/.vex/config.yaml`. |
+| `--set-virustotal` | text | Save the VirusTotal API key to `~/.vex/config.yaml`. |
 | `--set-ai-provider` | text | Set the AI provider (`anthropic` \| `openai` \| `ollama` \| `none`). |
 | `--set-ai-key` | text | Save the AI provider API key to `~/.vex/config.yaml`. |
+| `--set-abuseipdb` | text | Save the AbuseIPDB API key to `~/.vex/config.yaml`. |
+| `--set-shodan` | text | Save the Shodan API key to `~/.vex/config.yaml`. |
+| `--set-misp-url` | text | Save the MISP base URL to `~/.vex/config.yaml`. |
+| `--set-misp-key` | text | Save the MISP API key to `~/.vex/config.yaml`. |
+| `--set-opencti-url` | text | Save the OpenCTI base URL to `~/.vex/config.yaml`. |
+| `--set-opencti-token` | text | Save the OpenCTI API token to `~/.vex/config.yaml`. |
 | `--show` | flag | Display the active configuration with secrets masked. |
 
 **Examples**
 
 ```bash
-vex config --set-api-key YOUR_VT_KEY
+vex config --set-virustotal YOUR_VT_KEY
 vex config --set-ai-provider ollama
+vex config --set-abuseipdb YOUR_ABUSEIPDB_KEY
+vex config --set-misp-url https://misp.example.org --set-misp-key YOUR_MISP_KEY
 vex config --show
 ```
+
+MISP and OpenCTI each need both parts — a URL *and* a key/token — before the enricher activates.
 
 ---
 

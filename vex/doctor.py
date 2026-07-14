@@ -54,7 +54,7 @@ def _check_virustotal(config: Config, probe: bool) -> ServiceStatus:
             name="VirusTotal",
             configured=False,
             reachable=None,
-            detail="no API key (set VT_API_KEY or run 'vex config --set-api-key')",
+            detail="no API key (set VT_API_KEY or run 'vex config --set-virustotal')",
         )
 
     if not probe:

@@ -109,7 +109,7 @@ class Config(BaseModel):
                 "No VirusTotal API key found.\n"
                 "  Option 1: Use --api-key flag (vex triage IOC --api-key YOUR_KEY)\n"
                 "  Option 2: Set environment variable VT_API_KEY\n"
-                "  Option 3: Run 'vex config set-api-key YOUR_KEY' to save permanently"
+                "  Option 3: Run 'vex config --set-virustotal YOUR_KEY' to save permanently"
             )
         return key
 

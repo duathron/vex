@@ -36,8 +36,8 @@ A `.env` file in the working directory is loaded automatically (`python-dotenv`)
 
 ## Config file: `~/.vex/config.yaml`
 
-Written by `vex config --set-api-key / --set-ai-provider / --set-ai-key`, or
-edited by hand. The model (`vex/config.py`):
+Written by the `vex config --set-*` flags (VirusTotal, AI, and the AbuseIPDB /
+Shodan / MISP / OpenCTI enrichers), or edited by hand. The model (`vex/config.py`):
 
 ### `api`
 
@@ -100,9 +100,9 @@ Rate limits per tier — free: 4 req/min, 500/day; premium: 1000 req/min,
 | `enrichment.opencti_token` | `null` | OpenCTI API token. |
 | `enrichment.opencti_verify_tls` | `true` | Verify OpenCTI TLS certs. |
 | `enrichment.stix_tlp_version` | `"1.0"` | TLP marking-definition id set for STIX export: `"1.0"` or `"2.0"`. |
-| `enrichment.writeback_enabled` | `false` | Master switch for TI write-back. Must be `true` before `--sight` does anything. *(on main — pending 1.7.0)* |
-| `enrichment.writeback_tlp` | `"green"` | TLP ceiling for writes. A write is blocked when the source IOC's TLP is more restrictive than this value. Rank: `red` (most restrictive) → `amber` → `green` → `clear`. *(on main — pending 1.7.0)* |
-| `enrichment.writeback_min_verdict` | `"SUSPICIOUS"` | Verdict floor — IOCs below this verdict are silently skipped. Valid: `CLEAN`, `UNKNOWN`, `SUSPICIOUS`, `MALICIOUS`. *(on main — pending 1.7.0)* |
+| `enrichment.writeback_enabled` | `false` | Master switch for TI write-back. Must be `true` before `--sight` does anything. |
+| `enrichment.writeback_tlp` | `"green"` | TLP ceiling for writes. A write is blocked when the source IOC's TLP is more restrictive than this value. Rank: `red` (most restrictive) → `amber` → `green` → `clear`. |
+| `enrichment.writeback_min_verdict` | `"SUSPICIOUS"` | Verdict floor — IOCs below this verdict are silently skipped. Valid: `CLEAN`, `UNKNOWN`, `SUSPICIOUS`, `MALICIOUS`. |
 
 > [!NOTE]
 > `stix_tlp_version` controls which canonical TLP marking-definition IDs the STIX
@@ -137,7 +137,7 @@ When fewer than 10 % of the daily limit remain, an additional warning line is pr
 | `config.yaml` | Saved configuration (keys, AI provider) | `0o600` (owner read/write) on save |
 | `cache.db` | SQLite VirusTotal result cache | inside the `0o700` dir |
 | `knowledge.db` | SQLite local knowledge base (tags / notes / watchlists) | inside the `0o700` dir |
-| `quota.json` | Daily VT-quota counter (resets at midnight UTC) *(on main — pending 1.7.0)* | inside the `0o700` dir |
+| `quota.json` | Daily VT-quota counter (resets at midnight UTC) | inside the `0o700` dir |
 
 > [!WARNING]
 > The `~/.vex/` directory is created with `0o700` and `config.yaml` is saved with
