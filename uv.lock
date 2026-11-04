@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 
 [[package]]
@@ -41,15 +41,15 @@ wheels = [
 
 [[package]]
 name = "anyio"
-version = "4.13.0"
+version = "4.14.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "idna" },
     { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/19/14/2c5dd9f512b66549ae92767a9c7b330ae88e1932ca57876909410251fe13/anyio-4.13.0.tar.gz", hash = "sha256:334b70e641fd2221c1505b3890c69882fe4a2df910cba14d97019b90b24439dc", size = 231622, upload-time = "2026-03-24T12:59:09.671Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/61/cc/a381afa6efea9f496eff839d4a6a1aed3bfafc7b3ab4b0d1b243a12573dd/anyio-4.14.2.tar.gz", hash = "sha256:cfa139f3ed1a23ee8f88a145ddb5ac7605b8bbfd8592baacd7ce3d8bb4313c7f", size = 260176, upload-time = "2026-07-12T20:29:07.082Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/da/42/e921fccf5015463e32a3cf6ee7f980a6ed0f395ceeaa45060b61d86486c2/anyio-4.13.0-py3-none-any.whl", hash = "sha256:08b310f9e24a9594186fd75b4f73f4a4152069e3853f1ed8bfbf58369f4ad708", size = 114353, upload-time = "2026-03-24T12:59:08.246Z" },
+    { url = "https://files.pythonhosted.org/packages/da/35/f2287558c17e29fafc8ef3daf819bb9834061cfa43bff8014f7df7f63bdc/anyio-4.14.2-py3-none-any.whl", hash = "sha256:9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494", size = 125813, upload-time = "2026-07-12T20:29:05.763Z" },
 ]
 
 [[package]]
@@ -582,11 +582,11 @@ wheels = [
 
 [[package]]
 name = "shipwright-kit"
-version = "0.11.0"
+version = "0.12.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/4c/a7/0c904c725e74a14fd30d90705948f65b632da1f89be6c6ebacbbfff8a1c7/shipwright_kit-0.11.0.tar.gz", hash = "sha256:b0bd8b93528d4266e3c51cfe1df43adcb7539a8f830c69387d9065e5d91ba938", size = 31115, upload-time = "2026-07-03T14:39:24.744Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/57/75/86a9fb86bd2f5912fdb76a13aec151906d13dca4a07f86e6ccd9f27f89f6/shipwright_kit-0.12.0.tar.gz", hash = "sha256:2b1ba00849527651ba9609ff9c77fc8328ede77ba7b1d8c5cb5ad829295fab3c", size = 32357, upload-time = "2026-07-05T09:36:18.564Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/80/7b/92236a22bf7549f666a86636704eddd8416c492d47f777a09a95fc006187/shipwright_kit-0.11.0-py3-none-any.whl", hash = "sha256:eceefea9a13af2e7581b9e553b21f4bd55c53e3bf54ee53188a70cdd55367900", size = 26554, upload-time = "2026-07-03T14:39:23.53Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/59/392c9fffe9d4d5a0f13454af6fe0d95972113846174db55b4e0819cdbd05/shipwright_kit-0.12.0-py3-none-any.whl", hash = "sha256:28e5c1a7aadfdabc852635ad5e52d1ce11117ea8c42b7eb9d4ad4be1989d0fe2", size = 28199, upload-time = "2026-07-05T09:36:17.448Z" },
 ]
 
 [[package]]
@@ -666,7 +666,7 @@ wheels = [
 
 [[package]]
 name = "vex-ioc"
-version = "1.7.1"
+version = "1.8.1"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
@@ -708,7 +708,7 @@ requires-dist = [
     { name = "python-whois", specifier = ">=0.9.0" },
     { name = "pyyaml", specifier = ">=6.0.1" },
     { name = "rich", specifier = ">=13.7.0" },
-    { name = "shipwright-kit", specifier = ">=0.11.0" },
+    { name = "shipwright-kit", specifier = ">=0.12.0,<0.13.0" },
     { name = "typer", specifier = ">=0.12.0" },
 ]
 provides-extras = ["ai", "ai-local", "ai-all", "whois"]
