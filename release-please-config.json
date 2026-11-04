@@ -15,6 +15,11 @@
         {
           "type": "generic",
           "path": "vex/__init__.py"
+        },
+        {
+          "type": "toml",
+          "path": "uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='vex-ioc')].version"
         }
       ]
     }
