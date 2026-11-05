@@ -577,7 +577,7 @@ New Pydantic model in `config.py`:
 - `api_key`: overridden by `VEX_AI_API_KEY` env var
 - `base_url`: for Ollama (default: `http://localhost:11434`)
 - `max_tokens`: 500 (default)
-- `temperature`: 0.3 (default)
+- `temperature`: 0.3 (default; OpenAI/Ollama; ignored for Anthropic)
 - `local_only`: when `true`, blocks cloud providers (Anthropic, OpenAI)
 - `cache_ttl_hours`: 72 (default)
 

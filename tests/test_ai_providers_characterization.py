@@ -106,9 +106,9 @@ def _fake_openai_response(content) -> MagicMock:
 # ===========================================================================
 
 
-def test_anthropic_temperature_default_present_in_kwargs() -> None:
-    """Anthropic always sends temperature=0.3 by default (protocol.py:27 default,
-    anthropic.py:32/50 mirrors it and unconditionally puts it in kwargs)."""
+def test_anthropic_temperature_default_absent_from_kwargs() -> None:
+    """anthropic >= 2.0 ``messages.create()`` has no ``temperature`` parameter, so
+    vex must never forward it (the protocol default 0.3 is ignored for Anthropic)."""
     fake_anthropic = _make_fake_anthropic_module()
     fake_anthropic.Anthropic.return_value.messages.create.return_value = _fake_anthropic_text_message("x")
 
@@ -116,10 +116,10 @@ def test_anthropic_temperature_default_present_in_kwargs() -> None:
     provider.explain("data block")
 
     call_kwargs = fake_anthropic.Anthropic.return_value.messages.create.call_args[1]
-    assert call_kwargs["temperature"] == 0.3
+    assert "temperature" not in call_kwargs
 
 
-def test_anthropic_temperature_override_forwarded() -> None:
+def test_anthropic_temperature_override_not_forwarded() -> None:
     fake_anthropic = _make_fake_anthropic_module()
     fake_anthropic.Anthropic.return_value.messages.create.return_value = _fake_anthropic_text_message("x")
 
@@ -127,7 +127,7 @@ def test_anthropic_temperature_override_forwarded() -> None:
     provider.explain("data block", temperature=0.9)
 
     call_kwargs = fake_anthropic.Anthropic.return_value.messages.create.call_args[1]
-    assert call_kwargs["temperature"] == 0.9
+    assert "temperature" not in call_kwargs
 
 
 def test_openai_temperature_default_present_in_kwargs() -> None:

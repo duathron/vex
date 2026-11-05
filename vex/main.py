@@ -1568,7 +1568,7 @@ def _show_config(config) -> None:
     t.add_row("ai.api_key", mask(config.ai_api_key))
     t.add_row("ai.base_url", config.ai.base_url or "[dim]not set[/dim]")
     t.add_row("ai.max_tokens", str(config.ai.max_tokens))
-    t.add_row("ai.temperature", str(config.ai.temperature))
+    t.add_row("ai.temperature (ignored for Anthropic)", str(config.ai.temperature))
     t.add_row("ai.local_only", str(config.ai.local_only))
     t.add_row("ai.cache_ttl_hours", str(config.ai.cache_ttl_hours))
 
@@ -1729,7 +1729,7 @@ The [bold]--explain[/bold] flag is strictly opt-in — it is never active by def
     base_url: http://localhost:11434  # for Ollama only
     local_only: false             # true = block cloud providers
     max_tokens: 500
-    temperature: 0.3
+    temperature: 0.3              # OpenAI/Ollama; ignored for Anthropic
     cache_ttl_hours: 72
 
 [bold]ENVIRONMENT VARIABLES:[/bold]

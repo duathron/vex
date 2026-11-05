@@ -81,7 +81,7 @@ Rate limits per tier — free: 4 req/min, 500/day; premium: 1000 req/min,
 | `ai.api_key` | `null` | AI key (overridden by `VEX_AI_API_KEY`). |
 | `ai.base_url` | `null` | For Ollama, e.g. `http://localhost:11434`. |
 | `ai.max_tokens` | `500` | Explanation length cap. |
-| `ai.temperature` | `0.3` | Sampling temperature. |
+| `ai.temperature` | `0.3` | Sampling temperature (OpenAI/Ollama). Ignored for the Anthropic provider. |
 | `ai.local_only` | `false` | When `true`, reject cloud providers. |
 | `ai.cache_ttl_hours` | `72` | AI explanation cache lifetime. |
 
