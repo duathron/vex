@@ -53,6 +53,7 @@ ai:
   # Base URL for Ollama (default: http://localhost:11434)
   # base_url: "http://localhost:11434"
   max_tokens: 500
+  # Ignored for the anthropic provider (the Anthropic SDK has no temperature parameter).
   temperature: 0.3
   # When true, only allow local providers (ollama). Blocks anthropic/openai.
   local_only: false

@@ -56,7 +56,9 @@ class ClaudeProvider:
                 max_tokens=max_tokens,
                 system=system if system is not None else "",
                 user=prompt,
-                temperature=temperature,
+                # anthropic >= 2.0 messages.create() has no ``temperature``;
+                # None makes the kit omit the key. ai.temperature is ignored here.
+                temperature=None,
                 extract="first_text_block",
             )
         except self._anthropic.APIError as exc:
