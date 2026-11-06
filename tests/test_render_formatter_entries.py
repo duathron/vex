@@ -250,6 +250,19 @@ def test_emoji_not_expanded(monkeypatch):
         assert ":white_check_mark:" in con.end_capture()
 
 
+def test_banner_update_notice_escapes_the_version_string(monkeypatch, capsys):
+    import vex.banner as banner
+    import vex.version_check as vc
+
+    monkeypatch.setattr(banner.sys.stdout, "isatty", lambda: True, raising=False)
+    monkeypatch.setattr(vc, "check_for_update", lambda hours: "9.9[link=https://evil.example]x\n\x1b]0;PWN\x07")
+    monkeypatch.setattr(banner, "_FIRST_RUN_FLAG", None)
+    banner.print_banner(update_check_enabled=True)
+    err = capsys.readouterr().err
+    assert "9.9[link=https://evil.example]x" in err
+    assert "\x1b]" not in err and "PWN" not in err
+
+
 def test_banner_emoji_not_expanded(monkeypatch):
     import vex.banner as banner
 

@@ -42,10 +42,11 @@ console = Console(emoji=False)
 def _say(*args, **kwargs) -> None:
     """``console.print`` for lines that carry attacker/LLM text on a bare line.
 
+    ``highlight=False``: the default repr highlighter is quadratic on long unbroken tokens (40 KB: ~8 s).
     ``soft_wrap=True``: Rich otherwise hard-wraps at the console width (80 when piped), so padding
     before a forged ``Verdict: ...`` would start a line at column 0.
     """
-    console.print(*args, soft_wrap=True, **kwargs)
+    console.print(*args, soft_wrap=True, highlight=False, **kwargs)
 
 
 def _bracketed(prefix: str, inner: str, suffix: str = "") -> Text:
@@ -536,7 +537,8 @@ def print_explanation_degraded_console(provider: str, *, label: Optional[str] = 
     """Print the F2 loud degraded-explanation banner in plain console text."""
     body = console.render_str(
         f"⚠ EXPLANATION UNAVAILABLE — provider '{provider}' failed. "
-        "The verdict above is unaffected; no explanation was generated."
+        "The verdict above is unaffected; no explanation was generated.",
+        highlight=False,
     )
     # The label is plain Text: nothing follows it inside a markup string, so it cannot open a tag.
     line = Text.assemble("[", single_line_text(label, plain=True), "] ", body) if label else body

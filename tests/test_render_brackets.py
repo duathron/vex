@@ -49,7 +49,6 @@ def _rec(monkeypatch, width=400):
 # (function, expression) pairs allowed between "[" and "]": trusted style names and a builtin print.
 ALLOWED = {
     ("_triage_panel", "style"),
-    ("_triage_console_body", "style"),
     ("print_summary", "style"),
     ("print_barb_context_rich", "sev_style"),
     ("print_timeline_console", "ev.event_type"),  # builtin print, not Rich markup
@@ -95,6 +94,8 @@ def test_no_untrusted_placeholder_inside_markup_brackets():
         found += [(rel, *hit) for hit in _bracket_placeholders(ROOT / rel)]
     bad = sorted({h for h in found if h[1:] not in ALLOWED})
     assert not bad, bad
+    stale = sorted(ALLOWED - {h[1:] for h in found})
+    assert not stale, f"allow-list entries with no live hit: {stale}"
     assert len(found) >= 8  # not vacuous: the trusted forms are found
 
 
@@ -159,11 +160,13 @@ def test_cluster_attribute_type_is_literal(payload, monkeypatch):
     _assert_literal(con, buf, payload)
 
 
-def test_trusted_engine_style_still_applied(monkeypatch):
+@pytest.mark.parametrize("category,colour", [("malicious", "red"), ("suspicious", "yellow")])
+def test_trusted_engine_style_still_applied(category, colour, monkeypatch):
     con, _ = _rec(monkeypatch)
-    formatter.print_triage_console(_tr(flagging_engines=[EngineResult(engine="eng", category="malicious", result="r")]))
-    out = con.export_text(styles=True)
-    assert "\x1b[31m" in out and "[malicious]" in out
+    formatter.print_triage_console(_tr(flagging_engines=[EngineResult(engine="eng", category=category, result="r")]))
+    segs = [s for s in con._record_buffer if category in s.text or "eng: r" in s.text or s.text in ("  [", "] ")]
+    assert segs
+    assert all(s.style is not None and s.style.color is not None and s.style.color.name == colour for s in segs), segs
 
 
 # --- soft wrap ----------------------------------------------------------------------------------
@@ -230,3 +233,91 @@ def test_bracketed_helper_closes_with_plain_text_even_for_unescaped_input(inner)
     t = formatter._bracketed("a ", inner, " z")
     assert t.plain.endswith("] z")
     assert t.spans == []
+
+
+# --- ratchet: every console line goes through _say -----------------------------------------------
+
+SCOPE_SUFFIX = ("_console", "_console_body")
+SCOPE_NAMES = {"print_explanation_rich", "print_explanation_degraded_rich", "print_barb_context_rich"}
+BOXED = {"Panel", "Table"}  # bordered renderables: text stays inside the border, no column-0 forgery
+
+
+def _bare_prints(source: str):
+    """(function, first-arg source) for bare console/err_console .print calls with a non-literal first
+    argument inside the console printers, the explanation printers and the barb printers."""
+    out = []
+    for fn in ast.walk(ast.parse(source)):
+        if not isinstance(fn, ast.FunctionDef) or not (fn.name.endswith(SCOPE_SUFFIX) or fn.name in SCOPE_NAMES):
+            continue
+        for n in ast.walk(fn):
+            if not (
+                isinstance(n, ast.Call)
+                and isinstance(n.func, ast.Attribute)
+                and n.func.attr == "print"
+                and isinstance(n.func.value, ast.Name)
+                and n.func.value.id in ("console", "err_console")
+            ):
+                continue
+            a = n.args[0] if n.args else None
+            if isinstance(a, ast.Constant):
+                continue
+            if isinstance(a, ast.Call) and isinstance(a.func, ast.Name) and a.func.id in BOXED:
+                continue
+            out.append((fn.name, ast.unparse(a) if a is not None else ""))
+    return out
+
+
+def test_every_console_line_goes_through_say():
+    assert _bare_prints(Path(formatter.__file__).read_text()) == []
+
+
+def test_ratchet_sees_a_bare_print_and_allows_literals_and_panels():
+    src = (
+        "def x_console(r):\n"
+        "    console.print(f'IOC {r.ioc}')\n"
+        "    console.print(r.line)\n"
+        "    console.print('literal')\n"
+        "    console.print(Panel(r.text))\n"
+        "    err_console.print(describe(r))\n"
+        "def other(r):\n"
+        "    console.print(r.x)\n"
+    )
+    assert [f for f, _ in _bare_prints(src)] == ["x_console"] * 3
+
+
+# --- highlighter: quadratic on long unbroken tokens ------------------------------------------------
+
+
+class _Spy(Console):
+    def __init__(self):
+        super().__init__(file=io.StringIO(), width=80, emoji=False)
+        self.calls = []
+        self.render_calls = []
+
+    def print(self, *a, **k):
+        self.calls.append(k)
+        return super().print(*a, **k)
+
+    def render_str(self, *a, **k):
+        self.render_calls.append(k)
+        return super().render_str(*a, **k)
+
+
+@pytest.mark.parametrize("name", SOFT)
+def test_say_never_runs_the_repr_highlighter(name, monkeypatch):
+    spy = _Spy()
+    monkeypatch.setattr(formatter, "console", spy)
+    SOFT[name]("some text")
+    soft = [k for k in spy.calls if k.get("soft_wrap")]
+    assert soft and all(k.get("highlight") is False for k in soft), spy.calls
+    assert all(k.get("highlight") is False for k in spy.render_calls), spy.render_calls
+
+
+def test_long_unbroken_token_is_not_quadratic(monkeypatch):
+    import time
+
+    _rec(monkeypatch, width=WIDTH)
+    t0 = time.perf_counter()
+    formatter.print_explanation_console("a" * 40_000, "anthropic")
+    formatter.print_triage_console(_tr(ioc="b" * 40_000))
+    assert time.perf_counter() - t0 < 4  # the default highlighter took ~8.5 s for 40 KB
