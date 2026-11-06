@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import os
 
+import pytest
+
 from vex.models import (
     DetectionStats,
     InvestigateResult,
@@ -286,3 +288,64 @@ def test_html_markup_in_api_fields_renders_literally_investigate(tmp_path):
     html = _read(tmp_path, [inv])
     assert "a [/bogus] [bold]b" in html
     assert "PWN" not in html
+
+
+_ATTR_PAYLOADS = [
+    '[link=https://a.test/"onmouseover="alert(1)]c[/link]',
+    '[link=https://a/"style="x]c[/link]',
+    "[link=data:text/html;base64,AAAA]c[/link]",
+    "[link=JAVASCRIPT:alert(1)]c[/link]",
+    "[link=//evil.example/x]c[/link]",
+    "[link= https://evil.example/x]c[/link]",
+]
+
+
+@pytest.mark.parametrize("payload", _ATTR_PAYLOADS)
+def test_html_link_attribute_allowlist_with_sanitizer_bypassed(tmp_path, monkeypatch, payload):
+    import re
+
+    import vex.output.html as vh
+
+    monkeypatch.setattr(vh, "sanitize_for_render", lambda x: x)
+    tri = _make_triage()
+    tri.tags = [payload]
+    html = _read(tmp_path, [tri])
+    tags = re.findall(r"<a\b[^>]*>", html, re.I)
+    assert tags
+    for t in tags:
+        assert re.fullmatch(r'<a href="(?:https?://[^\s"\'<>]*|#)">', t), t
+
+
+def test_html_signature_bracket_template_cannot_forge_markup(tmp_path):
+    for verified in ("link=https://evil.example/login]Signed OK[/link", "bold green]VERIFIED[/bold green"):
+        inv = InvestigateResult(
+            triage=_make_triage(),
+            file_type="exe",
+            signature_info={"subject": "Microsoft", "verified": verified},
+        )
+        html = _read(tmp_path, [inv])
+        assert "<a href" not in html
+        assert "VERIFIED" in html or "Signed OK" in html
+        assert "font-weight: bold" not in html.split("Signature", 1)[1].split("</pre>")[0]
+
+
+def test_html_sanitizer_runs_on_defanged_result(tmp_path, monkeypatch):
+    import vex.output.html as vh
+
+    seen = []
+    real = vh.sanitize_for_render
+
+    def spy(x):
+        seen.append(x.triage.ioc if hasattr(x, "triage") else x.ioc)
+        return real(x)
+
+    monkeypatch.setattr(vh, "sanitize_for_render", spy)
+    _read(tmp_path, [_make_triage(ioc="http://evil.com/x"), _make_investigate(ioc="http://evil.org/y")])
+    assert len(seen) == 2
+    assert all("hxxp" in s for s in seen), seen
+
+
+def test_html_title_strips_control_and_bidi(tmp_path):
+    html = _read(tmp_path, [_make_triage(ioc="evil.com\u202e\x1b]0;x\x07")])
+    title = html.split("<title>", 1)[1].split("</title>", 1)[0]
+    assert "\u202e" not in title and "\x1b" not in title and "\x07" not in title

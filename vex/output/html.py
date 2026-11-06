@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Union
 
 from rich.console import Console
+from rich.text import Text
 
 from ..defang import defang, is_defanged
 from ..models import InvestigateResult, TriageResult
@@ -92,7 +93,12 @@ def _render_investigate_to_console(
             file_grid.add_row("YARA Hits", ", ".join(r.yara_hits[:5]))
         if r.signature_info:
             sig = r.signature_info
-            file_grid.add_row("Signature", f"{sig.get('subject', '')} [{sig.get('verified', 'unverified')}]")
+            # Closing bracket appended as plain Text: a template "]" would complete a
+            # sanitised-but-unterminated "[/tag" from the value into live markup.
+            file_grid.add_row(
+                "Signature",
+                Text.from_markup(f"{sig.get('subject', '')} \\[{sig.get('verified', 'unverified')}") + Text("]"),
+            )
 
         if r.pe_info:
             pe = r.pe_info
@@ -244,12 +250,16 @@ def _render_investigate_to_console(
         rec.print(Panel(url_grid, title="[bold]URL Details[/bold]", border_style="blue"))
 
 
-_UNSAFE_HREF = re.compile(r'href="(?!https?://|#)[^"]*"')
+_A_TAG = re.compile(r"<a\b[^>]*>", re.IGNORECASE)
+_SAFE_A_TAG = re.compile(r'<a href="(?:https?://[^\s"\'<>]*|#)">', re.IGNORECASE)
 
 
 def _neutralise_links(body: str) -> str:
-    """Defense in depth: only http(s) and fragment links survive in the report body."""
-    return _UNSAFE_HREF.sub('href="#"', body)
+    """Defense in depth: an ``<a>`` tag survives only as ``<a href="http(s)://...">`` or ``<a href="#">``.
+
+    Any other attribute set (extra attributes, odd schemes, quote breakouts) is rewritten.
+    """
+    return _A_TAG.sub(lambda m: m.group(0) if _SAFE_A_TAG.fullmatch(m.group(0)) else '<a href="#">', body)
 
 
 def _html_wrapper(body_html: str, title: str) -> str:

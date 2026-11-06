@@ -329,3 +329,44 @@ def test_every_str_like_field_is_classified(cls, name, ann):
             assert "\n" in s
         else:
             assert "\n" not in s and "\t" not in s
+
+
+# --------------------------------------------------------------------------
+# round-2 pins
+# --------------------------------------------------------------------------
+
+_HIDDEN = [
+    "[\x00link=https://evil.example]x[/link] [\u200bbold]y",
+    "[\u202elink=https://evil.example]x[/link] [\x1bbold]y",
+    "[\x1b[0mred]z",
+]
+
+
+@pytest.mark.parametrize("payload", _HIDDEN)
+def test_strip_then_escape_ordering_leaves_no_live_markup(payload):
+    from rich.markup import render
+
+    assert render(rich_text(payload)).spans == []
+    out = sanitize_for_render(_triage(tags=[payload]))
+    assert render(out.tags[0]).spans == []
+
+
+def test_multi_line_field_escaped_when_rich_and_plain_otherwise():
+    assert sanitize_for_render(_triage(explanation="[bold]x\ny")).explanation == "\\[bold]x\ny"
+    assert sanitize_for_render(_triage(explanation="[bold]x\ny"), rich=False).explanation == "[bold]x\ny"
+
+
+def test_tuple_branch_walked():
+    out = sanitize_for_render(("a\nb", [_triage(tags=["t\nu"])]))
+    assert isinstance(out, tuple)
+    assert out[0] == "a b"
+    assert out[1][0].tags == ["t u"]
+
+
+def test_indent_block_default_prefix():
+    assert indent_block("a\nb") == "  a\n  b"
+
+
+def test_str_like_sees_any_in_containers():
+    assert _str_like(list[Any])
+    assert _str_like(typing.Optional[Any])
