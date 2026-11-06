@@ -318,6 +318,38 @@ def test_html_link_attribute_allowlist_with_sanitizer_bypassed(tmp_path, monkeyp
         assert re.fullmatch(r'<a href="(?:https?://[^\s"\'<>]*|#)">', t), t
 
 
+_STRIP_PAYLOADS = [
+    "[link=javascript:alert(1)]c[/link]",
+    "[link=data:text/html,x]c[/link]",
+    "[link=https://a>b]c[/link]",
+    "[link=https://a<b]c[/link]",
+]
+
+
+@pytest.mark.parametrize("payload", _STRIP_PAYLOADS)
+def test_html_strip_unsafe_links_alone_removes_unsafe_link(tmp_path, monkeypatch, payload):
+    import vex.output.html as vh
+
+    monkeypatch.setattr(vh, "sanitize_for_render", lambda x: x)
+    monkeypatch.setattr(vh, "_neutralise_links", lambda body: body)  # exercise the first layer alone
+    tri = _make_triage()
+    tri.tags = [payload]
+    html = _read(tmp_path, [tri])
+    assert "<a" not in html
+    assert "href" not in html
+
+
+def test_html_strip_unsafe_links_alone_keeps_uppercase_scheme_link(tmp_path, monkeypatch):
+    import vex.output.html as vh
+
+    monkeypatch.setattr(vh, "sanitize_for_render", lambda x: x)
+    monkeypatch.setattr(vh, "_neutralise_links", lambda body: body)  # exercise the first layer alone
+    tri = _make_triage()
+    tri.tags = ["[link=HTTPS://example.com/x]c[/link]"]
+    html = _read(tmp_path, [tri])
+    assert 'href="HTTPS://example.com/x"' in html
+
+
 def test_html_signature_bracket_template_cannot_forge_markup(tmp_path):
     for verified in ("link=https://evil.example/login]Signed OK[/link", "bold green]VERIFIED[/bold green"):
         inv = InvestigateResult(
