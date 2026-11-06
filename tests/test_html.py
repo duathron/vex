@@ -6,6 +6,9 @@ No network calls. All results are built in-memory.
 from __future__ import annotations
 
 import os
+import re
+
+import pytest
 
 from vex.models import (
     DetectionStats,
@@ -222,3 +225,217 @@ class TestMixedList:
         assert "<html" in content.lower()
         assert "evil[.]com" in content
         assert "bad[.]net" in content
+
+
+# ---------------------------------------------------------------------------
+# Render safety: title escape, link neutralisation (no network)
+# ---------------------------------------------------------------------------
+
+
+def _read(tmp_path, results):
+    p = tmp_path / "r.html"
+    write_html_report(str(p), results)
+    return p.read_text(encoding="utf-8")
+
+
+def test_html_title_escaped(tmp_path):
+    import re
+
+    html = _read(tmp_path, [_make_triage(ioc="http://a.test/</title><script>alert(1)</script>")])
+    m = re.search(r"<title>(.*?)</title>", html, re.S)
+    assert m is not None
+    assert "&lt;/title&gt;" in m.group(1)
+    assert "<script>" not in m.group(1)
+
+
+def test_html_no_javascript_href(tmp_path):
+    tri = _make_triage()
+    tri.tags = ["[link=javascript:alert(1)]click[/link]"]
+    html = _read(tmp_path, [tri])
+    assert 'href="javascript:' not in html
+
+
+def test_html_unsafe_href_neutralised_even_if_sanitizer_bypassed(tmp_path, monkeypatch):
+    import vex.output.html as vh
+
+    monkeypatch.setattr(vh, "sanitize_for_render", lambda x: x)
+    tri = _make_triage()
+    tri.tags = ["[link=javascript:alert(1)]click[/link]"]
+    html = _read(tmp_path, [tri])
+    assert 'href="javascript:' not in html
+
+
+def test_html_https_href_kept(tmp_path, monkeypatch):
+    import vex.output.html as vh
+
+    monkeypatch.setattr(vh, "sanitize_for_render", lambda x: x)
+    tri = _make_triage()
+    tri.tags = ["[link=https://ok.example/x]click[/link]"]
+    html = _read(tmp_path, [tri])
+    assert 'href="https://ok.example/x"' in html
+
+
+def test_html_markup_in_api_fields_renders_literally_triage(tmp_path):
+    tri = _make_triage()
+    tri.tags = ["x [/bogus] y [bold]z"]
+    html = _read(tmp_path, [tri])
+    assert "x [/bogus] y [bold]z" in html
+
+
+def test_html_markup_in_api_fields_renders_literally_investigate(tmp_path):
+    inv = InvestigateResult(
+        triage=_make_triage(), file_type="exe", file_names=["a [/bogus] [bold]b"], magic="m \x1b]0;PWN\x07"
+    )
+    html = _read(tmp_path, [inv])
+    assert "a [/bogus] [bold]b" in html
+    assert "PWN" not in html
+
+
+_ATTR_PAYLOADS = [
+    '[link=https://a.test/"onmouseover="alert(1)]c[/link]',
+    '[link=https://a/"style="x]c[/link]',
+    "[link=data:text/html;base64,AAAA]c[/link]",
+    "[link=JAVASCRIPT:alert(1)]c[/link]",
+    "[link=//evil.example/x]c[/link]",
+    "[link= https://evil.example/x]c[/link]",
+]
+
+
+@pytest.mark.parametrize("payload", _ATTR_PAYLOADS)
+def test_html_link_attribute_allowlist_with_sanitizer_bypassed(tmp_path, monkeypatch, payload):
+    import re
+
+    import vex.output.html as vh
+
+    monkeypatch.setattr(vh, "sanitize_for_render", lambda x: x)
+    monkeypatch.setattr(vh, "_strip_unsafe_links", lambda rec: None)  # exercise the second layer alone
+    tri = _make_triage()
+    tri.tags = [payload]
+    html = _read(tmp_path, [tri])
+    tags = re.findall(r"<a\b[^>]*>", html, re.I)
+    assert tags
+    for t in tags:
+        assert re.fullmatch(r'<a href="(?:https?://[^\s"\'<>]*|#)">', t), t
+
+
+_STRIP_PAYLOADS = [
+    "[link=javascript:alert(1)]c[/link]",
+    "[link=data:text/html,x]c[/link]",
+    "[link=https://a>b]c[/link]",
+    "[link=https://a<b]c[/link]",
+]
+
+
+@pytest.mark.parametrize("payload", _STRIP_PAYLOADS)
+def test_html_strip_unsafe_links_alone_removes_unsafe_link(tmp_path, monkeypatch, payload):
+    import vex.output.html as vh
+
+    monkeypatch.setattr(vh, "sanitize_for_render", lambda x: x)
+    monkeypatch.setattr(vh, "_neutralise_links", lambda body: body)  # exercise the first layer alone
+    tri = _make_triage()
+    tri.tags = [payload]
+    html = _read(tmp_path, [tri])
+    assert "<a" not in html
+    assert "href" not in html
+
+
+def test_html_strip_unsafe_links_alone_keeps_uppercase_scheme_link(tmp_path, monkeypatch):
+    import vex.output.html as vh
+
+    monkeypatch.setattr(vh, "sanitize_for_render", lambda x: x)
+    monkeypatch.setattr(vh, "_neutralise_links", lambda body: body)  # exercise the first layer alone
+    tri = _make_triage()
+    tri.tags = ["[link=HTTPS://example.com/x]c[/link]"]
+    html = _read(tmp_path, [tri])
+    assert 'href="HTTPS://example.com/x"' in html
+
+
+def test_html_signature_bracket_template_cannot_forge_markup(tmp_path):
+    for verified in ("link=https://evil.example/login]Signed OK[/link", "bold green]VERIFIED[/bold green"):
+        inv = InvestigateResult(
+            triage=_make_triage(),
+            file_type="exe",
+            signature_info={"subject": "Microsoft", "verified": verified},
+        )
+        html = _read(tmp_path, [inv])
+        assert "<a href" not in html
+        assert "VERIFIED" in html or "Signed OK" in html
+        assert "font-weight: bold" not in html.split("Signature", 1)[1].split("</pre>")[0]
+
+
+def test_html_sanitizer_runs_on_defanged_result(tmp_path, monkeypatch):
+    import vex.output.html as vh
+
+    seen = []
+    real = vh.sanitize_for_render
+
+    def spy(x):
+        seen.append(x.triage.ioc if hasattr(x, "triage") else x.ioc)
+        return real(x)
+
+    monkeypatch.setattr(vh, "sanitize_for_render", spy)
+    _read(tmp_path, [_make_triage(ioc="http://evil.com/x"), _make_investigate(ioc="http://evil.org/y")])
+    assert len(seen) == 2
+    assert all("hxxp" in s for s in seen), seen
+
+
+def test_html_title_strips_control_and_bidi(tmp_path):
+    html = _read(tmp_path, [_make_triage(ioc="evil.com\u202e\x1b]0;x\x07")])
+    title = html.split("<title>", 1)[1].split("</title>", 1)[0]
+    assert "\u202e" not in title and "\x1b" not in title and "\x07" not in title
+
+
+_SPLIT = '[link=https://a"><img/src=x/onerror=alert(1)><a/href="https://b]x[/link]'
+
+
+def _parse_dom(html):
+    from html.parser import HTMLParser
+
+    class P(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.tags = []
+
+        def handle_starttag(self, tag, attrs):
+            self.tags.append((tag, attrs))
+
+    p = P()
+    p.feed(html)
+    return p.tags
+
+
+def _assert_links_clean(html):
+    tags = _parse_dom(html)
+    assert not [t for t, _ in tags if t == "img"]
+    for tag, attrs in tags:
+        if tag == "a":
+            assert [k for k, _ in attrs] == ["href"], attrs
+            assert re.fullmatch(r"https?://[^\s\"'<>]*|#", attrs[0][1] or ""), attrs
+
+
+@pytest.mark.parametrize("where", ["tags", "subject"])
+def test_html_tag_splitting_link_value_cannot_inject_elements(tmp_path, monkeypatch, where):
+    import vex.output.html as vh
+
+    monkeypatch.setattr(vh, "sanitize_for_render", lambda x: x)
+    if where == "tags":
+        tri = _make_triage()
+        tri.tags = [_SPLIT]
+        results = [tri]
+    else:
+        results = [
+            InvestigateResult(
+                triage=_make_triage(), file_type="exe", signature_info={"subject": _SPLIT, "verified": "ok"}
+            )
+        ]
+    _assert_links_clean(_read(tmp_path, results))
+
+
+def test_html_legit_link_with_query_stays_clickable(tmp_path, monkeypatch):
+    import vex.output.html as vh
+
+    monkeypatch.setattr(vh, "sanitize_for_render", lambda x: x)
+    tri = _make_triage()
+    tri.tags = ["[link=https://ok.example/x?a=1&b=2]go[/link]"]
+    html = _read(tmp_path, [tri])
+    assert [a for t, a in _parse_dom(html) if t == "a"] == [[("href", "https://ok.example/x?a=1&b=2")]]

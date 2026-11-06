@@ -9,16 +9,20 @@ clickable malware indicators.
 
 from __future__ import annotations
 
+import html as _html
+import re
 from datetime import datetime, timezone
 from typing import Union
 
 from rich.console import Console
+from rich.text import Text
 
 from ..defang import defang, is_defanged
 from ..models import InvestigateResult, TriageResult
 from .formatter import (
     _triage_panel,
 )
+from .safe import plain_text, sanitize_for_render
 
 
 def _defang_triage(result: TriageResult) -> TriageResult:
@@ -89,7 +93,12 @@ def _render_investigate_to_console(
             file_grid.add_row("YARA Hits", ", ".join(r.yara_hits[:5]))
         if r.signature_info:
             sig = r.signature_info
-            file_grid.add_row("Signature", f"{sig.get('subject', '')} [{sig.get('verified', 'unverified')}]")
+            # Closing bracket appended as plain Text: a template "]" would complete a
+            # sanitised-but-unterminated "[/tag" from the value into live markup.
+            file_grid.add_row(
+                "Signature",
+                Text.from_markup(f"{sig.get('subject', '')} \\[{sig.get('verified', 'unverified')}") + Text("]"),
+            )
 
         if r.pe_info:
             pe = r.pe_info
@@ -241,6 +250,30 @@ def _render_investigate_to_console(
         rec.print(Panel(url_grid, title="[bold]URL Details[/bold]", border_style="blue"))
 
 
+_A_TAG = re.compile(r"<a\b[^>]*>", re.IGNORECASE)
+_SAFE_A_TAG = re.compile(r'<a href="(?:https?://[^\s"\'<>]*|#)">', re.IGNORECASE)
+
+
+def _neutralise_links(body: str) -> str:
+    """Defense in depth: an ``<a>`` tag survives only as ``<a href="http(s)://...">`` or ``<a href="#">``.
+
+    Any other attribute set (extra attributes, odd schemes, quote breakouts) is rewritten.
+    """
+    return _A_TAG.sub(lambda m: m.group(0) if _SAFE_A_TAG.fullmatch(m.group(0)) else '<a href="#">', body)
+
+
+_SAFE_LINK = re.compile(r"https?://[A-Za-z0-9\-._~:/?#\[\]@!$&()*+,;=%]*", re.IGNORECASE)
+
+
+def _strip_unsafe_links(rec: Console) -> None:
+    """Drop every link style on *rec* whose target is not a plain http(s) URL (before export)."""
+    buf = rec._record_buffer
+    for i, seg in enumerate(buf):
+        link = seg.style.link if seg.style is not None else None
+        if link and not _SAFE_LINK.fullmatch(link):
+            buf[i] = seg._replace(style=seg.style.update_link(None))
+
+
 def _html_wrapper(body_html: str, title: str) -> str:
     """Wrap Rich-exported HTML in a minimal outer page with a header."""
     ts = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -248,7 +281,7 @@ def _html_wrapper(body_html: str, title: str) -> str:
         "<!DOCTYPE html>\n"
         '<html lang="en">\n'
         "<head>\n"
-        f"<title>{title}</title>\n"
+        f"<title>{_html.escape(plain_text(title))}</title>\n"
         '<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         "<style>\n"
@@ -298,14 +331,15 @@ def write_html_report(
 
     for result in results:
         if isinstance(result, InvestigateResult):
-            safe = _defang_investigate(result)
+            safe = sanitize_for_render(_defang_investigate(result))
             _render_investigate_to_console(safe, rec)
         else:
-            safe = _defang_triage(result)
+            safe = sanitize_for_render(_defang_triage(result))
             _render_triage_to_console(safe, rec)
 
     # export_html() returns a full <html>…</html> document from Rich.
     # We strip that and use our own wrapper to keep the dark theme consistent.
+    _strip_unsafe_links(rec)
     rich_html = rec.export_html(inline_styles=True)
 
     # Extract just the <body> content from Rich's output
@@ -329,7 +363,7 @@ def write_html_report(
     if len(ioc_labels) > 3:
         title += f" (+{len(ioc_labels) - 3} more)"
 
-    html = _html_wrapper(body_content, title)
+    html = _html_wrapper(_neutralise_links(body_content), title)
 
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(html)
