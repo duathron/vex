@@ -20,7 +20,8 @@ MAIN_PY = Path(main_module.__file__)
 
 SINK_CONSOLES = {"console", "err_console", "rec"}
 WRAPPERS = {"rich_text", "plain_text"}
-# Name arguments are accepted when their single assignment in the function is one of these calls.
+# A Name argument is accepted when every assignment to it in the function is one of these calls (or a
+# trusted f-string / conditional).
 # Table / Panel cells and titles are checked at their own sinks (add_row, title=).
 ASSIGN_OK = WRAPPERS | {"Text", "Table", "Panel"}
 TITLE_KEYWORDS = {"title", "caption", "subtitle"}
@@ -67,7 +68,6 @@ _add(
     *(f"run_result.{f}" for f in ("total", "worsened", "unchanged", "improved", "cache_misses", "errors")),
 )
 _add(ALLOWED, "verdict value string", "cmd_watchlist_run", "old_v", "new_v")
-_add(ALLOWED, "trusted style name", "cmd_watchlist_run", "colour")
 _add(ALLOWED, _STATIC, "cmd_doctor", "_bool_mark(s.configured)", "_bool_mark(s.reachable)", "s.name")
 _add(ALLOWED, _STATIC, "cmd_manual", "_MANUAL_TOPICS[topic.lower()]")
 _add(ALLOWED, _STATIC, "cmd_watchlist", "ctx.get_help()")
@@ -85,7 +85,13 @@ _add(
     "status",
 )
 _add(ALLOWED, "fixed install hint", "cmd_addons", "install")
-_add(ALLOWED, "fixed ok/failed text", "_run_writeback", "status")
+_add(
+    ALLOWED,
+    "built from the escaped label (rich_text) plus the provider class name",
+    "_run_correlation_explain",
+    "_title(title)",
+    "label",
+)
 _add(ALLOWED, _CFG, "_run_writeback", "config.enrichment.writeback_min_verdict", "config.enrichment.writeback_tlp")
 _add(
     ALLOWED,
@@ -136,20 +142,8 @@ _add(
     ),
 )
 
-# Sites converted by the follow-up change; temporary (it empties this table and asserts so).
+# Converted by the main.py sink change; must stay empty.
 PENDING_A2A: dict[Key, str] = {}
-_P = "a2a-pending"
-_add(PENDING_A2A, _P, "_mark_explanation_degraded", "exc")
-_add(PENDING_A2A, _P, "_run_correlation_explain", "label", "narrative", "title")
-_add(PENDING_A2A, _P, "_filter_by_alert _filter_inv_by_alert", "alert")
-_add(PENDING_A2A, _P, "cmd_triage cmd_investigate", "e", "raw_ioc", "normalised_ioc", "html")
-_add(PENDING_A2A, _P, "_run_writeback", "ioc", "ioc_type", "source_tlp or 'none'")
-_add(PENDING_A2A, _P, "_run_watchlist_manage", "i", "ioc", "name")
-_add(PENDING_A2A, _P, "cmd_tag", "ioc", "t", "', '.join(tags)")
-_add(PENDING_A2A, _P, "cmd_note", "ioc", "n['note']")
-_add(PENDING_A2A, _P, "cmd_version", "latest", "', '.join(names)")
-_add(PENDING_A2A, _P, "cmd_manual", "topic")
-_add(PENDING_A2A, _P, "cmd_config", "set_ai_provider", "set_ai_provider.lower()", "set_misp_url", "set_opencti_url")
 
 # Sites converted by the watchlist/doctor/remote-exception change.
 PENDING: dict[Key, str] = {}
@@ -198,7 +192,7 @@ def _wrapped(expr: ast.expr, assigns: dict[str, list[ast.expr]], depth: int = 0)
             return True
         if name == "len" and isinstance(expr.func, ast.Name):
             return True
-        if name == "indent_block" and expr.args:
+        if name in {"indent_block", "_title"} and expr.args:
             return _wrapped(expr.args[0], assigns, depth + 1)
         return name in {"Text", "Table", "Panel"}
     if isinstance(expr, ast.Attribute):
@@ -211,12 +205,19 @@ def _wrapped(expr: ast.expr, assigns: dict[str, list[ast.expr]], depth: int = 0)
         if expr.id == "__version__":
             return True
         found = assigns.get(expr.id, [])
-        if depth < 3 and len(found) == 1:
-            val = found[0]
-            return isinstance(val, ast.Call) and _call_name(val) in ASSIGN_OK
-        return False
+        if depth >= 3 or not found:
+            return False
+        # Every assignment must itself be a trusted form (a wrapper or constructor call, or an f-string
+        # whose placeholders are all trusted).
+        return all(
+            (isinstance(v, ast.Call) and _call_name(v) in ASSIGN_OK)
+            or (isinstance(v, (ast.JoinedStr, ast.IfExp)) and _wrapped(v, assigns, depth + 1))
+            for v in found
+        )
     if isinstance(expr, ast.JoinedStr):
         return all(_wrapped(v, assigns, depth + 1) for v in expr.values)
+    if isinstance(expr, ast.IfExp):
+        return _wrapped(expr.body, assigns, depth + 1) and _wrapped(expr.orelse, assigns, depth + 1)
     if isinstance(expr, ast.FormattedValue):
         if expr.format_spec is not None:  # numeric format spec (":,", ":.1f") only formats numbers
             return True
@@ -308,6 +309,10 @@ def test_lists_have_no_stale_entries():
     _, bad = scan(MAIN_PY.read_text())
     stale = sorted((set(ALLOWED) | set(PENDING_A2A) | set(PENDING)) - set(bad))
     assert not stale, f"entries that no longer match a sink expression: {stale}"
+
+
+def test_no_a2a_pending_entries_remain():
+    assert not PENDING_A2A
 
 
 def test_a_planted_unwrapped_sink_is_caught():

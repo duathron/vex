@@ -24,6 +24,7 @@ from .mitre.mapper import map_to_attack
 from .models import InvestigateResult, TriageResult, Verdict
 from .output.export import to_csv_triage, to_json, to_json_list, to_json_list_with_clusters, to_ndjson
 from .output.formatter import (
+    _title,
     console,
     err_console,
     print_barb_context_console,
@@ -43,6 +44,7 @@ from .output.formatter import (
     print_triage_rich,
 )
 from .output.html import write_html_report
+from .output.safe import indent_block, rich_text
 from .output.stix import to_stix_bundle
 from .plugins.loader import load_plugins
 from .quota_tracker import QuotaTracker
@@ -368,7 +370,10 @@ def _filter_by_alert(results: list[TriageResult], alert: Optional[str]) -> list[
         threshold = Verdict(alert.upper()).severity
     except ValueError:
         err_console.print(
-            f"[yellow]Warning:[/yellow] Invalid --alert value '{alert}'. Use CLEAN/UNKNOWN/SUSPICIOUS/MALICIOUS."
+            f"[yellow]Warning:[/yellow] Invalid --alert value '{rich_text(alert)}'. "
+            "Use CLEAN/UNKNOWN/SUSPICIOUS/MALICIOUS.",
+            soft_wrap=True,
+            highlight=False,
         )
         return results
     return [r for r in results if r.verdict.severity >= threshold]
@@ -382,7 +387,10 @@ def _filter_inv_by_alert(results: list[InvestigateResult], alert: Optional[str])
         threshold = Verdict(alert.upper()).severity
     except ValueError:
         err_console.print(
-            f"[yellow]Warning:[/yellow] Invalid --alert value '{alert}'. Use CLEAN/UNKNOWN/SUSPICIOUS/MALICIOUS."
+            f"[yellow]Warning:[/yellow] Invalid --alert value '{rich_text(alert)}'. "
+            "Use CLEAN/UNKNOWN/SUSPICIOUS/MALICIOUS.",
+            soft_wrap=True,
+            highlight=False,
         )
         return results
     return [r for r in results if r.triage.verdict.severity >= threshold]
@@ -518,7 +526,11 @@ def _mark_explanation_degraded(target, provider_name: str, exc: Exception) -> No
     stdout (F2 BLOCK condition: a -o json run's stdout must stay
     json.loads-parseable).
     """
-    err_console.print(f"⚠ EXPLANATION UNAVAILABLE — provider '{provider_name}' failed: {exc}")
+    err_console.print(
+        f"⚠ EXPLANATION UNAVAILABLE — provider '{provider_name}' failed: {rich_text(exc)}",
+        soft_wrap=True,
+        highlight=False,
+    )
     target.explanation = None
     target.explanation_degraded = True
     target.explanation_provider = provider_name
@@ -590,22 +602,26 @@ def _run_correlation_explain(
             cluster.explanation = narrative
             provider_name = "template"
 
-        # Render as "AI Analysis" panel per cluster, reusing print_explanation_*
+        # Render as "AI Analysis" panel per cluster, reusing print_explanation_*.
+        # cluster_label stays RAW: the degraded printers escape it themselves. Only this function's
+        # own Panel title / label strings use the escaped copy, so each value is escaped once.
         cluster_label = f"{cluster.cluster_id}: {cluster.shared_attribute}"
+        cluster_label_markup = rich_text(cluster_label)
+        narrative_markup = rich_text(narrative or "")  # unused for degraded clusters (narrative is None)
         if output_fmt == OutputFormat.rich:
             if cluster.explanation_degraded:
                 print_explanation_degraded_rich(cluster.explanation_provider or config.ai.provider, label=cluster_label)
             else:
                 if provider_name == "template":
-                    title = f"[bold]Template Analysis[/bold] [dim]— {cluster_label}[/dim]"
+                    title = f"[bold]Template Analysis[/bold] [dim]— {cluster_label_markup}[/dim]"
                 else:
-                    title = f"[bold]AI Analysis[/bold] [dim]({provider_name}) — {cluster_label}[/dim]"
+                    title = f"[bold]AI Analysis[/bold] [dim]({provider_name}) — {cluster_label_markup}[/dim]"
                 from rich.panel import Panel
 
                 console.print(
                     Panel(
-                        narrative,
-                        title=title,
+                        narrative_markup,
+                        title=_title(title),
                         border_style="cyan",
                         padding=(1, 2),
                     )
@@ -617,14 +633,14 @@ def _run_correlation_explain(
                 )
             else:
                 label = (
-                    f"Template Analysis — {cluster_label}"
+                    f"Template Analysis — {cluster_label_markup}"
                     if provider_name == "template"
-                    else f"AI Analysis ({provider_name}) — {cluster_label}"
+                    else f"AI Analysis ({provider_name}) — {cluster_label_markup}"
                 )
                 console.print(f"\n{'─' * 60}")
-                console.print(f"{label}:")
+                console.print(f"{label}:", soft_wrap=True, highlight=False)
                 console.print(f"{'─' * 60}")
-                console.print(narrative)
+                console.print(indent_block(narrative_markup, "  "), soft_wrap=True, highlight=False)
                 console.print(f"{'─' * 60}")
         # JSON: cluster.explanation/explanation_degraded/explanation_provider
         # are already set above; export handles serialisation (_cluster_to_dict).
@@ -690,7 +706,7 @@ def cmd_triage(
             barb_map = {entry.url: entry for entry in barb_entries}
             err_console.print(f"[dim]→ barb pipeline: {len(iocs)} URL(s) loaded[/dim]")
         except ValueError as e:
-            err_console.print(f"[red]Error parsing barb JSON:[/red] {e}")
+            err_console.print(f"[red]Error parsing barb JSON:[/red] {rich_text(e)}", soft_wrap=True, highlight=False)
             raise typer.Exit(code=1)
     elif from_sift:
         from .pipeline.sift_bridge import extract_iocs_from_sift
@@ -703,7 +719,7 @@ def cmd_triage(
                 raise typer.Exit(code=0)
             err_console.print(f"[dim]Loaded {len(iocs)} IOCs from sift output[/dim]")
         except ValueError as e:
-            err_console.print(f"[red]Error parsing sift JSON:[/red] {e}")
+            err_console.print(f"[red]Error parsing sift JSON:[/red] {rich_text(e)}", soft_wrap=True, highlight=False)
             raise typer.Exit(code=1)
     else:
         iocs = _collect_iocs(ioc, file)
@@ -719,7 +735,7 @@ def cmd_triage(
     try:
         config.api_key  # validate key exists before proceeding
     except ValueError as e:
-        err_console.print(f"[red]{e}[/red]")
+        err_console.print(f"[red]{rich_text(e)}[/red]", soft_wrap=True, highlight=False)
         raise typer.Exit(code=1)
 
     results: list[TriageResult] = []
@@ -774,7 +790,9 @@ def cmd_triage(
 
                     if ioc_type == IOCType.UNKNOWN:
                         err_console.print(
-                            f"[yellow]Warning:[/yellow] Cannot detect IOC type for '{raw_ioc}' - skipping."
+                            f"[yellow]Warning:[/yellow] Cannot detect IOC type for '{rich_text(raw_ioc)}' - skipping.",
+                            soft_wrap=True,
+                            highlight=False,
                         )
                         failed_count += 1
                         continue
@@ -794,13 +812,21 @@ def cmd_triage(
                             failed_count += 1
                             continue
                         if output in (OutputFormat.rich, OutputFormat.console):
-                            err_console.print(f"[dim]→ Looking up {ioc_type.value}: {normalised_ioc}[/dim]")
+                            err_console.print(
+                                f"[dim]→ Looking up {ioc_type.value}: {rich_text(normalised_ioc)}[/dim]",
+                                soft_wrap=True,
+                                highlight=False,
+                            )
                         try:
                             result = plugin.triage(normalised_ioc, ioc_type.value, config)
                             cache.set(cache_key, result.model_dump(mode="json"))
                             _quota_record(_qt)
                         except Exception as e:
-                            err_console.print(f"[red]Error enriching {normalised_ioc}:[/red] {type(e).__name__}")
+                            err_console.print(
+                                f"[red]Error enriching {rich_text(normalised_ioc)}:[/red] {type(e).__name__}",
+                                soft_wrap=True,
+                                highlight=False,
+                            )
                             failed_count += 1
                             continue
 
@@ -919,7 +945,7 @@ def cmd_triage(
     # HTML report (opt-in, additive)
     if html:
         write_html_report(html, results, mode="triage")
-        console.print(f"[green]HTML report written to {html}[/green]")
+        console.print(f"[green]HTML report written to {rich_text(html)}[/green]")
 
     # F2 cut-1 (2026-07-03 MeetUp — 2026-07-03-f2-llm-failure-posture.md):
     # a degraded explanation (a REQUESTED LLM provider failed) exits with the
@@ -998,7 +1024,7 @@ def cmd_investigate(
             barb_map = {entry.url: entry for entry in barb_entries}
             err_console.print(f"[dim]→ barb pipeline: {len(iocs)} URL(s) loaded[/dim]")
         except ValueError as e:
-            err_console.print(f"[red]Error parsing barb JSON:[/red] {e}")
+            err_console.print(f"[red]Error parsing barb JSON:[/red] {rich_text(e)}", soft_wrap=True, highlight=False)
             raise typer.Exit(code=1)
     elif from_sift:
         from .pipeline.sift_bridge import extract_iocs_from_sift
@@ -1011,7 +1037,7 @@ def cmd_investigate(
                 raise typer.Exit(code=0)
             err_console.print(f"[dim]Loaded {len(iocs)} IOCs from sift output[/dim]")
         except ValueError as e:
-            err_console.print(f"[red]Error parsing sift JSON:[/red] {e}")
+            err_console.print(f"[red]Error parsing sift JSON:[/red] {rich_text(e)}", soft_wrap=True, highlight=False)
             raise typer.Exit(code=1)
     else:
         iocs = _collect_iocs(ioc, file)
@@ -1027,7 +1053,7 @@ def cmd_investigate(
     try:
         config.api_key  # validate key exists before proceeding
     except ValueError as e:
-        err_console.print(f"[red]{e}[/red]")
+        err_console.print(f"[red]{rich_text(e)}[/red]", soft_wrap=True, highlight=False)
         raise typer.Exit(code=1)
 
     results: list[InvestigateResult] = []
@@ -1075,7 +1101,9 @@ def cmd_investigate(
 
                     if ioc_type == IOCType.UNKNOWN:
                         err_console.print(
-                            f"[yellow]Warning:[/yellow] Cannot detect IOC type for '{raw_ioc}' - skipping."
+                            f"[yellow]Warning:[/yellow] Cannot detect IOC type for '{rich_text(raw_ioc)}' - skipping.",
+                            soft_wrap=True,
+                            highlight=False,
                         )
                         failed_count += 1
                         continue
@@ -1095,7 +1123,11 @@ def cmd_investigate(
                             failed_count += 1
                             continue
                         if output in (OutputFormat.rich, OutputFormat.console):
-                            err_console.print(f"[dim]→ Investigating {ioc_type.value}: {normalised_ioc}[/dim]")
+                            err_console.print(
+                                f"[dim]→ Investigating {ioc_type.value}: {rich_text(normalised_ioc)}[/dim]",
+                                soft_wrap=True,
+                                highlight=False,
+                            )
                         try:
                             result = plugin.investigate(normalised_ioc, ioc_type.value, config)
                             # MITRE ATT&CK mapping
@@ -1112,7 +1144,11 @@ def cmd_investigate(
                             )
                             cache.set(cache_key, result.model_dump(mode="json"))
                         except Exception as e:
-                            err_console.print(f"[red]Error investigating {normalised_ioc}:[/red] {type(e).__name__}")
+                            err_console.print(
+                                f"[red]Error investigating {rich_text(normalised_ioc)}:[/red] {type(e).__name__}",
+                                soft_wrap=True,
+                                highlight=False,
+                            )
                             failed_count += 1
                             continue
 
@@ -1225,7 +1261,7 @@ def cmd_investigate(
     # HTML report (opt-in, additive)
     if html:
         write_html_report(html, results, mode="investigate")
-        console.print(f"[green]HTML report written to {html}[/green]")
+        console.print(f"[green]HTML report written to {rich_text(html)}[/green]")
 
     # F2 cut-1 (2026-07-03 MeetUp): see cmd_triage's identical check.
     if any(r.triage.explanation_degraded for r in results) or any(c.explanation_degraded for c in inv_clusters):
@@ -1256,13 +1292,13 @@ def cmd_version() -> None:
     registry = load_plugins()
     names = [p.name for p in registry.plugins]
     if names:
-        console.print(f"[dim]Plugins: {', '.join(names)}[/dim]")
+        console.print(f"[dim]Plugins: {rich_text(', '.join(names))}[/dim]")
     try:
         from .version_check import check_for_update
 
         latest = check_for_update(check_interval_hours=24)
         if latest:
-            console.print(f"  [yellow]Latest: {latest}[/yellow] [dim](update available)[/dim]")
+            console.print(f"  [yellow]Latest: {rich_text(latest)}[/yellow] [dim](update available)[/dim]")
     except Exception:
         pass
 
@@ -1425,12 +1461,14 @@ def cmd_config(
     if set_ai_provider:
         valid = ("anthropic", "openai", "ollama", "none")
         if set_ai_provider.lower() not in valid:
-            console.print(f"[red]Error:[/red] Invalid provider '{set_ai_provider}'. Use: {', '.join(valid)}")
+            console.print(f"[red]Error:[/red] Invalid provider '{rich_text(set_ai_provider)}'. Use: {', '.join(valid)}")
             raise typer.Exit(code=1)
         config.ai.provider = set_ai_provider.lower()
         changed = True
         path = save_config(config)
-        console.print(f"[green]✓[/green] AI provider set to [bold]{set_ai_provider.lower()}[/bold] in {path}")
+        console.print(
+            f"[green]✓[/green] AI provider set to [bold]{rich_text(set_ai_provider.lower())}[/bold] in {path}"
+        )
         if set_ai_provider.lower() in ("anthropic", "openai") and not config.ai_api_key:
             console.print(
                 "[yellow]Note:[/yellow] Set the AI API key with [bold]--set-ai-key[/bold] or [bold]VEX_AI_API_KEY[/bold] env var."  # noqa: E501
@@ -1460,7 +1498,7 @@ def cmd_config(
         config.enrichment.misp_url = set_misp_url
         changed = True
         path = save_config(config)
-        console.print(f"[green]✓[/green] MISP URL saved to [bold]{path}[/bold]: {set_misp_url}")
+        console.print(f"[green]✓[/green] MISP URL saved to [bold]{path}[/bold]: {rich_text(set_misp_url)}")
         if not config.enrichment.misp_api_key:
             console.print(
                 "[yellow]Note:[/yellow] MISP also needs an API key — set it with [bold]--set-misp-key[/bold]."
@@ -1480,7 +1518,7 @@ def cmd_config(
         config.enrichment.opencti_url = set_opencti_url
         changed = True
         path = save_config(config)
-        console.print(f"[green]✓[/green] OpenCTI URL saved to [bold]{path}[/bold]: {set_opencti_url}")
+        console.print(f"[green]✓[/green] OpenCTI URL saved to [bold]{path}[/bold]: {rich_text(set_opencti_url)}")
         if not config.enrichment.opencti_token:
             console.print(
                 "[yellow]Note:[/yellow] OpenCTI also needs an API token — set it with [bold]--set-opencti-token[/bold]."
@@ -1670,9 +1708,11 @@ def _run_writeback(
 
         if dry_run_sight:
             err_console.print(
-                f"[dim][dry-run-sight] would write: ioc={ioc} type={ioc_type} "
-                f"source_tlp={source_tlp or 'none'} "
-                f"ceiling={config.enrichment.writeback_tlp}[/dim]"
+                f"[dim][dry-run-sight] would write: ioc={rich_text(ioc)} type={rich_text(ioc_type)} "
+                f"source_tlp={rich_text(source_tlp or 'none')} "
+                f"ceiling={config.enrichment.writeback_tlp}[/dim]",
+                soft_wrap=True,
+                highlight=False,
             )
             # Fields stay None — not attempted
             continue
@@ -1683,7 +1723,7 @@ def _run_writeback(
         misp_ok = MISPEnricher().add_sighting(ioc, config, source_tlp=source_tlp)
         result.writeback_misp = misp_ok
         status = "ok" if misp_ok else "failed/skipped"
-        err_console.print(f"[dim]sighting → MISP {status}: {ioc}[/dim]")
+        err_console.print(f"[dim]sighting → MISP {status}: {rich_text(ioc)}[/dim]", soft_wrap=True, highlight=False)
 
         # OpenCTI observable
         from .plugins.opencti import OpenCTIEnricher  # noqa: PLC0415
@@ -1691,7 +1731,9 @@ def _run_writeback(
         opencti_ok = OpenCTIEnricher().add_observable(ioc, ioc_type, config, source_tlp=source_tlp)
         result.writeback_opencti = opencti_ok
         status = "ok" if opencti_ok else "failed/skipped"
-        err_console.print(f"[dim]observable → OpenCTI {status}: {ioc}[/dim]")
+        err_console.print(
+            f"[dim]observable → OpenCTI {status}: {rich_text(ioc)}[/dim]", soft_wrap=True, highlight=False
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -2038,7 +2080,7 @@ def cmd_manual(
         return
 
     if topic:
-        console.print(f"[red]Unknown topic:[/red] '{topic}'")
+        console.print(f"[red]Unknown topic:[/red] '{rich_text(topic)}'", soft_wrap=True, highlight=False)
         console.print()
 
     # Overview
@@ -2082,16 +2124,26 @@ def cmd_tag(
         if add:
             for t in add:
                 db.add_tag(ioc, t)
-                console.print(f"[green]+[/green] Tagged [bold]{ioc}[/bold] with [cyan]{t}[/cyan]")
+                console.print(
+                    f"[green]+[/green] Tagged [bold]{rich_text(ioc)}[/bold] with [cyan]{rich_text(t)}[/cyan]",
+                    soft_wrap=True,
+                    highlight=False,
+                )
         if remove:
             for t in remove:
                 db.remove_tag(ioc, t)
-                console.print(f"[red]-[/red] Removed tag [cyan]{t}[/cyan] from [bold]{ioc}[/bold]")
+                console.print(
+                    f"[red]-[/red] Removed tag [cyan]{rich_text(t)}[/cyan] from [bold]{rich_text(ioc)}[/bold]",
+                    soft_wrap=True,
+                    highlight=False,
+                )
         tags = db.get_tags(ioc)
         if tags:
-            console.print(f"[dim]Tags for {ioc}:[/dim] {', '.join(tags)}")
+            console.print(
+                f"[dim]Tags for {rich_text(ioc)}:[/dim] {rich_text(', '.join(tags))}", soft_wrap=True, highlight=False
+            )
         elif not add and not remove:
-            console.print(f"[dim]No tags for {ioc}[/dim]")
+            console.print(f"[dim]No tags for {rich_text(ioc)}[/dim]", soft_wrap=True, highlight=False)
 
 
 @app.command(name="note", help="[bold green]Manage IOC notes[/bold green] in the local knowledge base.")
@@ -2105,17 +2157,23 @@ def cmd_note(
     with KnowledgeDB() as db:
         if add:
             nid = db.add_note(ioc, add)
-            console.print(f"[green]+[/green] Note #{nid} added to [bold]{ioc}[/bold]")
+            console.print(
+                f"[green]+[/green] Note #{nid} added to [bold]{rich_text(ioc)}[/bold]", soft_wrap=True, highlight=False
+            )
         if delete_id is not None:
             db.delete_note(delete_id)
             console.print(f"[red]-[/red] Deleted note #{delete_id}")
         notes = db.get_notes(ioc)
         if notes:
-            console.print(f"[dim]Notes for {ioc}:[/dim]")
+            console.print(f"[dim]Notes for {rich_text(ioc)}:[/dim]", soft_wrap=True, highlight=False)
             for n in notes:
-                console.print(f"  [dim]#{n['id']}[/dim] {n['note']}  [dim]({n['created_at'][:10]})[/dim]")
+                console.print(
+                    f"  [dim]#{n['id']}[/dim] {rich_text(n['note'])}  [dim]({n['created_at'][:10]})[/dim]",
+                    soft_wrap=True,
+                    highlight=False,
+                )
         elif not add and delete_id is None:
-            console.print(f"[dim]No notes for {ioc}[/dim]")
+            console.print(f"[dim]No notes for {rich_text(ioc)}[/dim]", soft_wrap=True, highlight=False)
 
 
 # ---------------------------------------------------------------------------
@@ -2183,19 +2241,29 @@ def _run_watchlist_manage(name: str, args: list[str]) -> None:
         if add_iocs:
             for ioc in add_iocs:
                 db.add_to_watchlist(name, ioc)
-                console.print(f"[green]+[/green] Added [bold]{ioc}[/bold] to watchlist [cyan]{name}[/cyan]")
+                console.print(
+                    f"[green]+[/green] Added [bold]{rich_text(ioc)}[/bold] to watchlist [cyan]{rich_text(name)}[/cyan]",
+                    soft_wrap=True,
+                    highlight=False,
+                )
         if remove_iocs:
             for ioc in remove_iocs:
                 db.remove_from_watchlist(name, ioc)
-                console.print(f"[red]-[/red] Removed [bold]{ioc}[/bold] from watchlist [cyan]{name}[/cyan]")
+                console.print(
+                    f"[red]-[/red] Removed [bold]{rich_text(ioc)}[/bold] from watchlist [cyan]{rich_text(name)}[/cyan]",
+                    soft_wrap=True,
+                    highlight=False,
+                )
         if show or (not add_iocs and not remove_iocs):
             iocs = db.get_watchlist(name)
             if iocs:
-                console.print(f"[dim]Watchlist '{name}' ({len(iocs)} IOCs):[/dim]")
+                console.print(
+                    f"[dim]Watchlist '{rich_text(name)}' ({len(iocs)} IOCs):[/dim]", soft_wrap=True, highlight=False
+                )
                 for i in iocs:
-                    console.print(f"  {i}")
+                    console.print(f"  {rich_text(i)}", soft_wrap=True, highlight=False)
             else:
-                console.print(f"[dim]Watchlist '{name}' is empty.[/dim]")
+                console.print(f"[dim]Watchlist '{rich_text(name)}' is empty.[/dim]", soft_wrap=True, highlight=False)
 
 
 watchlist_app = typer.Typer(
