@@ -43,7 +43,7 @@ def _defang_investigate(result: InvestigateResult) -> InvestigateResult:
 
 def _make_recording_console() -> Console:
     """Create a wide recording console suitable for HTML export."""
-    return Console(record=True, width=120)
+    return Console(record=True, width=120, emoji=False)
 
 
 def _render_triage_to_console(

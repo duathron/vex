@@ -9,7 +9,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from shipwright_kit.security.render import safe_render
 
 from ..models import (
     InvestigateResult,
@@ -18,6 +17,7 @@ from ..models import (
     TriageResult,
     Verdict,
 )
+from .safe import indent_block, rich_text, sanitize_for_render, single_line_text
 
 if TYPE_CHECKING:
     from ..correlate import Cluster
@@ -36,8 +36,8 @@ _VERDICT_ICON = {
     Verdict.CLEAN: "[green]✓ CLEAN[/green]",
 }
 
-console = Console()
-err_console = Console(stderr=True)
+console = Console(emoji=False)
+err_console = Console(stderr=True, emoji=False)
 
 
 # ---------------------------------------------------------------------------
@@ -104,10 +104,12 @@ def _triage_panel(r: TriageResult) -> Panel:
 
 
 def print_triage_rich(result: TriageResult) -> None:
+    result = sanitize_for_render(result)
     console.print(_triage_panel(result))
 
 
 def print_investigate_rich(result: InvestigateResult) -> None:
+    result = sanitize_for_render(result)
     console.print(_triage_panel(result.triage))
 
     # --- File-specific ---
@@ -210,9 +212,9 @@ def print_investigate_rich(result: InvestigateResult) -> None:
             if result.shodan_org:
                 parts.append(f"org={result.shodan_org}")
             if result.shodan_hostnames:
-                parts.append(f"hostnames={result.shodan_hostnames}")
+                parts.append(f"hostnames={', '.join(result.shodan_hostnames)}")
             if result.shodan_tags:
-                parts.append(f"tags={result.shodan_tags}")
+                parts.append(f"tags={', '.join(result.shodan_tags)}")
             net_grid.add_row("Shodan", " ".join(parts))
         console.print(Panel(net_grid, title="[bold]Network Info[/bold]", border_style="blue"))
 
@@ -345,6 +347,11 @@ def _truncated(items: list[str], limit: int) -> str:
 
 
 def print_triage_console(result: TriageResult) -> None:
+    _triage_console_body(sanitize_for_render(result))
+
+
+def _triage_console_body(result: TriageResult) -> None:
+    """Print an already-sanitised result (sanitise exactly once, at the outermost entry)."""
     verdict_markup = _VERDICT_ICON.get(result.verdict, result.verdict.value)
     console.print(f"\n{'=' * 60}")
     console.print(f"IOC     : {result.ioc}")
@@ -395,6 +402,7 @@ def print_summary(results: list[TriageResult]) -> None:
 
 def print_timeline_rich(timeline: TimelineResult) -> None:
     """Print a chronological timeline in rich format."""
+    timeline = sanitize_for_render(timeline)
     if not timeline.events:
         console.print("[dim]No timeline events found.[/dim]")
         return
@@ -424,7 +432,8 @@ def print_timeline_rich(timeline: TimelineResult) -> None:
 
 
 def print_timeline_console(timeline: TimelineResult) -> None:
-    """Print a chronological timeline in plain text."""
+    """Print a chronological timeline in plain text (builtin print: brackets stay literal)."""
+    timeline = sanitize_for_render(timeline, rich=False)
     if not timeline.events:
         print("No timeline events found.")
         return
@@ -453,7 +462,7 @@ def print_explanation_rich(explanation: str, provider: str = "template") -> None
         title = f"[bold]AI Explanation[/bold] [dim]({provider})[/dim]"
     console.print(
         Panel(
-            safe_render(explanation) if provider != "template" else explanation,
+            rich_text(explanation),
             title=title,
             border_style="blue",
             padding=(1, 2),
@@ -467,7 +476,7 @@ def print_explanation_console(explanation: str, provider: str = "template") -> N
     console.print(f"\n{'─' * 60}")
     console.print(f"{label}:")
     console.print(f"{'─' * 60}")
-    console.print(safe_render(explanation) if provider != "template" else explanation)
+    console.print(indent_block(rich_text(explanation), "  "))
     console.print(f"{'─' * 60}")
 
 
@@ -478,7 +487,7 @@ def print_explanation_degraded_rich(provider: str, *, label: Optional[str] = Non
     Never called for a deliberate `template` choice (config.ai.provider ==
     "none") — only for a REQUESTED LLM provider that failed.
     """
-    title = f"Explanation — {label}" if label else "Explanation"
+    title = f"Explanation — {single_line_text(label)}" if label else "Explanation"
     console.print(
         Panel(
             f"[bold red]⚠ EXPLANATION UNAVAILABLE[/bold red] — provider "
@@ -492,12 +501,14 @@ def print_explanation_degraded_rich(provider: str, *, label: Optional[str] = Non
 
 def print_explanation_degraded_console(provider: str, *, label: Optional[str] = None) -> None:
     """Print the F2 loud degraded-explanation banner in plain console text."""
-    prefix = f"[{label}] " if label else ""
-    console.print(f"\n{'─' * 60}")
-    console.print(
-        f"{prefix}⚠ EXPLANATION UNAVAILABLE — provider '{provider}' failed. "
+    body = console.render_str(
+        f"⚠ EXPLANATION UNAVAILABLE — provider '{provider}' failed. "
         "The verdict above is unaffected; no explanation was generated."
     )
+    # The label is plain Text: nothing follows it inside a markup string, so it cannot open a tag.
+    line = Text.assemble("[", single_line_text(label, plain=True), "] ", body) if label else body
+    console.print(f"\n{'─' * 60}")
+    console.print(line)
     console.print(f"{'─' * 60}")
 
 
@@ -529,12 +540,12 @@ def print_barb_context_rich(ctx) -> None:  # ctx: BarbContext (lazy import to av
     grid.add_column()
 
     verdict_upper = ctx.verdict.upper()
-    verdict_icon = _BARB_VERDICT_ICON.get(verdict_upper, f"[white]{ctx.verdict}[/white]")
+    verdict_icon = _BARB_VERDICT_ICON.get(verdict_upper, f"[white]{single_line_text(ctx.verdict)}[/white]")
     grid.add_row("Verdict", verdict_icon)
     grid.add_row("Risk Score", f"{ctx.risk_score:.1f} / 100")
 
     if ctx.defanged_url:
-        grid.add_row("URL", ctx.defanged_url)
+        grid.add_row("URL", single_line_text(ctx.defanged_url))
 
     top = ctx.top_signals
     if top:
@@ -546,15 +557,15 @@ def print_barb_context_rich(ctx) -> None:  # ctx: BarbContext (lazy import to av
         for s in top:
             sev_style = _sev_style.get(s.severity.upper(), "white")
             sig_table.add_row(
-                s.analyzer,
-                f"[{sev_style}]{s.severity}[/{sev_style}]",
-                s.label,
+                single_line_text(s.analyzer),
+                f"[{sev_style}]{single_line_text(s.severity)}[/{sev_style}]",
+                single_line_text(s.label),
             )
         grid.add_row("Signals", sig_table)
 
     if ctx.explanation:
-        _expl = safe_render(ctx.explanation)
-        grid.add_row("Explanation", _expl[:200] + ("…" if len(_expl) > 200 else ""))
+        _raw = str(ctx.explanation)  # slice the raw text, then escape: a cut never lands inside an escape
+        grid.add_row("Explanation", rich_text(_raw[:200]) + ("…" if len(_raw) > 200 else ""))
 
     border_style = "dark_orange"
     console.print(
@@ -570,17 +581,19 @@ def print_barb_context_rich(ctx) -> None:  # ctx: BarbContext (lazy import to av
 def print_barb_context_console(ctx) -> None:  # ctx: BarbContext
     """Print barb pre-scan context in plain text."""
     verdict_upper = ctx.verdict.upper()
-    verdict_icon = _BARB_VERDICT_ICON.get(verdict_upper, ctx.verdict)
+    verdict_icon = _BARB_VERDICT_ICON.get(verdict_upper, single_line_text(ctx.verdict))
     console.print(f"\n{'─' * 60}")
     console.print("barb pre-scan")
     console.print(f"{'─' * 60}")
     console.print(f"Verdict   : {verdict_icon}  (risk score: {ctx.risk_score:.1f}/100)")
     if ctx.defanged_url:
-        console.print(f"URL       : {ctx.defanged_url}")
+        console.print(f"URL       : {single_line_text(ctx.defanged_url)}")
     for s in ctx.top_signals:
-        console.print(f"  [{s.severity}] {s.analyzer}: {s.label}")
+        # Plain Text, not markup: an attacker value is never placed between ``[`` and ``]``.
+        sev, analyzer, label = (single_line_text(v, plain=True) for v in (s.severity, s.analyzer, s.label))
+        console.print(Text.assemble("  [", sev, "] ", analyzer, ": ", label))
     if ctx.explanation:
-        console.print(f"Note      : {safe_render(ctx.explanation)[:200]}")
+        console.print(f"Note      : {single_line_text(str(ctx.explanation)[:200])}")
     console.print(f"{'─' * 60}")
 
 
@@ -590,7 +603,8 @@ def print_barb_context_console(ctx) -> None:  # ctx: BarbContext
 
 
 def print_investigate_console(result: InvestigateResult) -> None:
-    print_triage_console(result.triage)
+    result = sanitize_for_render(result)
+    _triage_console_body(result.triage)
 
     if result.file_type:
         console.print(f"File Type : {result.file_type}")
@@ -633,9 +647,9 @@ def print_investigate_console(result: InvestigateResult) -> None:
         if result.shodan_org:
             parts.append(f"org={result.shodan_org}")
         if result.shodan_hostnames:
-            parts.append(f"hostnames={result.shodan_hostnames}")
+            parts.append(f"hostnames={', '.join(result.shodan_hostnames)}")
         if result.shodan_tags:
-            parts.append(f"tags={result.shodan_tags}")
+            parts.append(f"tags={', '.join(result.shodan_tags)}")
         console.print(f"Shodan   : {' '.join(parts)}")
 
     if result.misp_known:
@@ -674,6 +688,7 @@ def print_investigate_console(result: InvestigateResult) -> None:
 
 def print_clusters_rich(clusters: list["Cluster"]) -> None:
     """Print correlation clusters as a Rich table."""
+    clusters = sanitize_for_render(clusters)
     if not clusters:
         console.print("[dim]No shared infrastructure found.[/dim]")
         return
@@ -706,6 +721,7 @@ def print_clusters_rich(clusters: list["Cluster"]) -> None:
 
 def print_clusters_console(clusters: list["Cluster"]) -> None:
     """Print correlation clusters in plain text."""
+    clusters = sanitize_for_render(clusters)
     if not clusters:
         console.print("No shared infrastructure found.")
         return
