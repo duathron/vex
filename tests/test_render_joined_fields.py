@@ -224,3 +224,69 @@ def test_trailing_backslash_cannot_swallow_a_trusted_tag(value):
     t = Text.from_markup(f"{rich_text(value)}[bold]ok[/bold]")
     assert [s.style for s in t.spans] == ["bold"]
     assert t.plain.endswith("ok") and "[bold]" not in t.plain
+
+
+# --- round 2: trailing backslash RUN parity, trusted markup directly after a value ---
+
+
+def _wrapped(s):
+    from rich.text import Text
+
+    return Text.from_markup("[bold]" + rich_text(s) + "[/bold]")
+
+
+@pytest.mark.parametrize("n", [1, 2, 3, 4, 5])
+def test_trailing_backslash_run_before_trusted_closing_tag(n):
+    t = _wrapped("a" + "\\" * n)
+    assert [s.style for s in t.spans] == ["bold"]
+    assert (t.spans[0].start, t.spans[0].end) == (0, len(t.plain))
+    assert "[/bold]" not in t.plain
+
+
+def test_trailing_backslash_run_through_print_triage_rich(monkeypatch):
+    raw, plain = _render(formatter.print_triage_rich, monkeypatch, _tr(ioc="http://a.test/x" + "\\" * 3))
+    assert "[/bold]" not in plain and "[bold]" not in plain
+    assert "http://a.test/x" in plain
+
+
+def test_pair_fuzz_with_trusted_markup_directly_after_each_value():
+    import random
+
+    from rich.markup import MarkupError
+    from rich.text import Text
+
+    rng = random.Random(7)
+    alphabet = ["[", "]", "\\", "/", "link=", "x", " "]
+    bad = []
+    for _ in range(4000):
+        a, b = ("".join(rng.choice(alphabet) for _ in range(rng.randint(0, 8))) for _ in range(2))
+        try:
+            t = Text.from_markup(f"{rich_text(a)}[bold]ok[/bold]{rich_text(b)}[bold]ok[/bold]")
+        except MarkupError:
+            bad.append((a, b, "MarkupError"))
+            continue
+        if [s.style for s in t.spans] != ["bold", "bold"] or "[bold]" in t.plain or "[/bold]" in t.plain:
+            bad.append((a, b, t.plain))
+    assert not bad, bad[:5]
+
+
+def test_exhaustive_every_string_up_to_length_six_cannot_touch_trusted_markup():
+    import itertools
+
+    from rich.markup import MarkupError
+
+    for n in range(7):
+        for chars in itertools.product("\\[]a/b", repeat=n):
+            s = "".join(chars)
+            try:
+                t = _wrapped(s)
+            except MarkupError:
+                pytest.fail(f"MarkupError for {s!r}")
+            ok = [x.style for x in t.spans] == ["bold"] and (t.spans[0].start, t.spans[0].end) == (0, len(t.plain))
+            assert ok and "[/bold]" not in t.plain, repr(s)
+
+
+def test_backslash_before_non_tag_bracket_renders_doubled_known_open():
+    # Cosmetic: a backslash directly before "[" renders doubled when no tag-like text follows.
+    assert render(rich_text("HKLM\\[1]")).plain == "HKLM\\\\[1]"
+    assert render(rich_text("a\\[ b")).plain == "a\\\\[ b"

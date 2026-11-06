@@ -46,7 +46,8 @@ def rich_text(x: Any) -> str:
     A backslash run before ``[`` is doubled first so the escape stays one level deep.
     """
     out = _OPEN_BRACKET.sub(lambda m: m.group(1) * 2 + "\\[", plain_text(x))
-    if out.endswith("\\") and not out.endswith("\\\\"):  # a trailing backslash must not escape the next char
+    # A trailing backslash run must have even length, or it escapes the next (trusted) "[" in the template.
+    if (len(out) - len(out.rstrip("\\"))) % 2:
         out += "\\"
     return out
 
