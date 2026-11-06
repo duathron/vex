@@ -35,7 +35,7 @@ def _tr(**kw) -> TriageResult:
 
 def _rec(monkeypatch) -> tuple[Console, io.StringIO]:
     buf = io.StringIO()
-    con = Console(file=buf, force_terminal=True, width=400, record=True)
+    con = Console(file=buf, force_terminal=True, width=400, record=True, emoji=False)
     monkeypatch.setattr(formatter, "console", con)
     return con, buf
 

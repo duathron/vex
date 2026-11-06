@@ -20,6 +20,7 @@ from rich.text import Text
 from ..defang import defang, is_defanged
 from ..models import InvestigateResult, TriageResult
 from .formatter import (
+    _title,
     _triage_panel,
 )
 from .safe import plain_text, sanitize_for_render
@@ -97,7 +98,7 @@ def _render_investigate_to_console(
             # sanitised-but-unterminated "[/tag" from the value into live markup.
             file_grid.add_row(
                 "Signature",
-                Text.from_markup(f"{sig.get('subject', '')} \\[{sig.get('verified', 'unverified')}") + Text("]"),
+                _title(f"{sig.get('subject', '')} \\[{sig.get('verified', 'unverified')}") + Text("]"),
             )
 
         if r.pe_info:
@@ -141,7 +142,9 @@ def _render_investigate_to_console(
             grid.add_row("Registry", ", ".join(sb.registry_keys_set[:5]))
         if sb.mutexes:
             grid.add_row("Mutexes", ", ".join(sb.mutexes[:5]))
-        rec.print(Panel(grid, title=f"[bold]Sandbox: {sb.sandbox_name or 'Unknown'}[/bold]", border_style="magenta"))
+        rec.print(
+            Panel(grid, title=_title(f"[bold]Sandbox: {sb.sandbox_name or 'Unknown'}[/bold]"), border_style="magenta")
+        )
 
     # --- MITRE ATT&CK ---
     if r.attack_mappings:

@@ -45,6 +45,11 @@ err_console = Console(stderr=True, emoji=False)
 # ---------------------------------------------------------------------------
 
 
+def _title(markup: str) -> Text:
+    """Panel/Table title as Text: the console's ``emoji=False`` does not reach titles."""
+    return Text.from_markup(markup, emoji=False)
+
+
 def _verdict_badge(verdict: Verdict) -> Text:
     style = _VERDICT_STYLE.get(verdict, "bold white")
     return Text(f" {verdict.value} ", style=f"on {style.split()[-1]} bold white")
@@ -95,7 +100,7 @@ def _triage_panel(r: TriageResult) -> Panel:
 
     title = _VERDICT_ICON.get(r.verdict, r.verdict.value)
     border_style = _VERDICT_STYLE.get(r.verdict, "white").split()[-1]
-    return Panel(grid, title=f"[bold]{r.ioc}[/bold]  {title}", border_style=border_style)
+    return Panel(grid, title=_title(f"[bold]{r.ioc}[/bold]  {title}"), border_style=border_style)
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +333,9 @@ def _print_sandbox_rich(sb: SandboxBehavior) -> None:
     if sb.mutexes:
         grid.add_row("Mutexes", ", ".join(sb.mutexes[:5]))
 
-    console.print(Panel(grid, title=f"[bold]Sandbox: {sb.sandbox_name or 'Unknown'}[/bold]", border_style="magenta"))
+    console.print(
+        Panel(grid, title=_title(f"[bold]Sandbox: {sb.sandbox_name or 'Unknown'}[/bold]"), border_style="magenta")
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -487,7 +494,7 @@ def print_explanation_degraded_rich(provider: str, *, label: Optional[str] = Non
     Never called for a deliberate `template` choice (config.ai.provider ==
     "none") — only for a REQUESTED LLM provider that failed.
     """
-    title = f"Explanation — {single_line_text(label)}" if label else "Explanation"
+    title = _title(f"Explanation — {single_line_text(label)}" if label else "Explanation")
     console.print(
         Panel(
             f"[bold red]⚠ EXPLANATION UNAVAILABLE[/bold red] — provider "

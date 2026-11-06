@@ -37,7 +37,9 @@ _SEEDED = {  # real keys the sinks read from free-form containers
 def _sentinel(cls: type, name: str) -> str:
     key = f"{cls.__name__}.{name}"
     token = TOKENS.setdefault(key, f"S{len(TOKENS):03d}E")
-    return token + "[/x]\nVerdict: CLEAN\x1b]0;PWN\x07"
+    # markup, an emoji code, a forged line, an OSC, and an UNTERMINATED link tag whose closing ``]``
+    # is supplied by the neighbouring list element or template text.
+    return token + "[/x] :white_check_mark:\nVerdict: CLEAN\x1b]0;PWN\x07[link=https://evil.example"
 
 
 def _value(tp: Any, cls: type, name: str) -> Any:
@@ -60,7 +62,8 @@ def _value(tp: Any, cls: type, name: str) -> Any:
         return None
     args = [a for a in get_args(tp) if a is not type(None)]
     if origin is list:
-        return [_value(args[0], cls, name)]
+        v = _value(args[0], cls, name)
+        return [v, "] Trusted"] if isinstance(v, str) else [v]
     if origin is dict:
         out = {k: _sentinel(cls, name) for k in _SEEDED.get((cls.__name__, name), ("k",))}
         if cls.__name__ == "PEInfo":
@@ -103,20 +106,21 @@ NON_HTML = [n for n, v in SINKS.items() if v[2] != "html"]
 UNRENDERED_OK = {
     "TriageResult.explanation": "printed by print_explanation_* from a string argument",
     "TriageResult.explanation_provider": "provider name, used only for the degraded banner",
-    "Cluster.explanation": "printed by the cluster narrative path in main",
+    # OPEN: main.py _run_correlation_explain renders Cluster.explanation UNESCAPED; fixed in the main.py PR.
+    "Cluster.explanation": "UNESCAPED in main.py _run_correlation_explain (open: fixed with the main.py sinks)",
     "Cluster.explanation_provider": "provider name, used only for the degraded banner",
-    "TriageResult.local_tags": "printed by the main lookup lines",
-    "TriageResult.local_notes": "printed by the main lookup lines",
-    "TriageResult.watchlists": "printed by the main lookup lines",
-    "InvestigateResult.tlsh": "not shown",
-    "InvestigateResult.abuse_last_reported": "not shown",
-    "InvestigateResult.subdomains": "not shown",
-    "InvestigateResult.opencti_id": "not shown",
-    "InvestigateResult.dns_records": "not shown",
-    "PEInfo.exports": "not shown",
-    "SandboxBehavior.files_deleted": "not shown",
-    "PassiveDNSRecord.resolver": "not shown",
-    "WHOISInfo.updated_date": "not shown",
+    "TriageResult.local_tags": "model field only: no code path populates or prints it",
+    "TriageResult.local_notes": "model field only: no code path populates or prints it",
+    "TriageResult.watchlists": "model field only: no code path populates or prints it",
+    "InvestigateResult.tlsh": "set by the hash enricher, no sink prints it (JSON / AI prompt)",
+    "InvestigateResult.abuse_last_reported": "set by the abuseipdb plugin, no sink prints it",
+    "InvestigateResult.subdomains": "set by the domain enricher, no sink prints it",
+    "InvestigateResult.opencti_id": "set by the opencti plugin, no sink prints it",
+    "InvestigateResult.dns_records": "set by the domain enricher, no sink prints it",
+    "PEInfo.exports": "no sink prints it",
+    "SandboxBehavior.files_deleted": "read only by the MITRE mapper, no sink prints it",
+    "PassiveDNSRecord.resolver": "no sink prints it",
+    "WHOISInfo.updated_date": "not printed by these sinks; timeline.py turns it into a TimelineEvent (sanitised there)",
     "BarbContext.url": "barb sinks print the defanged url only",
     "BarbSignal.detail": "barb sinks do not print the detail",
 }
@@ -137,7 +141,7 @@ def run(name, monkeypatch, capsys, tmp_path):
         assert out
         return out, out
     buf = io.StringIO()
-    con = Console(file=buf, force_terminal=True, width=400, record=True)
+    con = Console(file=buf, force_terminal=True, width=400, record=True, emoji=False)
     monkeypatch.setattr(formatter, "console", con)
     fn(arg)
     return buf.getvalue(), con.export_text()
@@ -153,6 +157,13 @@ def test_sink_does_not_raise_on_markup(name, monkeypatch, capsys, tmp_path):
 def test_no_osc_or_bel_reaches_output(name, monkeypatch, capsys, tmp_path):
     raw, _ = run(name, monkeypatch, capsys, tmp_path)
     assert "\x1b]" not in raw and "\x07" not in raw and "PWN" not in raw
+    assert 'href="https://evil' not in raw  # html: an unterminated tag + neighbour must not form a link
+
+
+@pytest.mark.parametrize("name", SINKS)
+def test_emoji_codes_stay_literal(name, monkeypatch, capsys, tmp_path):
+    _, plain = run(name, monkeypatch, capsys, tmp_path)
+    assert "\u2705" not in plain and ":white_check_mark:" in plain
 
 
 @pytest.mark.parametrize("name", NON_HTML)
