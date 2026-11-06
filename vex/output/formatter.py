@@ -37,6 +37,29 @@ _VERDICT_ICON = {
 }
 
 console = Console(emoji=False)
+
+
+def _say(*args, **kwargs) -> None:
+    """``console.print`` for lines that carry attacker/LLM text on a bare line.
+
+    ``highlight=False``: the default repr highlighter is quadratic on long unbroken tokens (40 KB: ~8 s).
+    ``soft_wrap=True``: Rich otherwise hard-wraps at the console width (80 when piped), so padding
+    before a forged ``Verdict: ...`` would start a line at column 0.
+    """
+    console.print(*args, soft_wrap=True, highlight=False, **kwargs)
+
+
+def _bracketed(prefix: str, inner: str, suffix: str = "") -> Text:
+    """``prefix [inner]suffix`` with the closing bracket appended as plain Text.
+
+    A literal ``]`` inside the same markup string as an attacker value could complete a tag the
+    value left open; here nothing follows ``inner`` inside its markup string.
+    """
+    return Text.assemble(
+        Text.from_markup(f"{prefix}\\[{inner}", emoji=False), Text("]"), Text.from_markup(suffix, emoji=False)
+    )
+
+
 err_console = Console(stderr=True, emoji=False)
 
 
@@ -137,7 +160,7 @@ def print_investigate_rich(result: InvestigateResult) -> None:
             file_grid.add_row("YARA Hits", ", ".join(result.yara_hits[:5]))
         if result.signature_info:
             sig = result.signature_info
-            file_grid.add_row("Signature", f"{sig.get('subject', '')} [{sig.get('verified', 'unverified')}]")
+            file_grid.add_row("Signature", _bracketed(f"{sig.get('subject', '')} ", sig.get("verified", "unverified")))
 
         if result.pe_info:
             pe = result.pe_info
@@ -233,7 +256,7 @@ def print_investigate_rich(result: InvestigateResult) -> None:
         tags_str = f" · tags: {', '.join(tags_shown)}" if tags_shown else ""
         misp_grid.add_row(
             "MISP",
-            f"known — events [{events_str}]{tlp_str}{tags_str}",
+            _bracketed("known — events ", events_str, f"{tlp_str}{tags_str}"),
         )
         if result.misp_last_seen:
             misp_grid.add_row("MISP last seen", result.misp_last_seen)
@@ -360,35 +383,39 @@ def print_triage_console(result: TriageResult) -> None:
 def _triage_console_body(result: TriageResult) -> None:
     """Print an already-sanitised result (sanitise exactly once, at the outermost entry)."""
     verdict_markup = _VERDICT_ICON.get(result.verdict, result.verdict.value)
-    console.print(f"\n{'=' * 60}")
-    console.print(f"IOC     : {result.ioc}")
-    console.print(f"Type    : {result.ioc_type.upper()}")
-    console.print(f"Verdict : {verdict_markup}")
-    console.print(f"Engines : {result.detection_stats.ratio_str}")
+    _say(f"\n{'=' * 60}")
+    _say(f"IOC     : {result.ioc}")
+    _say(f"Type    : {result.ioc_type.upper()}")
+    _say(f"Verdict : {verdict_markup}")
+    _say(f"Engines : {result.detection_stats.ratio_str}")
     if result.malware_families:
-        console.print(f"Families: {_truncated(result.malware_families, 5)}")
+        _say(f"Families: {_truncated(result.malware_families, 5)}")
     if result.categories:
-        console.print(f"Categs  : {_truncated(result.categories, 5)}")
+        _say(f"Categs  : {_truncated(result.categories, 5)}")
     if result.tags:
-        console.print(f"Tags    : {_truncated(result.tags, 8)}")
+        _say(f"Tags    : {_truncated(result.tags, 8)}")
     if result.reputation is not None:
-        console.print(f"Repute  : {result.reputation}")
+        _say(f"Repute  : {result.reputation}")
     if result.first_seen:
-        console.print(f"First   : {result.first_seen.strftime('%Y-%m-%d %H:%M UTC')}")
+        _say(f"First   : {result.first_seen.strftime('%Y-%m-%d %H:%M UTC')}")
     if result.last_seen:
-        console.print(f"Last    : {result.last_seen.strftime('%Y-%m-%d %H:%M UTC')}")
+        _say(f"Last    : {result.last_seen.strftime('%Y-%m-%d %H:%M UTC')}")
     if result.last_analysis_date:
-        console.print(f"Analysis: {result.last_analysis_date.strftime('%Y-%m-%d %H:%M UTC')}")
+        _say(f"Analysis: {result.last_analysis_date.strftime('%Y-%m-%d %H:%M UTC')}")
     if result.flagging_engines:
-        console.print("Engines flagging:")
+        _say("Engines flagging:")
         for e in result.flagging_engines[:8]:
             style = "red" if e.category == "malicious" else "yellow"
-            console.print(f"  [{style}][{e.category}] {e.engine}: {e.result or '-'}[/{style}]")
+            line = Text.assemble(
+                "  ", _bracketed("", e.category), Text.from_markup(f" {e.engine}: {e.result or '-'}", emoji=False)
+            )
+            line.stylize(style)
+            _say(line)
     if result.from_cache:
-        console.print("[dim](from cache)[/dim]")
+        _say("[dim](from cache)[/dim]")
     if result.error:
-        console.print(f"[red]ERROR   : {result.error}[/red]")
-    console.print(f"{'=' * 60}")
+        _say(f"[red]ERROR   : {result.error}[/red]")
+    _say(f"{'=' * 60}")
 
 
 def print_summary(results: list[TriageResult]) -> None:
@@ -480,11 +507,11 @@ def print_explanation_rich(explanation: str, provider: str = "template") -> None
 def print_explanation_console(explanation: str, provider: str = "template") -> None:
     """Print AI or template explanation in plain text."""
     label = "Template Explanation" if provider == "template" else f"AI Explanation ({provider})"
-    console.print(f"\n{'─' * 60}")
-    console.print(f"{label}:")
-    console.print(f"{'─' * 60}")
-    console.print(indent_block(rich_text(explanation), "  "))
-    console.print(f"{'─' * 60}")
+    _say(f"\n{'─' * 60}")
+    _say(f"{label}:")
+    _say(f"{'─' * 60}")
+    _say(indent_block(rich_text(explanation), "  "))
+    _say(f"{'─' * 60}")
 
 
 def print_explanation_degraded_rich(provider: str, *, label: Optional[str] = None) -> None:
@@ -510,13 +537,14 @@ def print_explanation_degraded_console(provider: str, *, label: Optional[str] = 
     """Print the F2 loud degraded-explanation banner in plain console text."""
     body = console.render_str(
         f"⚠ EXPLANATION UNAVAILABLE — provider '{provider}' failed. "
-        "The verdict above is unaffected; no explanation was generated."
+        "The verdict above is unaffected; no explanation was generated.",
+        highlight=False,
     )
     # The label is plain Text: nothing follows it inside a markup string, so it cannot open a tag.
     line = Text.assemble("[", single_line_text(label, plain=True), "] ", body) if label else body
-    console.print(f"\n{'─' * 60}")
-    console.print(line)
-    console.print(f"{'─' * 60}")
+    _say(f"\n{'─' * 60}")
+    _say(line)
+    _say(f"{'─' * 60}")
 
 
 # ---------------------------------------------------------------------------
@@ -589,19 +617,19 @@ def print_barb_context_console(ctx) -> None:  # ctx: BarbContext
     """Print barb pre-scan context in plain text."""
     verdict_upper = ctx.verdict.upper()
     verdict_icon = _BARB_VERDICT_ICON.get(verdict_upper, single_line_text(ctx.verdict))
-    console.print(f"\n{'─' * 60}")
-    console.print("barb pre-scan")
-    console.print(f"{'─' * 60}")
-    console.print(f"Verdict   : {verdict_icon}  (risk score: {ctx.risk_score:.1f}/100)")
+    _say(f"\n{'─' * 60}")
+    _say("barb pre-scan")
+    _say(f"{'─' * 60}")
+    _say(f"Verdict   : {verdict_icon}  (risk score: {ctx.risk_score:.1f}/100)")
     if ctx.defanged_url:
-        console.print(f"URL       : {single_line_text(ctx.defanged_url)}")
+        _say(f"URL       : {single_line_text(ctx.defanged_url)}")
     for s in ctx.top_signals:
         # Plain Text, not markup: an attacker value is never placed between ``[`` and ``]``.
         sev, analyzer, label = (single_line_text(v, plain=True) for v in (s.severity, s.analyzer, s.label))
-        console.print(Text.assemble("  [", sev, "] ", analyzer, ": ", label))
+        _say(Text.assemble("  [", sev, "] ", analyzer, ": ", label))
     if ctx.explanation:
-        console.print(f"Note      : {single_line_text(str(ctx.explanation)[:200])}")
-    console.print(f"{'─' * 60}")
+        _say(f"Note      : {single_line_text(str(ctx.explanation)[:200])}")
+    _say(f"{'─' * 60}")
 
 
 # ---------------------------------------------------------------------------
@@ -614,39 +642,39 @@ def print_investigate_console(result: InvestigateResult) -> None:
     _triage_console_body(result.triage)
 
     if result.file_type:
-        console.print(f"File Type : {result.file_type}")
+        _say(f"File Type : {result.file_type}")
     if result.file_size:
-        console.print(f"File Size : {result.file_size:,} bytes")
+        _say(f"File Size : {result.file_size:,} bytes")
     if result.magic:
-        console.print(f"Magic     : {result.magic}")
+        _say(f"Magic     : {result.magic}")
     if result.file_names:
-        console.print(f"Names     : {_truncated(result.file_names, 5)}")
+        _say(f"Names     : {_truncated(result.file_names, 5)}")
     if result.yara_hits:
-        console.print(f"YARA      : {_truncated(result.yara_hits, 5)}")
+        _say(f"YARA      : {_truncated(result.yara_hits, 5)}")
     if result.pe_info and result.pe_info.compilation_timestamp:
-        console.print(f"Compiled  : {result.pe_info.compilation_timestamp.strftime('%Y-%m-%d %H:%M UTC')}")
+        _say(f"Compiled  : {result.pe_info.compilation_timestamp.strftime('%Y-%m-%d %H:%M UTC')}")
 
     for sb in result.sandbox_behaviors[:2]:
-        console.print(f"\n-- Sandbox: {sb.sandbox_name or 'Unknown'} --")
+        _say(f"\n-- Sandbox: {sb.sandbox_name or 'Unknown'} --")
         if sb.processes_created:
-            console.print(f"  Processes : {_truncated(sb.processes_created, 5)}")
+            _say(f"  Processes : {_truncated(sb.processes_created, 5)}")
         if sb.network_connections:
-            console.print(f"  Network   : {_truncated(sb.network_connections, 5)}")
+            _say(f"  Network   : {_truncated(sb.network_connections, 5)}")
         if sb.dns_lookups:
-            console.print(f"  DNS       : {_truncated(sb.dns_lookups, 5)}")
+            _say(f"  DNS       : {_truncated(sb.dns_lookups, 5)}")
 
     if result.contacted_ips:
-        console.print(f"Contacted IPs     : {_truncated(result.contacted_ips, 10)}")
+        _say(f"Contacted IPs     : {_truncated(result.contacted_ips, 10)}")
     if result.contacted_domains:
-        console.print(f"Contacted Domains : {_truncated(result.contacted_domains, 10)}")
+        _say(f"Contacted Domains : {_truncated(result.contacted_domains, 10)}")
 
     if result.asn:
-        console.print(f"ASN     : AS{result.asn} {result.asn_owner or ''}")
+        _say(f"ASN     : AS{result.asn} {result.asn_owner or ''}")
     if result.country:
-        console.print(f"Country : {result.country}")
+        _say(f"Country : {result.country}")
     if result.abuse_confidence is not None:
         reports = result.abuse_total_reports or 0
-        console.print(f"AbuseIPDB: {result.abuse_confidence}/100 ({reports} reports)")
+        _say(f"AbuseIPDB: {result.abuse_confidence}/100 ({reports} reports)")
     if result.shodan_ports or result.shodan_org:
         parts: list[str] = []
         if result.shodan_ports:
@@ -657,35 +685,35 @@ def print_investigate_console(result: InvestigateResult) -> None:
             parts.append(f"hostnames={', '.join(result.shodan_hostnames)}")
         if result.shodan_tags:
             parts.append(f"tags={', '.join(result.shodan_tags)}")
-        console.print(f"Shodan   : {' '.join(parts)}")
+        _say(f"Shodan   : {' '.join(parts)}")
 
     if result.misp_known:
         events_str = ", ".join(result.misp_event_ids[:10]) if result.misp_event_ids else "—"
         tlp_str = f" · TLP:{result.misp_tlp}" if result.misp_tlp else ""
         tags_shown = result.misp_tags[:5]
         tags_str = f" · tags: {', '.join(tags_shown)}" if tags_shown else ""
-        console.print(f"MISP     : known — events [{events_str}]{tlp_str}{tags_str}")
+        _say(_bracketed("MISP     : known — events ", events_str, f"{tlp_str}{tags_str}"))
         if result.misp_last_seen:
-            console.print(f"MISP last: {result.misp_last_seen}")
+            _say(f"MISP last: {result.misp_last_seen}")
 
     if result.opencti_known:
         score_str = f"score {result.opencti_score}" if result.opencti_score is not None else "score —"
         tlp_str = f" · TLP:{result.opencti_tlp}" if result.opencti_tlp else ""
         labels_shown = result.opencti_labels[:5]
         labels_str = f" · labels: {', '.join(labels_shown)}" if labels_shown else ""
-        console.print(f"OpenCTI  : known — {score_str}{tlp_str}{labels_str}")
+        _say(f"OpenCTI  : known — {score_str}{tlp_str}{labels_str}")
 
     if result.passive_dns:
-        console.print("\nPassive DNS:")
+        _say("\nPassive DNS:")
         for r in result.passive_dns[:10]:
             resolved = r.last_resolved.strftime("%Y-%m-%d") if r.last_resolved else ""
-            console.print(
+            _say(
                 f"  [cyan]{r.hostname or r.ip_address}[/cyan] -> [green]{r.ip_address or r.hostname}[/green]  [dim]\\[{resolved}][/dim]"  # noqa: E501
             )
 
     if result.whois:
         w = result.whois
-        console.print(f"\nWHOIS: registrar={w.registrar}, created={w.creation_date}, expires={w.expiration_date}")
+        _say(f"\nWHOIS: registrar={w.registrar}, created={w.creation_date}, expires={w.expiration_date}")
 
 
 # ---------------------------------------------------------------------------
@@ -730,18 +758,21 @@ def print_clusters_console(clusters: list["Cluster"]) -> None:
     """Print correlation clusters in plain text."""
     clusters = sanitize_for_render(clusters)
     if not clusters:
-        console.print("No shared infrastructure found.")
+        _say("No shared infrastructure found.")
         return
 
-    console.print(f"\n{'=' * 60}")
-    console.print("IOC Correlation Clusters")
-    console.print(f"{'=' * 60}")
+    _say(f"\n{'=' * 60}")
+    _say("IOC Correlation Clusters")
+    _say(f"{'=' * 60}")
     for cl in clusters:
         verdict_label = cl.max_verdict.value
-        console.print(
-            f"{cl.cluster_id}  [{cl.attribute_type}]  {cl.shared_attribute}"
-            f"  members={cl.member_count}  max_verdict={verdict_label}"
+        _say(
+            _bracketed(
+                f"{cl.cluster_id}  ",
+                cl.attribute_type,
+                f"  {cl.shared_attribute}  members={cl.member_count}  max_verdict={verdict_label}",
+            )
         )
         for m in cl.members:
-            console.print(f"    {m}")
-    console.print(f"{'=' * 60}")
+            _say(f"    {m}")
+    _say(f"{'=' * 60}")

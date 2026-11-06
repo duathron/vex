@@ -60,11 +60,12 @@ def print_banner(
     # Version update notice (non-blocking, fail-silent)
     if update_check_enabled:
         try:
+            from .output.safe import single_line_text
             from .version_check import check_for_update
 
             latest = check_for_update(check_interval_hours)
             if latest:
-                err.print(f"  [bold yellow]Update available: {__version__} -> {latest}[/bold yellow]")
+                err.print(f"  [bold yellow]Update available: {__version__} -> {single_line_text(latest)}[/bold yellow]")
                 err.print("  [dim]pip install --upgrade vex  |  https://github.com/duathron/vex/releases[/dim]")
         except Exception:
             pass
