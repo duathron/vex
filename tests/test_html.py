@@ -6,6 +6,7 @@ No network calls. All results are built in-memory.
 from __future__ import annotations
 
 import os
+import re
 
 import pytest
 
@@ -307,6 +308,7 @@ def test_html_link_attribute_allowlist_with_sanitizer_bypassed(tmp_path, monkeyp
     import vex.output.html as vh
 
     monkeypatch.setattr(vh, "sanitize_for_render", lambda x: x)
+    monkeypatch.setattr(vh, "_strip_unsafe_links", lambda rec: None)  # exercise the second layer alone
     tri = _make_triage()
     tri.tags = [payload]
     html = _read(tmp_path, [tri])
@@ -349,3 +351,59 @@ def test_html_title_strips_control_and_bidi(tmp_path):
     html = _read(tmp_path, [_make_triage(ioc="evil.com\u202e\x1b]0;x\x07")])
     title = html.split("<title>", 1)[1].split("</title>", 1)[0]
     assert "\u202e" not in title and "\x1b" not in title and "\x07" not in title
+
+
+_SPLIT = '[link=https://a"><img/src=x/onerror=alert(1)><a/href="https://b]x[/link]'
+
+
+def _parse_dom(html):
+    from html.parser import HTMLParser
+
+    class P(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.tags = []
+
+        def handle_starttag(self, tag, attrs):
+            self.tags.append((tag, attrs))
+
+    p = P()
+    p.feed(html)
+    return p.tags
+
+
+def _assert_links_clean(html):
+    tags = _parse_dom(html)
+    assert not [t for t, _ in tags if t == "img"]
+    for tag, attrs in tags:
+        if tag == "a":
+            assert [k for k, _ in attrs] == ["href"], attrs
+            assert re.fullmatch(r"https?://[^\s\"'<>]*|#", attrs[0][1] or ""), attrs
+
+
+@pytest.mark.parametrize("where", ["tags", "subject"])
+def test_html_tag_splitting_link_value_cannot_inject_elements(tmp_path, monkeypatch, where):
+    import vex.output.html as vh
+
+    monkeypatch.setattr(vh, "sanitize_for_render", lambda x: x)
+    if where == "tags":
+        tri = _make_triage()
+        tri.tags = [_SPLIT]
+        results = [tri]
+    else:
+        results = [
+            InvestigateResult(
+                triage=_make_triage(), file_type="exe", signature_info={"subject": _SPLIT, "verified": "ok"}
+            )
+        ]
+    _assert_links_clean(_read(tmp_path, results))
+
+
+def test_html_legit_link_with_query_stays_clickable(tmp_path, monkeypatch):
+    import vex.output.html as vh
+
+    monkeypatch.setattr(vh, "sanitize_for_render", lambda x: x)
+    tri = _make_triage()
+    tri.tags = ["[link=https://ok.example/x?a=1&b=2]go[/link]"]
+    html = _read(tmp_path, [tri])
+    assert [a for t, a in _parse_dom(html) if t == "a"] == [[("href", "https://ok.example/x?a=1&b=2")]]

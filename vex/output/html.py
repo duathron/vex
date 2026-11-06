@@ -262,6 +262,18 @@ def _neutralise_links(body: str) -> str:
     return _A_TAG.sub(lambda m: m.group(0) if _SAFE_A_TAG.fullmatch(m.group(0)) else '<a href="#">', body)
 
 
+_SAFE_LINK = re.compile(r"https?://[A-Za-z0-9\-._~:/?#\[\]@!$&()*+,;=%]*", re.IGNORECASE)
+
+
+def _strip_unsafe_links(rec: Console) -> None:
+    """Drop every link style on *rec* whose target is not a plain http(s) URL (before export)."""
+    buf = rec._record_buffer
+    for i, seg in enumerate(buf):
+        link = seg.style.link if seg.style is not None else None
+        if link and not _SAFE_LINK.fullmatch(link):
+            buf[i] = seg._replace(style=seg.style.update_link(None))
+
+
 def _html_wrapper(body_html: str, title: str) -> str:
     """Wrap Rich-exported HTML in a minimal outer page with a header."""
     ts = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -327,6 +339,7 @@ def write_html_report(
 
     # export_html() returns a full <html>…</html> document from Rich.
     # We strip that and use our own wrapper to keep the dark theme consistent.
+    _strip_unsafe_links(rec)
     rich_html = rec.export_html(inline_styles=True)
 
     # Extract just the <body> content from Rich's output
