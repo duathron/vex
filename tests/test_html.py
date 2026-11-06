@@ -222,3 +222,67 @@ class TestMixedList:
         assert "<html" in content.lower()
         assert "evil[.]com" in content
         assert "bad[.]net" in content
+
+
+# ---------------------------------------------------------------------------
+# Render safety: title escape, link neutralisation (no network)
+# ---------------------------------------------------------------------------
+
+
+def _read(tmp_path, results):
+    p = tmp_path / "r.html"
+    write_html_report(str(p), results)
+    return p.read_text(encoding="utf-8")
+
+
+def test_html_title_escaped(tmp_path):
+    import re
+
+    html = _read(tmp_path, [_make_triage(ioc="http://a.test/</title><script>alert(1)</script>")])
+    m = re.search(r"<title>(.*?)</title>", html, re.S)
+    assert m is not None
+    assert "&lt;/title&gt;" in m.group(1)
+    assert "<script>" not in m.group(1)
+
+
+def test_html_no_javascript_href(tmp_path):
+    tri = _make_triage()
+    tri.tags = ["[link=javascript:alert(1)]click[/link]"]
+    html = _read(tmp_path, [tri])
+    assert 'href="javascript:' not in html
+
+
+def test_html_unsafe_href_neutralised_even_if_sanitizer_bypassed(tmp_path, monkeypatch):
+    import vex.output.html as vh
+
+    monkeypatch.setattr(vh, "sanitize_for_render", lambda x: x)
+    tri = _make_triage()
+    tri.tags = ["[link=javascript:alert(1)]click[/link]"]
+    html = _read(tmp_path, [tri])
+    assert 'href="javascript:' not in html
+
+
+def test_html_https_href_kept(tmp_path, monkeypatch):
+    import vex.output.html as vh
+
+    monkeypatch.setattr(vh, "sanitize_for_render", lambda x: x)
+    tri = _make_triage()
+    tri.tags = ["[link=https://ok.example/x]click[/link]"]
+    html = _read(tmp_path, [tri])
+    assert 'href="https://ok.example/x"' in html
+
+
+def test_html_markup_in_api_fields_renders_literally_triage(tmp_path):
+    tri = _make_triage()
+    tri.tags = ["x [/bogus] y [bold]z"]
+    html = _read(tmp_path, [tri])
+    assert "x [/bogus] y [bold]z" in html
+
+
+def test_html_markup_in_api_fields_renders_literally_investigate(tmp_path):
+    inv = InvestigateResult(
+        triage=_make_triage(), file_type="exe", file_names=["a [/bogus] [bold]b"], magic="m \x1b]0;PWN\x07"
+    )
+    html = _read(tmp_path, [inv])
+    assert "a [/bogus] [bold]b" in html
+    assert "PWN" not in html

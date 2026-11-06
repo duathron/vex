@@ -9,6 +9,8 @@ clickable malware indicators.
 
 from __future__ import annotations
 
+import html as _html
+import re
 from datetime import datetime, timezone
 from typing import Union
 
@@ -19,6 +21,7 @@ from ..models import InvestigateResult, TriageResult
 from .formatter import (
     _triage_panel,
 )
+from .safe import plain_text, sanitize_for_render
 
 
 def _defang_triage(result: TriageResult) -> TriageResult:
@@ -241,6 +244,14 @@ def _render_investigate_to_console(
         rec.print(Panel(url_grid, title="[bold]URL Details[/bold]", border_style="blue"))
 
 
+_UNSAFE_HREF = re.compile(r'href="(?!https?://|#)[^"]*"')
+
+
+def _neutralise_links(body: str) -> str:
+    """Defense in depth: only http(s) and fragment links survive in the report body."""
+    return _UNSAFE_HREF.sub('href="#"', body)
+
+
 def _html_wrapper(body_html: str, title: str) -> str:
     """Wrap Rich-exported HTML in a minimal outer page with a header."""
     ts = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -248,7 +259,7 @@ def _html_wrapper(body_html: str, title: str) -> str:
         "<!DOCTYPE html>\n"
         '<html lang="en">\n'
         "<head>\n"
-        f"<title>{title}</title>\n"
+        f"<title>{_html.escape(plain_text(title))}</title>\n"
         '<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         "<style>\n"
@@ -298,10 +309,10 @@ def write_html_report(
 
     for result in results:
         if isinstance(result, InvestigateResult):
-            safe = _defang_investigate(result)
+            safe = sanitize_for_render(_defang_investigate(result))
             _render_investigate_to_console(safe, rec)
         else:
-            safe = _defang_triage(result)
+            safe = sanitize_for_render(_defang_triage(result))
             _render_triage_to_console(safe, rec)
 
     # export_html() returns a full <html>…</html> document from Rich.
@@ -329,7 +340,7 @@ def write_html_report(
     if len(ioc_labels) > 3:
         title += f" (+{len(ioc_labels) - 3} more)"
 
-    html = _html_wrapper(body_content, title)
+    html = _html_wrapper(_neutralise_links(body_content), title)
 
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(html)
