@@ -27,13 +27,12 @@ def test_ai_explanation_console_escaped(monkeypatch):
     assert "\x1b[31m" not in out
 
 
-def test_template_explanation_is_NOT_escaped(monkeypatch):
-    # Field-scope positive control: template text is trusted; markup stays live.
+def test_template_explanation_with_markup_ioc_is_escaped(monkeypatch):
+    # Template text embeds the raw IOC, so it is escaped like any other explanation.
     con = _rec(monkeypatch)
-    formatter.print_explanation_rich("[bold]OK[/bold]", "template")
+    formatter.print_explanation_rich("IOC [bold]x[/bold]", "template")
     out = con.export_text()
-    assert "[bold]" not in out  # interpreted, not escaped
-    assert "OK" in out
+    assert "[bold]x[/bold]" in out  # literal, not interpreted
 
 
 def test_barb_context_explanation_escaped_but_severity_preserved(monkeypatch):

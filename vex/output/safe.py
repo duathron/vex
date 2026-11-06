@@ -16,7 +16,6 @@ import re
 from typing import Any
 
 from pydantic import BaseModel
-from rich.markup import escape
 from shipwright_kit.security.render import safe_render
 
 # (model class name, field name). Every other str-like field is SINGLE_LINE.
@@ -30,6 +29,7 @@ MULTI_LINE_FIELDS: frozenset[tuple[str, str]] = frozenset(
     }
 )
 
+_OPEN_BRACKET = re.compile(r"(\\*)\[")
 _LINE_BREAKS = re.compile(r"[\r\n\t]")
 
 
@@ -39,8 +39,17 @@ def plain_text(x: Any) -> str:
 
 
 def rich_text(x: Any) -> str:
-    """``plain_text`` plus Rich markup escaping; for every Rich sink."""
-    return escape(plain_text(x))
+    """``plain_text`` plus Rich markup escaping; for every Rich sink.
+
+    Escapes EVERY ``[`` (``rich.markup.escape`` only escapes completed ``[tag]`` sequences, so an
+    unterminated ``[link=...`` survives and a neighbouring list element or field supplies the ``]``).
+    A backslash run before ``[`` is doubled first so the escape stays one level deep.
+    """
+    out = _OPEN_BRACKET.sub(lambda m: m.group(1) * 2 + "\\[", plain_text(x))
+    # A trailing backslash run must have even length, or it escapes the next (trusted) "[" in the template.
+    if (len(out) - len(out.rstrip("\\"))) % 2:
+        out += "\\"
+    return out
 
 
 def single_line_text(x: Any, *, plain: bool = False) -> str:

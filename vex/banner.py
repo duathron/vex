@@ -54,7 +54,7 @@ def print_banner(
     if not sys.stdout.isatty():
         return
 
-    err = Console(stderr=True)
+    err = Console(stderr=True, emoji=False)
     err.print(_BANNER.format(version=__version__), highlight=False)
 
     # Version update notice (non-blocking, fail-silent)
