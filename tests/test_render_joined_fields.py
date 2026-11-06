@@ -193,3 +193,34 @@ def test_barb_rich_flattens_every_read_field(field, monkeypatch):
     )
     _, plain = _render(formatter.print_barb_context_rich, monkeypatch, ctx)
     assert any("x FORGED" in ln for ln in plain.splitlines()), plain
+
+
+def test_pair_fuzz_escaped_values_never_change_trusted_markup():
+    """Random A/B pairs between trusted tags: no MarkupError, no span except the trusted bold."""
+    import random
+
+    from rich.markup import MarkupError
+    from rich.text import Text
+
+    rng = random.Random(20261106)
+    alphabet = ["[", "]", "\\", "/", "link=", "x", " "]
+    bad = []
+    for _ in range(4000):
+        a, b = ("".join(rng.choice(alphabet) for _ in range(rng.randint(0, 8))) for _ in range(2))
+        try:
+            t = Text.from_markup(f"[bold]({rich_text(a)}): {rich_text(b)})[/bold]")
+        except MarkupError:
+            bad.append((a, b, "MarkupError"))
+            continue
+        if [s.style for s in t.spans] != ["bold"]:
+            bad.append((a, b, [s.style for s in t.spans], t.plain))
+    assert not bad, bad[:5]
+
+
+@pytest.mark.parametrize("value", ["C:\\temp\\", "x\\\\", "\\"])
+def test_trailing_backslash_cannot_swallow_a_trusted_tag(value):
+    from rich.text import Text
+
+    t = Text.from_markup(f"{rich_text(value)}[bold]ok[/bold]")
+    assert [s.style for s in t.spans] == ["bold"]
+    assert t.plain.endswith("ok") and "[bold]" not in t.plain
