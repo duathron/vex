@@ -20,6 +20,7 @@ import typer.core
 import typer.main
 from typer.testing import CliRunner
 
+import vex.version_check  # noqa: F401  (eager: pin the _STATE_PATH redirect, see fixture)
 from vex.main import _PlainUsageCommand, app
 
 runner = CliRunner()
