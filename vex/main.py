@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
+import typer.core
 
 from . import __version__
 from .banner import print_banner
@@ -104,6 +105,18 @@ def _quota_emit(tracker: Optional[QuotaTracker]) -> None:
         pass
 
 
+class _PlainUsageCommand(typer.core.TyperCommand):
+    """Keep uppercase argument names (`IOC`) in the usage line.
+
+    typer 0.27 wraps a required argument's metavar in braces (`{IOC}`); typer
+    0.26 prints it as given. Strip the braces so both read the same.
+    """
+
+    def collect_usage_pieces(self, ctx):  # type: ignore[no-untyped-def]
+        pieces = super().collect_usage_pieces(ctx)
+        return [p[1:-1] if p.startswith("{") and p.endswith("}") else p for p in pieces]
+
+
 app = typer.Typer(
     name="vex",
     help="VirusTotal IOC Enrichment Tool - query VT API v3 for malware analysis with optional AI-powered explanations.",
@@ -145,7 +158,7 @@ class OutputFormat(str, Enum):
 
 _IOCArg = Annotated[
     Optional[str],
-    typer.Argument(help="IOC to enrich (hash / IP / domain / URL). Reads from stdin if omitted."),
+    typer.Argument(metavar="IOC", help="IOC to enrich (hash / IP / domain / URL). Reads from stdin if omitted."),
 ]
 _FileOpt = Annotated[
     Optional[Path],
@@ -636,6 +649,7 @@ def _run_correlation_explain(
 
 
 @app.command(
+    cls=_PlainUsageCommand,
     name="triage",
     help="[bold cyan]Fast SOC triage[/bold cyan] - detection ratio, verdict, families. Minimal API calls.",
 )
@@ -941,6 +955,7 @@ def cmd_triage(
 
 
 @app.command(
+    cls=_PlainUsageCommand,
     name="investigate",
     help="[bold magenta]Deep DFIR investigation[/bold magenta] - PE info, sandbox, passive DNS, relationships.",
 )
@@ -2024,12 +2039,14 @@ separate gates must all be open before any write occurs.
 
 
 @app.command(
-    name="manual", help="[bold blue]Show usage guide[/bold blue] — setup, AI, config, addons, pipeline, examples."
+    cls=_PlainUsageCommand,
+    name="manual",
+    help="[bold blue]Show usage guide[/bold blue] — setup, AI, config, addons, pipeline, examples.",
 )
 def cmd_manual(
     topic: Annotated[
         Optional[str],
-        typer.Argument(help="Topic: ai, config, examples, pipeline, addons. Omit for overview."),
+        typer.Argument(metavar="TOPIC", help="Topic: ai, config, examples, pipeline, addons. Omit for overview."),
     ] = None,
 ) -> None:
     """Display comprehensive usage guides."""
@@ -2070,9 +2087,11 @@ def cmd_manual(
 # ---------------------------------------------------------------------------
 
 
-@app.command(name="tag", help="[bold green]Manage IOC tags[/bold green] in the local knowledge base.")
+@app.command(
+    cls=_PlainUsageCommand, name="tag", help="[bold green]Manage IOC tags[/bold green] in the local knowledge base."
+)
 def cmd_tag(
-    ioc: Annotated[str, typer.Argument(help="IOC to tag.")],
+    ioc: Annotated[str, typer.Argument(metavar="IOC", help="IOC to tag.")],
     add: Annotated[Optional[list[str]], typer.Option("--add", "-a", help="Tag(s) to add.")] = None,
     remove: Annotated[Optional[list[str]], typer.Option("--remove", "-r", help="Tag(s) to remove.")] = None,
 ) -> None:
@@ -2094,9 +2113,11 @@ def cmd_tag(
             console.print(f"[dim]No tags for {ioc}[/dim]")
 
 
-@app.command(name="note", help="[bold green]Manage IOC notes[/bold green] in the local knowledge base.")
+@app.command(
+    cls=_PlainUsageCommand, name="note", help="[bold green]Manage IOC notes[/bold green] in the local knowledge base."
+)
 def cmd_note(
-    ioc: Annotated[str, typer.Argument(help="IOC to annotate.")],
+    ioc: Annotated[str, typer.Argument(metavar="IOC", help="IOC to annotate.")],
     add: Annotated[Optional[str], typer.Option("--add", "-a", help="Note text to add.")] = None,
     delete_id: Annotated[Optional[int], typer.Option("--delete", "-d", help="Note ID to delete.")] = None,
 ) -> None:
@@ -2233,12 +2254,13 @@ def cmd_watchlist(
 
 
 @watchlist_app.command(
+    cls=_PlainUsageCommand,
     name="manage",
     help="[bold]Manage[/bold] IOCs in a watchlist (add / remove / list).",
     hidden=True,
 )
 def cmd_watchlist_manage(
-    name: Annotated[str, typer.Argument(help="Watchlist name.")],
+    name: Annotated[str, typer.Argument(metavar="NAME", help="Watchlist name.")],
     add: Annotated[Optional[list[str]], typer.Option("--add", "-a", help="IOC(s) to add.")] = None,
     remove: Annotated[Optional[list[str]], typer.Option("--remove", "-r", help="IOC(s) to remove.")] = None,
     show: Annotated[bool, typer.Option("--list", "-l", help="List all IOCs in this watchlist.")] = False,
@@ -2260,9 +2282,11 @@ def cmd_watchlist_manage(
     _run_watchlist_manage(name, synthetic)
 
 
-@watchlist_app.command(name="run", help="Re-triage every IOC in a watchlist and report verdict changes.")
+@watchlist_app.command(
+    cls=_PlainUsageCommand, name="run", help="Re-triage every IOC in a watchlist and report verdict changes."
+)
 def cmd_watchlist_run(
-    name: Annotated[str, typer.Argument(help="Watchlist name to re-triage.")],
+    name: Annotated[str, typer.Argument(metavar="NAME", help="Watchlist name to re-triage.")],
     output: Annotated[
         str,
         typer.Option("--output", "-o", help="Output format: rich (default) | console | json"),
