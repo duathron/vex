@@ -10,6 +10,7 @@ declared dependency; it is only transitive via typer).
 from __future__ import annotations
 
 import ast
+import importlib
 import re
 import socket
 from pathlib import Path
@@ -24,12 +25,39 @@ from vex.main import _PlainUsageCommand, app
 runner = CliRunner()
 
 
+# Import-time constants computed from `Path.home()`; HOME alone cannot redirect them.
+_STATE_CONSTANTS = (
+    ("vex.config", "_USER_CONFIG_PATH", "config.yaml"),
+    ("vex.quota_tracker", "_DEFAULT_STATE_PATH", "quota.json"),
+    ("vex.banner", "_FIRST_RUN_FLAG", ".first_run_complete"),
+    ("vex.version_check", "_STATE_PATH", "version_check.json"),
+)
+
+# Socket entry points that are blocked (each raises AssertionError when called).
+_BLOCKED_SOCKET_CALLS = (
+    (socket.socket, "connect"),
+    (socket.socket, "connect_ex"),
+    (socket.socket, "sendto"),
+    (socket, "getaddrinfo"),
+    (socket, "gethostbyname"),
+)
+
+
 @pytest.fixture(autouse=True)
 def _isolated_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """`--help` must neither read the user's real state nor touch the network.
 
-    HOME points at an empty directory, every credential / endpoint variable vex
-    reads is cleared, and any socket connect fails the test loudly.
+    State: HOME / USERPROFILE point at an empty directory (this redirects the
+    paths vex resolves at call time), and the four import-time constants in
+    `_STATE_CONSTANTS` (config, quota, first-run flag, version-check state) are
+    re-pointed under `tmp_path / ".vex"`, because they were computed from
+    `Path.home()` at import and ignore a later HOME change. Every credential /
+    endpoint variable vex reads is cleared.
+
+    Network: `socket.socket.connect`, `connect_ex`, `sendto`, `socket.getaddrinfo`
+    and `socket.gethostbyname` raise AssertionError. Not guarded: subprocesses and
+    sockets created through other APIs (e.g. `socket.create_connection` resolves via
+    `getaddrinfo` and so is covered; raw `socket.gethostbyname_ex` is not).
     """
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
@@ -45,10 +73,38 @@ def _isolated_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
     ):
         monkeypatch.delenv(var, raising=False)
 
-    def _no_network(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+    for module_name, attr, filename in _STATE_CONSTANTS:
+        module = importlib.import_module(module_name)
+        monkeypatch.setattr(module, attr, tmp_path / ".vex" / filename)
+
+    def _no_network(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("network access attempted during a --help test")
 
-    monkeypatch.setattr(socket.socket, "connect", _no_network)
+    for owner, name in _BLOCKED_SOCKET_CALLS:
+        monkeypatch.setattr(owner, name, _no_network)
+
+
+def test_isolation_guard_redirects_state_and_blocks_network(tmp_path: Path) -> None:
+    """Positive control: the autouse fixture really does what its docstring says."""
+    for module_name, attr, _filename in _STATE_CONSTANTS:
+        value = getattr(importlib.import_module(module_name), attr)
+        assert value is not None
+        assert Path(value).is_relative_to(tmp_path), f"{module_name}.{attr} escapes tmp_path"
+
+    sock = socket.socket()
+    try:
+        with pytest.raises(AssertionError, match="network access"):
+            sock.connect(("127.0.0.1", 9))
+        with pytest.raises(AssertionError, match="network access"):
+            sock.connect_ex(("127.0.0.1", 9))
+        with pytest.raises(AssertionError, match="network access"):
+            sock.sendto(b"x", ("127.0.0.1", 9))
+    finally:
+        sock.close()
+    with pytest.raises(AssertionError, match="network access"):
+        socket.getaddrinfo("example.invalid", 80)
+    with pytest.raises(AssertionError, match="network access"):
+        socket.gethostbyname("example.invalid")
 
 
 VEX_PKG = Path(__file__).resolve().parent.parent / "vex"
