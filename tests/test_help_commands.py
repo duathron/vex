@@ -11,15 +11,45 @@ from __future__ import annotations
 
 import ast
 import re
+import socket
 from pathlib import Path
 
 import pytest
+import typer.core
 import typer.main
 from typer.testing import CliRunner
 
-from vex.main import app
+from vex.main import _PlainUsageCommand, app
 
 runner = CliRunner()
+
+
+@pytest.fixture(autouse=True)
+def _isolated_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """`--help` must neither read the user's real state nor touch the network.
+
+    HOME points at an empty directory, every credential / endpoint variable vex
+    reads is cleared, and any socket connect fails the test loudly.
+    """
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    for var in (
+        "VT_API_KEY",
+        "VEX_AI_API_KEY",
+        "VEX_ABUSEIPDB_API_KEY",
+        "VEX_SHODAN_API_KEY",
+        "MISP_URL",
+        "MISP_API_KEY",
+        "OPENCTI_URL",
+        "OPENCTI_TOKEN",
+    ):
+        monkeypatch.delenv(var, raising=False)
+
+    def _no_network(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("network access attempted during a --help test")
+
+    monkeypatch.setattr(socket.socket, "connect", _no_network)
+
 
 VEX_PKG = Path(__file__).resolve().parent.parent / "vex"
 
@@ -243,3 +273,62 @@ def test_no_module_under_vex_imports_click() -> None:
         for lineno in find_click_imports(path.read_text(encoding="utf-8")):
             offenders.append(f"{path.relative_to(VEX_PKG.parent)}:{lineno}")
     assert offenders == [], f"undeclared dependency click imported at: {offenders}"
+
+
+# ---------------------------------------------------------------------------
+# Pins that do not depend on which typer is installed. The rendered-output tests
+# above only go red on a typer that brace-wraps (0.27); these go red on any.
+# ---------------------------------------------------------------------------
+
+# Commands with a REQUIRED argument: typer 0.27 renders `{IOC}`, so each needs
+# `cls=_PlainUsageCommand`. Optional-argument commands (triage, investigate,
+# manual) render `[IOC]` / `[TOPIC]` without braces and deliberately use the
+# default class; the test below pins both sides.
+_NEEDS_PLAIN_USAGE = {("tag",), ("note",), ("watchlist", "run"), ("watchlist", "manage")}
+_PLAIN_BY_DEFAULT = {("triage",), ("investigate",), ("manual",)}
+
+# Command path -> {argument name: exact metavar}
+_EXPECTED_METAVARS = {
+    ("triage",): {"ioc": "IOC"},
+    ("investigate",): {"ioc": "IOC"},
+    ("manual",): {"topic": "TOPIC"},
+    ("tag",): {"ioc": "IOC"},
+    ("note",): {"ioc": "IOC"},
+    ("watchlist", "run"): {"name": "NAME"},
+    ("watchlist", "manage"): {"name": "NAME"},
+}
+
+
+def _command(path: tuple[str, ...]):
+    cmd = typer.main.get_command(app)
+    for part in path:
+        cmd = cmd.commands[part]
+    return cmd
+
+
+def test_override_strips_only_a_fully_braced_piece(monkeypatch: pytest.MonkeyPatch) -> None:
+    pieces = ["[OPTIONS]", "{IOC}", "[ioc]", "{x}...", "a{b}", "{c", "COMMAND"]
+    monkeypatch.setattr(typer.core.TyperCommand, "collect_usage_pieces", lambda self, ctx: list(pieces))
+    cmd = _PlainUsageCommand(name="probe")
+    assert cmd.collect_usage_pieces(None) == ["[OPTIONS]", "IOC", "[ioc]", "{x}...", "a{b}", "{c", "COMMAND"]
+
+
+@pytest.mark.parametrize("path", sorted(_NEEDS_PLAIN_USAGE), ids=lambda p: " ".join(p))
+def test_required_argument_commands_use_the_plain_usage_class(path: tuple[str, ...]) -> None:
+    assert type(_command(path)) is _PlainUsageCommand
+
+
+@pytest.mark.parametrize("path", sorted(_PLAIN_BY_DEFAULT), ids=lambda p: " ".join(p))
+def test_optional_argument_commands_use_the_default_class(path: tuple[str, ...]) -> None:
+    assert type(_command(path)) is typer.core.TyperCommand
+
+
+def test_plain_usage_class_set_is_exactly_the_pinned_set() -> None:
+    plain = {path for path in _command_paths() if type(_command(path)) is _PlainUsageCommand}
+    assert plain == _NEEDS_PLAIN_USAGE
+
+
+@pytest.mark.parametrize("path", sorted(_EXPECTED_METAVARS), ids=lambda p: " ".join(p))
+def test_argument_metavars_are_the_uppercase_names(path: tuple[str, ...]) -> None:
+    args = {p.name: p.metavar for p in _command(path).params if p.param_type_name == "argument"}
+    assert args == _EXPECTED_METAVARS[path]

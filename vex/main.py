@@ -109,7 +109,10 @@ class _PlainUsageCommand(typer.core.TyperCommand):
     """Keep uppercase argument names (`IOC`) in the usage line.
 
     typer 0.27 wraps a required argument's metavar in braces (`{IOC}`); typer
-    0.26 prints it as given. Strip the braces so both read the same.
+    0.26 prints it as given. Strip the braces so both read the same. Only the
+    commands with a required argument (tag, note, watchlist run / manage) use
+    this class: an optional argument (`[IOC]`, `[TOPIC]`) is not brace-wrapped
+    on either version, and tests/test_help_commands.py pins both sets.
     """
 
     def collect_usage_pieces(self, ctx):  # type: ignore[no-untyped-def]
@@ -649,7 +652,6 @@ def _run_correlation_explain(
 
 
 @app.command(
-    cls=_PlainUsageCommand,
     name="triage",
     help="[bold cyan]Fast SOC triage[/bold cyan] - detection ratio, verdict, families. Minimal API calls.",
 )
@@ -955,7 +957,6 @@ def cmd_triage(
 
 
 @app.command(
-    cls=_PlainUsageCommand,
     name="investigate",
     help="[bold magenta]Deep DFIR investigation[/bold magenta] - PE info, sandbox, passive DNS, relationships.",
 )
@@ -2039,7 +2040,6 @@ separate gates must all be open before any write occurs.
 
 
 @app.command(
-    cls=_PlainUsageCommand,
     name="manual",
     help="[bold blue]Show usage guide[/bold blue] — setup, AI, config, addons, pipeline, examples.",
 )
