@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.2](https://github.com/duathron/vex/compare/v1.8.1...v1.8.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* add safe render helpers and escape the HTML report title and links ([#38](https://github.com/duathron/vex/issues/38)) ([58b4adf](https://github.com/duathron/vex/commit/58b4adfd0c12e6b5dfc59c9fc5a12a67891a9e32))
+* escape terminal output of IOC, timeline, cluster and barb fields ([#39](https://github.com/duathron/vex/issues/39)) ([cc750ec](https://github.com/duathron/vex/commit/cc750ecbc50f01ba35c8b984374fb9528f87d273))
+* keep attacker text out of bracket pairs and stop console lines wrapping into forged lines ([#40](https://github.com/duathron/vex/issues/40)) ([d2b1e80](https://github.com/duathron/vex/commit/d2b1e809bfde3fafae3814d40bc5f379b3e5e70e))
+* keep uppercase argument names in usage lines on typer 0.27 ([#48](https://github.com/duathron/vex/issues/48)) ([6c6f003](https://github.com/duathron/vex/commit/6c6f003916baa21175cac045a3c078b00e01c35a))
+* stop passing temperature to the Anthropic SDK ([#36](https://github.com/duathron/vex/issues/36)) ([de74140](https://github.com/duathron/vex/commit/de74140ad47fc6b03db10fed5607a5899c514cb6))
+
 ## [1.8.1](https://github.com/duathron/vex/compare/v1.8.0...v1.8.1) (2026-07-14)
 
 
